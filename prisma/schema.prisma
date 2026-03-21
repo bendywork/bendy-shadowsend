@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoomStatus {
+  ACTIVE
+  DELETED
+}
+
+enum RoomRole {
+  OWNER
+  MEMBER
+}
+
+enum MemberStatus {
+  ACTIVE
+  PENDING
+  KICKED
+  LEFT
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InviteStatus {
+  ACTIVE
+  USED
+  EXPIRED
+}
+
+enum MessageType {
+  TEXT
+  FILE
+  MIXED
+}
+
+enum PreviewType {
+  NONE
+  IMAGE
+  VIDEO
+}
+
+model User {
+  id                 String         @id @default(cuid())
+  nickname           String
+  avatarInitial      String
+  avatarColor        String
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  ownedRooms         Room[]         @relation("RoomOwner")
+  memberships        RoomMember[]
+  invitedMemberships RoomMember[]   @relation("MembershipInviter")
+  sentMessages       Message[]      @relation("MessageSender")
+  uploadedAttachments MessageAttachment[] @relation("AttachmentUploader")
+  presences          Presence[]
+  sentInvites        RoomInvite[]   @relation("InviteSender")
+  usedInvites        RoomInvite[]   @relation("InviteUsedBy")
+  joinRequests       JoinRequest[]  @relation("RequestApplicant")
+  reviewedRequests   JoinRequest[]  @relation("RequestReviewer")
+}
+
+model Room {
+  id                String       @id @default(cuid())
+  roomCode          String       @unique
+  name              String
+  ownerId           String
+  owner             User         @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  gateCode          String?
+  gateCodeExpiresAt DateTime?
+  announcementText  String?
+  announcementImageKey String?
+  announcementImageName String?
+  announcementUpdatedAt DateTime?
+  status            RoomStatus   @default(ACTIVE)
+  deletedAt         DateTime?
+  lastActiveAt      DateTime     @default(now())
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  members           RoomMember[]
+  messages          Message[]
+  invites           RoomInvite[]
+  joinRequests      JoinRequest[]
+  attachments       MessageAttachment[]
+  presences         Presence[]
+
+  @@index([status, lastActiveAt])
+  @@index([ownerId, status])
+}
+
+model RoomMember {
+  id              String       @id @default(cuid())
+  roomId          String
+  userId          String
+  role            RoomRole     @default(MEMBER)
+  status          MemberStatus @default(ACTIVE)
+  requiresApproval Boolean     @default(false)
+  announcementSeenAt DateTime?
+  joinedAt        DateTime?
+  kickedAt        DateTime?
+  lastSeenAt      DateTime     @default(now())
+  invitedById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  room            Room         @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  invitedBy       User?        @relation("MembershipInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+  requests        JoinRequest[]
+
+  @@unique([roomId, userId])
+  @@index([userId, status])
+  @@index([roomId, status])
+}
+
+model JoinRequest {
+  id           String        @id @default(cuid())
+  roomId       String
+  userId       String
+  memberId     String?
+  status       RequestStatus @default(PENDING)
+  reason       String?
+  reviewedAt   DateTime?
+  reviewedById String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user         User          @relation("RequestApplicant", fields: [userId], references: [id], onDelete: Restrict)
+  member       RoomMember?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  reviewedBy   User?         @relation("RequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([roomId, status, createdAt])
+  @@index([userId, status])
+}
+
+model RoomInvite {
+  id        String      @id @default(cuid())
+  roomId     String
+  token      String      @unique
+  inviterId  String
+  status     InviteStatus @default(ACTIVE)
+  expiresAt  DateTime
+  usedById   String?
+  usedAt     DateTime?
+  createdAt  DateTime     @default(now())
+  room       Room         @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  inviter    User         @relation("InviteSender", fields: [inviterId], references: [id], onDelete: Restrict)
+  usedBy     User?        @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([roomId, status, expiresAt])
+}
+
+model Message {
+  id               String             @id @default(cuid())
+  roomId           String
+  senderId         String
+  type             MessageType        @default(TEXT)
+  encryptedContent String?
+  createdAt        DateTime           @default(now())
+  room             Room               @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  sender           User               @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  attachments      MessageAttachment[]
+
+  @@index([roomId, createdAt])
+}
+
+model MessageAttachment {
+  id         String      @id @default(cuid())
+  messageId  String
+  roomId     String
+  uploaderId String
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  s3Key      String
+  previewType PreviewType @default(NONE)
+  createdAt  DateTime     @default(now())
+  message    Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  room       Room         @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  uploader   User         @relation("AttachmentUploader", fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([roomId, createdAt])
+}
+
+model Presence {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  roomId     String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  room       Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@index([lastSeenAt])
+  @@index([roomId, lastSeenAt])
+}
+
