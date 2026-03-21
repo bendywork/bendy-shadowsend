@@ -9,34 +9,69 @@ import { cleanupStaleRooms } from "@/lib/room-service";
 
 export async function GET(request: NextRequest) {
   try {
-    await cleanupStaleRooms();
+    try {
+      await cleanupStaleRooms();
+    } catch {
+      // cleanup failure should not block user bootstrap
+    }
 
     const { user, cookieToSet } = await getOrCreateUser(request);
 
-    const [memberships, totalOnline] = await Promise.all([
-      prisma.roomMember.findMany({
-        where: {
-          userId: user.id,
-          status: MemberStatus.ACTIVE,
-          room: {
-            status: RoomStatus.ACTIVE,
+    let memberships: Array<{
+      role: RoomRole;
+      room: {
+        id: string;
+        roomCode: string;
+        name: string;
+        ownerId: string;
+        gateCode: string | null;
+        gateCodeExpiresAt: Date | null;
+        createdAt: Date;
+      };
+    }> = [];
+    let totalOnline = 0;
+
+    try {
+      [memberships, totalOnline] = await Promise.all([
+        prisma.roomMember.findMany({
+          where: {
+            userId: user.id,
+            status: MemberStatus.ACTIVE,
+            room: {
+              status: RoomStatus.ACTIVE,
+            },
           },
-        },
-        include: {
-          room: true,
-        },
-        orderBy: {
-          room: {
-            createdAt: "desc",
+          select: {
+            role: true,
+            room: {
+              select: {
+                id: true,
+                roomCode: true,
+                name: true,
+                ownerId: true,
+                gateCode: true,
+                gateCodeExpiresAt: true,
+                createdAt: true,
+              },
+            },
           },
-        },
-      }),
-      prisma.presence.count({
-        where: {
-          lastSeenAt: { gte: new Date(Date.now() - 2 * 60_000) },
-        },
-      }),
-    ]);
+          orderBy: {
+            room: {
+              createdAt: "desc",
+            },
+          },
+        }),
+        prisma.presence.count({
+          where: {
+            lastSeenAt: { gte: new Date(Date.now() - 2 * 60_000) },
+          },
+        }),
+      ]);
+    } catch {
+      // membership/stat query failure should not block homepage identity rendering
+      memberships = [];
+      totalOnline = 0;
+    }
 
     const createdRooms = memberships
       .filter((item) => item.role === RoomRole.OWNER)

@@ -65,6 +65,17 @@ export const reviewRequestSchema = z.object({
 
 export const roomCodeSchema = z.string().trim().min(4).max(64);
 
+export const updateRoomGateCodeSchema = z.object({
+  gateCode: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .refine((value) => !value || /^\d{6}$/.test(value), {
+      message: "门禁码必须是 6 位数字",
+    }),
+});
+
 export const roomAnnouncementSchema = z.object({
   text: z
     .string()

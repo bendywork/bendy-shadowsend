@@ -3,7 +3,6 @@ export const APP_OPEN_SOURCE = "MIT";
 
 export const MAX_USER_ROOMS = 10;
 export const MAX_ROOM_MEMBERS = 20;
-export const GATE_CODE_TTL_MS = 60_000;
 export const GATE_CODE_RECYCLE_WINDOW_MS = 60_000;
 export const ROOM_IDLE_DESTROY_MS = 10 * 60_000;
 export const ONLINE_WINDOW_MS = 2 * 60_000;

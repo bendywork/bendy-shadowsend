@@ -10,11 +10,15 @@ datasource db {
 enum RoomStatus {
   ACTIVE
   DELETED
+
+  @@map("bendy_shadowsend_room_status")
 }
 
 enum RoomRole {
   OWNER
   MEMBER
+
+  @@map("bendy_shadowsend_room_role")
 }
 
 enum MemberStatus {
@@ -22,30 +26,40 @@ enum MemberStatus {
   PENDING
   KICKED
   LEFT
+
+  @@map("bendy_shadowsend_member_status")
 }
 
 enum RequestStatus {
   PENDING
   APPROVED
   REJECTED
+
+  @@map("bendy_shadowsend_request_status")
 }
 
 enum InviteStatus {
   ACTIVE
   USED
   EXPIRED
+
+  @@map("bendy_shadowsend_invite_status")
 }
 
 enum MessageType {
   TEXT
   FILE
   MIXED
+
+  @@map("bendy_shadowsend_message_type")
 }
 
 enum PreviewType {
   NONE
   IMAGE
   VIDEO
+
+  @@map("bendy_shadowsend_preview_type")
 }
 
 model User {
@@ -65,6 +79,8 @@ model User {
   usedInvites        RoomInvite[]   @relation("InviteUsedBy")
   joinRequests       JoinRequest[]  @relation("RequestApplicant")
   reviewedRequests   JoinRequest[]  @relation("RequestReviewer")
+
+  @@map("bendy_shadowsend_user")
 }
 
 model Room {
@@ -93,6 +109,7 @@ model Room {
 
   @@index([status, lastActiveAt])
   @@index([ownerId, status])
+  @@map("bendy_shadowsend_room")
 }
 
 model RoomMember {
@@ -117,6 +134,7 @@ model RoomMember {
   @@unique([roomId, userId])
   @@index([userId, status])
   @@index([roomId, status])
+  @@map("bendy_shadowsend_room_member")
 }
 
 model JoinRequest {
@@ -137,6 +155,7 @@ model JoinRequest {
 
   @@index([roomId, status, createdAt])
   @@index([userId, status])
+  @@map("bendy_shadowsend_join_request")
 }
 
 model RoomInvite {
@@ -154,6 +173,7 @@ model RoomInvite {
   usedBy     User?        @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
 
   @@index([roomId, status, expiresAt])
+  @@map("bendy_shadowsend_room_invite")
 }
 
 model Message {
@@ -168,6 +188,7 @@ model Message {
   attachments      MessageAttachment[]
 
   @@index([roomId, createdAt])
+  @@map("bendy_shadowsend_message")
 }
 
 model MessageAttachment {
@@ -186,6 +207,7 @@ model MessageAttachment {
   uploader   User         @relation("AttachmentUploader", fields: [uploaderId], references: [id], onDelete: Restrict)
 
   @@index([roomId, createdAt])
+  @@map("bendy_shadowsend_message_attachment")
 }
 
 model Presence {
@@ -200,5 +222,6 @@ model Presence {
 
   @@index([lastSeenAt])
   @@index([roomId, lastSeenAt])
+  @@map("bendy_shadowsend_presence")
 }
 

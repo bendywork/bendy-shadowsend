@@ -63,25 +63,39 @@ export async function getOrCreateUser(request: NextRequest): Promise<{
   user: User;
   cookieToSet?: string;
 }> {
-  const cookieUserId = request.cookies.get(USER_COOKIE_NAME)?.value;
+  const cookieUserId = request.cookies.get(USER_COOKIE_NAME)?.value?.trim();
 
   if (cookieUserId) {
-    const existing = await prisma.user.findUnique({ where: { id: cookieUserId } });
-    if (existing) {
-      return { user: existing };
+    try {
+      const existing = await prisma.user.findUnique({ where: { id: cookieUserId } });
+      if (existing) {
+        return { user: existing };
+      }
+    } catch {
+      // ignore stale/invalid cookie and continue creating a new user
     }
   }
 
-  const nickname = buildRandomNickname();
-  const user = await prisma.user.create({
-    data: {
-      nickname,
-      avatarInitial: resolveInitial(nickname),
-      avatarColor: randomItem(colorPool),
-    },
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const nickname = buildRandomNickname();
+      const user = await prisma.user.create({
+        data: {
+          nickname,
+          avatarInitial: resolveInitial(nickname),
+          avatarColor: randomItem(colorPool),
+        },
+      });
 
-  return { user, cookieToSet: user.id };
+      return { user, cookieToSet: user.id };
+    } catch (error) {
+      if (attempt === 2) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("创建用户失败");
 }
 
 export function applyUserCookie(response: NextResponse, cookieToSet?: string) {

@@ -77,6 +77,7 @@ export default function RoomPage() {
   const [clearNoticeImage, setClearNoticeImage] = useState(false);
 
   const [showNoticePopup, setShowNoticePopup] = useState(false);
+  const [gateCodeInput, setGateCodeInput] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
 
   const isOwner = snap?.me.role === "OWNER";
@@ -112,6 +113,11 @@ export default function RoomPage() {
     if (!showQr || !joinLink) return;
     void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark: "#e5edf9", light: "#00000000" } }).then(setQr);
   }, [showQr, joinLink]);
+
+  useEffect(() => {
+    if (!snap || snap.me.role !== "OWNER") return;
+    setGateCodeInput(snap.room.gateCode ?? "");
+  }, [snap]);
 
   const rooms = useMemo(() => ({ created: boot?.tree.createdRooms ?? [], joined: boot?.tree.joinedRooms ?? [] }), [boot]);
 
@@ -220,6 +226,35 @@ export default function RoomPage() {
     finally { setAction(null); }
   }
 
+  async function updateGateCode() {
+    if (!isOwner) return;
+    setAction("gate-code");
+    setError(null);
+    try {
+      const normalized = gateCodeInput.replace(/\D/g, "").slice(0, 6);
+      if (normalized.length > 0 && normalized.length !== 6) {
+        throw new Error("门禁码必须是 6 位数字，留空则表示不设置门禁码");
+      }
+
+      await apiFetch<{ gateCode: string | null; hasGateCode: boolean }>(
+        `/api/rooms/${roomCode}/gate-code`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            gateCode: normalized || undefined,
+          }),
+        },
+      );
+      await refresh();
+      setHint(normalized ? "门禁码已更新" : "已清除门禁码");
+      window.setTimeout(() => setHint(null), 2200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "门禁码更新失败");
+    } finally {
+      setAction(null);
+    }
+  }
+
   if (loading) return <main className="flex min-h-screen items-center justify-center text-slate-300"><LoaderCircle className="h-6 w-6 animate-spin" /></main>;
   if (error && !snap) return <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center"><p className="text-sm text-rose-300">{error}</p><Link href="/" className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200">返回首页</Link></main>;
   if (!snap) return null;
@@ -267,9 +302,107 @@ export default function RoomPage() {
 
         {showMembers ? (
           <aside className="flex min-h-[220px] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4">
-            <div className="mb-3"><p className="text-xs uppercase tracking-[0.16em] text-slate-500">成员列表</p><h2 className="text-lg font-semibold text-slate-100">{snap.members.length} 人</h2></div>
-            <div className="space-y-2 overflow-y-auto">{snap.members.map((m) => <div key={m.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2"><div className="flex items-start justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" /><div className="min-w-0"><p className="truncate text-sm text-slate-200">{m.user.nickname}</p><p className="text-xs text-slate-500">{m.role === "OWNER" ? "房主" : "成员"} · {m.joinedAt ? fmt(m.joinedAt) : "--"}</p></div></div>{isOwner && m.role !== "OWNER" ? <button type="button" onClick={() => kick(m)} disabled={action === `kick-${m.id}`} className="inline-flex items-center gap-1 rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 disabled:opacity-60"><UserMinus className="h-3 w-3" /> 踢出</button> : null}</div></div>)}</div>
-            {isOwner ? <div className="mt-4 border-t border-slate-800 pt-3"><h3 className="mb-2 text-sm font-semibold text-slate-200">再次加入审批</h3><div className="space-y-2">{snap.pendingRequests.length === 0 ? <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">暂无待审批</p> : snap.pendingRequests.map((r) => <div key={r.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5"><div className="mb-2 flex items-center gap-2"><Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" /><div><p className="text-sm text-slate-200">{r.user.nickname}</p><p className="text-[11px] text-slate-500">{fmt(r.createdAt)}</p></div></div><div className="flex gap-2"><button type="button" onClick={() => review(r, "approve")} disabled={action === `approve-${r.id}`} className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 disabled:opacity-60"><Check className="h-3 w-3" /> 通过</button><button type="button" onClick={() => review(r, "reject")} disabled={action === `reject-${r.id}`} className="inline-flex items-center gap-1 rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 disabled:opacity-60"><X className="h-3 w-3" /> 拒绝</button></div></div>)}</div></div> : null}
+            <div className="mb-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">成员列表</p>
+              <h2 className="text-lg font-semibold text-slate-100">{snap.members.length} 人</h2>
+            </div>
+
+            <div className="space-y-2 overflow-y-auto">
+              {snap.members.map((m) => (
+                <div key={m.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-slate-200">{m.user.nickname}</p>
+                        <p className="text-xs text-slate-500">
+                          {m.role === "OWNER" ? "房主" : "成员"} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
+                        </p>
+                      </div>
+                    </div>
+                    {isOwner && m.role !== "OWNER" ? (
+                      <button
+                        type="button"
+                        onClick={() => kick(m)}
+                        disabled={action === `kick-${m.id}`}
+                        className="inline-flex items-center gap-1 rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 disabled:opacity-60"
+                      >
+                        <UserMinus className="h-3 w-3" /> 踢出
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {isOwner ? (
+              <div className="mt-4 border-t border-slate-800 pt-3">
+                <h3 className="mb-2 text-sm font-semibold text-slate-200">再次加入审批</h3>
+                <div className="space-y-2">
+                  {snap.pendingRequests.length === 0 ? (
+                    <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">
+                      暂无待审批
+                    </p>
+                  ) : (
+                    snap.pendingRequests.map((r) => (
+                      <div key={r.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                        <div className="mb-2 flex items-center gap-2">
+                          <Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" />
+                          <div>
+                            <p className="text-sm text-slate-200">{r.user.nickname}</p>
+                            <p className="text-[11px] text-slate-500">{fmt(r.createdAt)}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => review(r, "approve")}
+                            disabled={action === `approve-${r.id}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 disabled:opacity-60"
+                          >
+                            <Check className="h-3 w-3" /> 通过
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => review(r, "reject")}
+                            disabled={action === `reject-${r.id}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 disabled:opacity-60"
+                          >
+                            <X className="h-3 w-3" /> 拒绝
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {isOwner ? (
+              <div className="mt-4 border-t border-slate-800 pt-3">
+                <h3 className="mb-2 text-sm font-semibold text-slate-200">修改邀请码</h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={gateCodeInput}
+                    onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="6位数字，留空表示不设置"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={updateGateCode}
+                    disabled={action === "gate-code"}
+                    className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
+                  >
+                    {action === "gate-code" ? "保存中..." : "保存"}
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  当前门禁码：{snap.room.gateCode ?? "未设置"}
+                </p>
+              </div>
+            ) : null}
+
             {error ? <p className="mt-3 text-xs text-rose-300">{error}</p> : null}
           </aside>
         ) : null}

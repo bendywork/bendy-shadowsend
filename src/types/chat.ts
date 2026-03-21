@@ -86,6 +86,7 @@ export type RoomSnapshot = {
     owner: ClientUser;
     hasGateCode: boolean;
     gateCodeExpiresAt: string | null;
+    gateCode: string | null;
   };
   announcement: {
     text: string | null;

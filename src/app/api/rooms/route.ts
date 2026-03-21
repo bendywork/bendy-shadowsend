@@ -1,7 +1,6 @@
 ﻿import { MemberStatus, RoomRole } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
-import { GATE_CODE_TTL_MS } from "@/lib/constants";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import {
@@ -49,9 +48,7 @@ export async function POST(request: NextRequest) {
               name: payload.name,
               ownerId: user.id,
               gateCode: payload.gateCode,
-              gateCodeExpiresAt: payload.gateCode
-                ? new Date(now.getTime() + GATE_CODE_TTL_MS)
-                : null,
+              gateCodeExpiresAt: null,
               lastActiveAt: now,
             },
           });

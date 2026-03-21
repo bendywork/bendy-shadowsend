@@ -160,6 +160,7 @@ export async function GET(
         owner: room.owner,
         hasGateCode: Boolean(room.gateCode),
         gateCodeExpiresAt: room.gateCodeExpiresAt?.toISOString() ?? null,
+        gateCode: membership.role === RoomRole.OWNER ? room.gateCode : null,
       },
       announcement: {
         text: room.announcementText,

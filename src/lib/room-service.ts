@@ -133,13 +133,23 @@ export function assertRoomActive(room: { status: RoomStatus } | null) {
   }
 }
 
-export async function assertGateCodeUniqueWithinWindow(gateCode: string) {
+export async function assertGateCodeUniqueWithinWindow(
+  gateCode: string,
+  options?: { excludeRoomId?: string },
+) {
   const since = new Date(Date.now() - GATE_CODE_RECYCLE_WINDOW_MS);
   const conflict = await prisma.room.findFirst({
     where: {
       status: RoomStatus.ACTIVE,
       gateCode,
       createdAt: { gte: since },
+      ...(options?.excludeRoomId
+        ? {
+            id: {
+              not: options.excludeRoomId,
+            },
+          }
+        : {}),
     },
     select: { id: true },
   });

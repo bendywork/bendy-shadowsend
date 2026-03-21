@@ -133,10 +133,6 @@ export async function POST(
     const canBypassGateCode = Boolean(inviteToUse);
 
     if (room.gateCode && !canBypassGateCode) {
-      if (!room.gateCodeExpiresAt || room.gateCodeExpiresAt.getTime() < now.getTime()) {
-        throw new ApiError(400, "门禁码已过期，无法加入该房间", "GATE_CODE_EXPIRED");
-      }
-
       if (!payload.gateCode || payload.gateCode !== room.gateCode) {
         throw new ApiError(400, "门禁码错误", "GATE_CODE_INVALID");
       }
