@@ -22,10 +22,20 @@ type CreateResult = {
 
 type TabType = "join" | "create";
 
+type MePayload = {
+  user: {
+    id: string;
+    nickname: string;
+    avatarInitial: string;
+    avatarColor: string;
+  };
+};
+
 export default function HomePage() {
   const router = useRouter();
   const [tab, setTab] = useState<TabType>("join");
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
+  const [fallbackMe, setFallbackMe] = useState<MePayload["user"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,10 +53,34 @@ export default function HomePage() {
 
     async function bootstrapPage() {
       try {
-        const payload = await apiFetch<BootstrapPayload>("/api/bootstrap");
+        const [meResult, bootstrapResult] = await Promise.allSettled([
+          apiFetch<MePayload>("/api/me"),
+          apiFetch<BootstrapPayload>("/api/bootstrap"),
+        ]);
+
         if (!alive) return;
 
-        setBootstrap(payload);
+        const mePayload =
+          meResult.status === "fulfilled" ? meResult.value.user : null;
+        const bootPayload =
+          bootstrapResult.status === "fulfilled" ? bootstrapResult.value : null;
+
+        if (mePayload) {
+          setFallbackMe(mePayload);
+        }
+
+        if (bootPayload) {
+          setBootstrap(bootPayload);
+          setFallbackMe(bootPayload.me);
+        }
+
+        if (!bootPayload && !mePayload) {
+          throw new Error("初始化失败，请刷新重试");
+        }
+
+        if (!bootPayload) {
+          return;
+        }
 
         const search = new URLSearchParams(window.location.search);
         const queryRoom = search.get("room");
@@ -59,8 +93,8 @@ export default function HomePage() {
           setInfo(queryInvite ? "检测到邀请链接，可直接加入" : null);
         } else {
           const roomCandidates = [
-            ...payload.tree.createdRooms,
-            ...payload.tree.joinedRooms,
+            ...bootPayload.tree.createdRooms,
+            ...bootPayload.tree.joinedRooms,
           ].map((item) => item.roomCode);
 
           const cached = localStorage.getItem(LAST_ROOM_STORAGE_KEY);
@@ -90,6 +124,8 @@ export default function HomePage() {
     if (!bootstrap) return 0;
     return bootstrap.tree.createdRooms.length + bootstrap.tree.joinedRooms.length;
   }, [bootstrap]);
+
+  const displayMe = bootstrap?.me ?? fallbackMe;
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -157,16 +193,16 @@ export default function HomePage() {
             <h1 className="mt-2 text-3xl font-semibold text-slate-50">临时笨迪</h1>
             <p className="mt-2 text-sm text-slate-400">临时信息传递空间，房间会在无活跃 10 分钟后自动销毁。</p>
           </div>
-          {bootstrap?.me ? (
+          {displayMe ? (
             <div className="flex items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/80 px-3 py-2">
               <Avatar
-                initial={bootstrap.me.avatarInitial}
-                color={bootstrap.me.avatarColor}
+                initial={displayMe.avatarInitial}
+                color={displayMe.avatarColor}
                 className="h-10 w-10 text-sm"
               />
               <div>
                 <p className="text-xs text-slate-500">当前身份</p>
-                <p className="text-sm font-medium text-slate-100">{bootstrap.me.nickname}</p>
+                <p className="text-sm font-medium text-slate-100">{displayMe.nickname}</p>
               </div>
             </div>
           ) : null}
