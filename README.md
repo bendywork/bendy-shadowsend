@@ -116,10 +116,11 @@ npm run dev
 }
 ```
 
-- `npm run vercel-build` 会执行：
-  - `prisma migrate deploy`
-  - `prisma generate`
-  - `next build`
+- `npm run vercel-build` 现在是智能流程（`scripts/vercel-build.mjs`）：
+  - 先检查迁移状态（`prisma migrate status`）
+  - 只有检测到待执行迁移时才运行 `prisma migrate deploy`
+  - 若部署并发导致 advisory lock 超时，会自动重试并二次检查是否已被其他部署应用
+  - 最后执行 `prisma generate` 和 `next build`
 
 ### 2. Vercel 需要配置的环境变量
 
@@ -136,8 +137,13 @@ npm run dev
 | `S3_SECRET_ACCESS_KEY` | 是 | S3 Secret Key |
 | `S3_FORCE_PATH_STYLE` | 建议 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用） |
 | `NEXT_PUBLIC_APP_VERSION` | 可选 | 前端展示版本号 |
+| `FORCE_DB_MIGRATE` | 可选 | `true` 时强制执行迁移（默认不强制） |
+| `PRISMA_MIGRATE_RETRIES` | 可选 | 迁移锁冲突重试次数（默认 `3`） |
+| `PRISMA_MIGRATE_RETRY_DELAY_MS` | 可选 | 每次重试间隔毫秒（默认 `4000`） |
 
 > 说明：项目运行时会优先读取 `DATABASE_URL`，若缺失会回退 `POSTGRES_PRISMA_URL` 或 `POSTGRES_URL`。生产环境仍建议显式配置 `DATABASE_URL`。
+> 
+> 默认部署策略是“无待执行迁移就跳过迁移”，仅在有新 migration 或你手动设置 `FORCE_DB_MIGRATE=true` 时修改数据库结构。
 
 ### 3. 部署步骤
 
