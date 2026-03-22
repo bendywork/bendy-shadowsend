@@ -111,7 +111,7 @@ function Tree({ title, rooms, activeCode }: { title: string; rooms: RoomTreeItem
     <div className="space-y-2">
       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{title}</p>
       <div className="space-y-1">
-        {rooms.length === 0 ? <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">鏆傛棤</p> : rooms.map((r) => (
+        {rooms.length === 0 ? <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">暂无</p> : rooms.map((r) => (
           <Link key={r.id} href={`/room/${r.roomCode}`} className={clsx("block rounded-lg border px-3 py-2 text-sm", activeCode === r.roomCode ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100" : "border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700") }>
             <div className="flex items-center justify-between"><span className="truncate">{r.name}</span>{r.hasGateCode ? <Shield className="h-3.5 w-3.5 text-zinc-300" /> : null}</div>
             <p className="mt-1 truncate font-mono text-[11px] text-slate-500">{r.roomCode}</p>
@@ -130,10 +130,10 @@ function FileAction({ roomCode, attachment }: { roomCode: string; attachment: At
       const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
       window.open(p.url, "_blank", "noopener,noreferrer");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "鎵撳紑澶辫触");
+      alert(e instanceof Error ? e.message : "打开失败");
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}涓嬭浇</button>;
+  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}下载</button>;
 }
 function Btn({ icon, label, onClick, danger, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
   return <button type="button" onClick={onClick} disabled={disabled} className={clsx("inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", danger ? "border-zinc-500/40 text-zinc-200 hover:bg-zinc-600/10" : "border-slate-700 text-slate-200 hover:bg-slate-800")}>{icon}{label}</button>;
@@ -199,7 +199,7 @@ export default function RoomPage() {
     let alive = true;
     (async () => {
       try { await refresh(); if (alive) localStorage.setItem(LAST_ROOM_STORAGE_KEY, roomCode); }
-      catch (e) { if (alive) setError(e instanceof Error ? e.message : "鍔犺浇澶辫触"); }
+      catch (e) { if (alive) setError(e instanceof Error ? e.message : "加载失败"); }
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
@@ -480,24 +480,24 @@ export default function RoomPage() {
     void runSend(localId, content, sendingFiles);
   }
   async function kick(m: RoomMemberItem) {
-    if (!window.confirm(`Confirm kicking ${m.user.nickname} from the room?`)) return;
+    if (!window.confirm(`确认将 ${m.user.nickname} 移出房间吗？`)) return;
     setAction(`kick-${m.id}`);
     try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "韪㈠嚭澶辫触"); }
+    catch (err) { setError(err instanceof Error ? err.message : "移出失败"); }
     finally { setAction(null); }
   }
 
   async function review(r: PendingRequestItem, act: "approve" | "reject") {
     setAction(`${act}-${r.id}`);
     try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/join-requests/${r.id}`, { method: "POST", body: JSON.stringify({ action: act }) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "瀹℃壒澶辫触"); }
+    catch (err) { setError(err instanceof Error ? err.message : "审批失败"); }
     finally { setAction(null); }
   }
 
   async function copyLink() {
     if (!joinLink) return;
     try { await navigator.clipboard.writeText(joinLink); setHint("当前房间加入链接已复制"); window.setTimeout(() => setHint(null), 2200); }
-    catch { setError("澶嶅埗澶辫触锛岃妫€鏌ユ祻瑙堝櫒鏉冮檺"); }
+    catch { setError("复制失败，请检查浏览器权限"); }
   }
 
   function openNoticeEditor() {
@@ -513,7 +513,7 @@ export default function RoomPage() {
       if (noticeImage) image = await upload(noticeImage);
       await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, { method: "POST", body: JSON.stringify({ text: noticeText || undefined, image, clearImage: clearNoticeImage }) });
       setShowNoticeEditor(false); await refresh(); setHint("公告已更新"); window.setTimeout(() => setHint(null), 2200);
-    } catch (err) { setError(err instanceof Error ? err.message : "鍏憡淇濆瓨澶辫触"); }
+    } catch (err) { setError(err instanceof Error ? err.message : "公告保存失败"); }
     finally { setAction(null); }
   }
 
@@ -522,7 +522,7 @@ export default function RoomPage() {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
       setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
       setShowNoticePopup(false);
-    } catch (err) { setError(err instanceof Error ? err.message : "鍏憡宸茶澶辫触"); }
+    } catch (err) { setError(err instanceof Error ? err.message : "公告已读失败"); }
   }
 
   async function dissolve() {
@@ -553,7 +553,7 @@ export default function RoomPage() {
         },
       );
       await refresh();
-      setHint(normalized ? "闂ㄧ鐮佸凡鏇存柊" : "宸叉竻闄ら棬绂佺爜");
+      setHint(normalized ? "门禁码已更新" : "已清除门禁码");
       window.setTimeout(() => setHint(null), 2200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "门禁码更新失败");
@@ -593,7 +593,7 @@ export default function RoomPage() {
       window.setTimeout(() => setHint(null), 2200);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "鏇存柊姘镐笉杩囨湡澶辫触");
+      setError(err instanceof Error ? err.message : "更新永不过期失败");
     } finally {
       setAction(null);
     }
@@ -690,8 +690,8 @@ export default function RoomPage() {
             <div className="flex flex-wrap gap-2">
               <Btn icon={<Copy className="h-3.5 w-3.5" />} label="邀请" onClick={copyLink} />
               <Btn icon={<QrCode className="h-3.5 w-3.5" />} label="二维码" onClick={() => setShowQr(true)} />
-              {isOwner ? <Btn icon={<Megaphone className="h-3.5 w-3.5" />} label="鍏憡" onClick={openNoticeEditor} /> : null}
-              {isOwner ? <Btn icon={<Settings2 className="h-3.5 w-3.5" />} label={showManage ? "绠＄悊(闅愯棌)" : "绠＄悊(鏄剧ず)"} onClick={() => setShowManage((v) => !v)} /> : null}
+              {isOwner ? <Btn icon={<Megaphone className="h-3.5 w-3.5" />} label="公告" onClick={openNoticeEditor} /> : null}
+              {isOwner ? <Btn icon={<Settings2 className="h-3.5 w-3.5" />} label={showManage ? "管理(隐藏)" : "管理(显示)"} onClick={() => setShowManage((v) => !v)} /> : null}
               {isOwner ? <Btn icon={<Trash2 className="h-3.5 w-3.5" />} label={action === "dissolve" ? "解散中..." : "解散"} onClick={dissolve} danger disabled={action === "dissolve"} /> : null}
             </div>
             {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
@@ -700,7 +700,8 @@ export default function RoomPage() {
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
               <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">
-                鏆傛棤娑堟伅锛屽紑濮嬪彂閫佸惂銆?              </div>
+                暂无消息，开始发送吧。
+              </div>
             ) : null}
 
             {snap.messages.map((m) => {
@@ -954,7 +955,7 @@ export default function RoomPage() {
                       <div className="min-w-0">
                         <p className="truncate text-sm text-slate-200">{m.user.nickname}</p>
                         <p className="text-xs text-slate-500">
-                          {m.role === "OWNER" ? "鎴夸富" : "鎴愬憳"} 路 {m.joinedAt ? fmt(m.joinedAt) : "--"}
+                          {m.role === "OWNER" ? "房主" : "成员"} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
                         </p>
                       </div>
                     </div>
@@ -965,7 +966,7 @@ export default function RoomPage() {
                         disabled={action === `kick-${m.id}`}
                         className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                       >
-                        <UserMinus className="h-3 w-3" /> 韪㈠嚭
+                        <UserMinus className="h-3 w-3" /> 移出
                       </button>
                     ) : null}
                   </div>
@@ -975,11 +976,11 @@ export default function RoomPage() {
 
             {isOwner ? (
               <div className="mt-4 border-t border-slate-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-slate-200">鍐嶆鍔犲叆瀹℃壒</h3>
+                <h3 className="mb-2 text-sm font-semibold text-slate-200">再次加入审批</h3>
                 <div className="space-y-2">
                   {snap.pendingRequests.length === 0 ? (
                     <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">
-                      鏆傛棤寰呭鎵?
+                      暂无待审批
                     </p>
                   ) : (
                     snap.pendingRequests.map((r) => (
@@ -998,7 +999,7 @@ export default function RoomPage() {
                             disabled={action === `approve-${r.id}`}
                             className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                           >
-                            <Check className="h-3 w-3" /> 閫氳繃
+                            <Check className="h-3 w-3" /> 通过
                           </button>
                           <button
                             type="button"
@@ -1006,7 +1007,7 @@ export default function RoomPage() {
                             disabled={action === `reject-${r.id}`}
                             className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                           >
-                            <X className="h-3 w-3" /> 鎷掔粷
+                            <X className="h-3 w-3" /> 拒绝
                           </button>
                         </div>
                       </div>
@@ -1018,7 +1019,7 @@ export default function RoomPage() {
 
             {isOwner ? (
               <div className="mt-4 border-t border-slate-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-slate-200">淇敼閭€璇风爜</h3>
+                <h3 className="mb-2 text-sm font-semibold text-slate-200">修改门禁码</h3>
                 <div className="flex items-center gap-2">
                   <input
                     value={gateCodeInput}
@@ -1032,7 +1033,7 @@ export default function RoomPage() {
                     disabled={action === "gate-code"}
                     className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
                   >
-                    {action === "gate-code" ? "淇濆瓨涓?.." : "淇濆瓨"}
+                    {action === "gate-code" ? "保存中..." : "保存"}
                   </button>
                 </div>
                 <p className="mt-2 text-[11px] text-slate-500">
@@ -1064,7 +1065,7 @@ export default function RoomPage() {
                     )}
                   >
                     {action === "never-expire"
-                      ? "淇濆瓨涓?.."
+                      ? "保存中..."
                       : snap.room.neverExpire
                         ? "已开启"
                         : "已关闭"}
