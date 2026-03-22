@@ -1,5 +1,6 @@
-﻿"use client";
+"use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
@@ -31,6 +32,13 @@ type MePayload = {
   };
 };
 
+const slogans = [
+  "临时传递，阅后即散。",
+  "黑白极简，信息纯粹。",
+  "房间活跃，即刻续命。",
+  "Temporary Bendy Online.",
+];
+
 export default function HomePage() {
   const router = useRouter();
   const [tab, setTab] = useState<TabType>("join");
@@ -43,10 +51,13 @@ export default function HomePage() {
 
   const [createName, setCreateName] = useState("");
   const [createGateCode, setCreateGateCode] = useState("");
-
   const [joinRoomCode, setJoinRoomCode] = useState("");
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
+
+  const [typedText, setTypedText] = useState("");
+  const [typedIndex, setTypedIndex] = useState(0);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -60,15 +71,11 @@ export default function HomePage() {
 
         if (!alive) return;
 
-        const mePayload =
-          meResult.status === "fulfilled" ? meResult.value.user : null;
+        const mePayload = meResult.status === "fulfilled" ? meResult.value.user : null;
         const bootPayload =
           bootstrapResult.status === "fulfilled" ? bootstrapResult.value : null;
 
-        if (mePayload) {
-          setFallbackMe(mePayload);
-        }
-
+        if (mePayload) setFallbackMe(mePayload);
         if (bootPayload) {
           setBootstrap(bootPayload);
           setFallbackMe(bootPayload.me);
@@ -78,9 +85,7 @@ export default function HomePage() {
           throw new Error("初始化失败，请刷新重试");
         }
 
-        if (!bootPayload) {
-          return;
-        }
+        if (!bootPayload) return;
 
         const search = new URLSearchParams(window.location.search);
         const queryRoom = search.get("room");
@@ -107,18 +112,38 @@ export default function HomePage() {
         if (!alive) return;
         setError(fetchError instanceof Error ? fetchError.message : "初始化失败");
       } finally {
-        if (alive) {
-          setLoading(false);
-        }
+        if (alive) setLoading(false);
       }
     }
 
     bootstrapPage();
-
     return () => {
       alive = false;
     };
   }, [router]);
+
+  useEffect(() => {
+    const phrase = slogans[typedIndex % slogans.length];
+    const interval = deleting ? 36 : 72;
+    const timer = window.setTimeout(() => {
+      if (!deleting) {
+        const next = phrase.slice(0, typedText.length + 1);
+        setTypedText(next);
+        if (next === phrase) {
+          window.setTimeout(() => setDeleting(true), 900);
+        }
+      } else {
+        const next = phrase.slice(0, Math.max(0, typedText.length - 1));
+        setTypedText(next);
+        if (next.length === 0) {
+          setDeleting(false);
+          setTypedIndex((prev) => prev + 1);
+        }
+      }
+    }, interval);
+
+    return () => window.clearTimeout(timer);
+  }, [typedText, deleting, typedIndex]);
 
   const roomCount = useMemo(() => {
     if (!bootstrap) return 0;
@@ -183,143 +208,203 @@ export default function HomePage() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(57,139,255,0.22),transparent_54%)]" />
+    <main className="relative min-h-screen overflow-hidden px-4 py-10 sm:px-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.10),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.08),transparent_38%)]" />
 
-      <section className="relative w-full max-w-xl rounded-3xl border border-slate-700/70 bg-slate-950/90 p-6 shadow-[0_20px_90px_rgba(2,10,30,0.55)] backdrop-blur-xl sm:p-8">
-        <div className="mb-7 flex items-start justify-between gap-4">
+      <section className="relative mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-2">
+        <div className="flex min-h-[640px] flex-col justify-between rounded-3xl border border-zinc-800/80 bg-black/65 p-6 shadow-[0_18px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-8">
           <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-blue-300/80">Temporary Encrypt Chat</p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-50">临时笨迪</h1>
-            <p className="mt-2 text-sm text-slate-400">临时信息传递空间，房间会在无活跃 10 分钟后自动销毁。</p>
-          </div>
-          {displayMe ? (
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/80 px-3 py-2">
-              <Avatar
-                initial={displayMe.avatarInitial}
-                color={displayMe.avatarColor}
-                className="h-10 w-10 text-sm"
+            <p className="text-xs uppercase tracking-[0.32em] text-zinc-500">TEMPORARY ENCRYPT CHAT</p>
+            <div className="mt-5">
+              <Image
+                src="/2_1.png"
+                width={500}
+                height={160}
+                alt="临时笨迪 Logo"
+                className="h-auto w-full max-w-md"
+                priority
               />
-              <div>
-                <p className="text-xs text-slate-500">当前身份</p>
-                <p className="text-sm font-medium text-slate-100">{displayMe.nickname}</p>
+            </div>
+            <p className="mt-6 max-w-md text-sm text-zinc-400">
+              临时信息传递空间，房间 10 分钟无活跃自动销毁，信息短驻留、低负担。
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+              <p className="font-mono text-lg tracking-wide text-zinc-200">
+                {typedText}
+                <span className="ml-0.5 inline-block h-5 w-2 animate-pulse bg-zinc-300 align-middle" />
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-2">
+                <Image src="/3_1.png" width={140} height={140} alt="Logo Mark" className="mx-auto h-20 w-20 object-contain" />
+              </div>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-2">
+                <Image src="/1_1.png" width={120} height={120} alt="Logo Full" className="mx-auto h-20 w-20 object-contain" />
+              </div>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-2">
+                <Image src="/2_1.png" width={200} height={100} alt="Logo Compact" className="mx-auto h-20 w-20 object-contain" />
               </div>
             </div>
-          ) : null}
-        </div>
-
-        <div className="mb-5 inline-flex rounded-xl border border-slate-800 bg-slate-900 p-1">
-          <button
-            type="button"
-            onClick={() => setTab("join")}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition ${
-              tab === "join" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800"
-            }`}
-          >
-            <DoorOpen className="h-4 w-4" /> 加入
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("create")}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition ${
-              tab === "create" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800"
-            }`}
-          >
-            <PlusCircle className="h-4 w-4" /> 创建
-          </button>
-        </div>
-
-        {tab === "join" ? (
-          <form className="space-y-4" onSubmit={handleJoin}>
-            <label className="block space-y-1">
-              <span className="text-xs text-slate-400">房间号（URL 随机码）</span>
-              <input
-                required
-                value={joinRoomCode}
-                onChange={(event) => setJoinRoomCode(event.target.value.trim())}
-                placeholder="例如：8DK1A2M7QX"
-                className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none ring-blue-400/30 transition focus:ring"
-              />
-            </label>
-
-            <label className="block space-y-1">
-              <span className="text-xs text-slate-400">门禁码（可选，6 位数字）</span>
-              <input
-                value={joinGateCode}
-                onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="如果房间设置了门禁码则必填"
-                className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none ring-blue-400/30 transition focus:ring"
-              />
-            </label>
-
-            <label className="block space-y-1">
-              <span className="text-xs text-slate-400">邀请 Token（可选）</span>
-              <input
-                value={joinInviteToken}
-                onChange={(event) => setJoinInviteToken(event.target.value.trim())}
-                placeholder="有邀请链接时自动填充"
-                className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none ring-blue-400/30 transition focus:ring"
-              />
-            </label>
-
-            <button
-              type="submit"
-              disabled={submitting || loading}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <DoorOpen className="h-4 w-4" />}
-              进入房间
-            </button>
-          </form>
-        ) : (
-          <form className="space-y-4" onSubmit={handleCreate}>
-            <label className="block space-y-1">
-              <span className="text-xs text-slate-400">房间名称</span>
-              <input
-                required
-                value={createName}
-                onChange={(event) => setCreateName(event.target.value)}
-                placeholder="输入房间名"
-                className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none ring-blue-400/30 transition focus:ring"
-              />
-            </label>
-
-            <label className="block space-y-1">
-              <span className="text-xs text-slate-400">门禁码（可选）</span>
-              <input
-                value={createGateCode}
-                onChange={(event) => setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="不填则加入无需门禁码"
-                className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none ring-blue-400/30 transition focus:ring"
-              />
-            </label>
-
-            <button
-              type="submit"
-              disabled={submitting || loading}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              创建并进入
-            </button>
-          </form>
-        )}
-
-        <div className="mt-5 space-y-2 text-xs">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-slate-400">
-            当前已加入/创建房间数：
-            <span className="ml-1 font-semibold text-slate-200">{roomCount}/10</span>
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-slate-400">
-            <Shield className="mr-1 inline h-3.5 w-3.5 text-blue-300" />
-            门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
           </div>
         </div>
 
-        {info ? <p className="mt-4 text-sm text-emerald-300">{info}</p> : null}
-        {error ? <p className="mt-4 text-sm text-rose-300">{error}</p> : null}
+        <div className="flex min-h-[640px] flex-col rounded-3xl border border-zinc-800/80 bg-black/65 p-6 shadow-[0_18px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-8">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">SESSION ENTRY</p>
+              <div className="mt-2 flex items-center gap-3">
+                <Image src="/3_1.png" width={44} height={44} alt="Logo Mark" className="h-11 w-11 object-contain" />
+                <h1 className="text-3xl font-semibold text-zinc-100">临时笨迪</h1>
+              </div>
+              <p className="mt-2 text-sm text-zinc-400">加入或创建房间，消息仅在活跃期内保留。</p>
+            </div>
+            {displayMe ? (
+              <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2">
+                <Avatar
+                  initial={displayMe.avatarInitial}
+                  color={displayMe.avatarColor}
+                  className="h-10 w-10 text-sm"
+                />
+                <div>
+                  <p className="text-xs text-zinc-500">当前身份</p>
+                  <p className="text-sm font-medium text-zinc-100">{displayMe.nickname}</p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mb-5 inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
+            <button
+              type="button"
+              onClick={() => setTab("join")}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition ${
+                tab === "join"
+                  ? "bg-zinc-700 text-zinc-100"
+                  : "text-zinc-300 hover:bg-zinc-800"
+              }`}
+            >
+              <DoorOpen className="h-4 w-4" /> 加入
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("create")}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition ${
+                tab === "create"
+                  ? "bg-zinc-700 text-zinc-100"
+                  : "text-zinc-300 hover:bg-zinc-800"
+              }`}
+            >
+              <PlusCircle className="h-4 w-4" /> 创建
+            </button>
+          </div>
+
+          {tab === "join" ? (
+            <form className="space-y-4" onSubmit={handleJoin}>
+              <label className="block space-y-1">
+                <span className="text-xs text-zinc-400">房间号（URL 随机码）</span>
+                <input
+                  required
+                  value={joinRoomCode}
+                  onChange={(event) => setJoinRoomCode(event.target.value.trim())}
+                  placeholder="例如：8DK1A2M7QX"
+                  className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                />
+              </label>
+
+              <label className="block space-y-1">
+                <span className="text-xs text-zinc-400">门禁码（可选，6 位数字）</span>
+                <input
+                  value={joinGateCode}
+                  onChange={(event) =>
+                    setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  placeholder="如果房间设置了门禁码则必填"
+                  className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                />
+              </label>
+
+              <label className="block space-y-1">
+                <span className="text-xs text-zinc-400">邀请 Token（可选）</span>
+                <input
+                  value={joinInviteToken}
+                  onChange={(event) => setJoinInviteToken(event.target.value.trim())}
+                  placeholder="有邀请链接时自动填充"
+                  className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={submitting || loading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <DoorOpen className="h-4 w-4" />
+                )}
+                进入房间
+              </button>
+            </form>
+          ) : (
+            <form className="space-y-4" onSubmit={handleCreate}>
+              <label className="block space-y-1">
+                <span className="text-xs text-zinc-400">房间名称</span>
+                <input
+                  required
+                  value={createName}
+                  onChange={(event) => setCreateName(event.target.value)}
+                  placeholder="输入房间名"
+                  className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                />
+              </label>
+
+              <label className="block space-y-1">
+                <span className="text-xs text-zinc-400">门禁码（可选）</span>
+                <input
+                  value={createGateCode}
+                  onChange={(event) =>
+                    setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  placeholder="不填则加入无需门禁码"
+                  className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={submitting || loading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                创建并进入
+              </button>
+            </form>
+          )}
+
+          <div className="mt-5 space-y-2 text-xs">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400">
+              当前已加入/创建房间数：
+              <span className="ml-1 font-semibold text-zinc-200">{roomCount}/10</span>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400">
+              <Shield className="mr-1 inline h-3.5 w-3.5 text-zinc-300" />
+              门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
+            </div>
+          </div>
+
+          {info ? <p className="mt-4 text-sm text-zinc-300">{info}</p> : null}
+          {error ? <p className="mt-4 text-sm text-zinc-300">{error}</p> : null}
+        </div>
       </section>
     </main>
   );
 }
-

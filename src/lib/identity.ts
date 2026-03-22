@@ -4,15 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { USER_COOKIE_NAME } from "@/lib/constants";
 
 const colorPool = [
-  "#1d4ed8",
-  "#2563eb",
-  "#0f766e",
-  "#1d4ed8",
-  "#0369a1",
-  "#b45309",
-  "#be185d",
-  "#4338ca",
-  "#166534",
+  "#3f3f46",
+  "#52525b",
+  "#71717a",
+  "#a1a1aa",
+  "#27272a",
+  "#404040",
+  "#737373",
+  "#6b7280",
+  "#4b5563",
 ];
 
 const adjectivePool = [

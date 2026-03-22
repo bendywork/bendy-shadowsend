@@ -1,14 +1,14 @@
 ﻿@import "tailwindcss";
 
 :root {
-  --bg-base: #080b12;
-  --bg-panel: #0f141d;
-  --bg-card: #161d2a;
-  --border: #263043;
-  --text-primary: #e5edf9;
-  --text-muted: #8f9fb8;
-  --accent: #4d8dff;
-  --accent-soft: rgba(77, 141, 255, 0.2);
+  --bg-base: #090909;
+  --bg-panel: #111111;
+  --bg-card: #1a1a1a;
+  --border: #2d2d2d;
+  --text-primary: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --accent: #71717a;
+  --accent-soft: rgba(161, 161, 170, 0.24);
 }
 
 @theme inline {
@@ -29,8 +29,8 @@ body {
   margin: 0;
   color: var(--text-primary);
   background:
-    radial-gradient(circle at 20% -10%, rgba(77, 141, 255, 0.28), transparent 35%),
-    radial-gradient(circle at 80% 120%, rgba(5, 140, 120, 0.22), transparent 40%),
+    radial-gradient(circle at 20% -10%, rgba(255, 255, 255, 0.07), transparent 35%),
+    radial-gradient(circle at 80% 120%, rgba(255, 255, 255, 0.05), transparent 40%),
     var(--bg-base);
   font-family: var(--font-sans);
 }
@@ -52,7 +52,7 @@ a {
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
   border: 2px solid transparent;
-  background: #3a475f;
+  background: #52525b;
   background-clip: content-box;
 }
 
