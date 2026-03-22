@@ -15,7 +15,7 @@ function getS3Client() {
   }
 
   s3ClientSingleton = new S3Client({
-    region: env.s3.region,
+    ...(env.s3.region ? { region: env.s3.region } : {}),
     endpoint: env.s3.endpoint,
     forcePathStyle: env.s3.forcePathStyle,
     credentials: {

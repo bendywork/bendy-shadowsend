@@ -7,8 +7,6 @@
 ## 项目图
 
 ![首页创建/加入](public/1_1.png)
-![房间核心聊天区](public/2_1.png)
-![成员与管理侧栏](public/3_1.png)
 
 ## 技术栈
 
@@ -42,7 +40,7 @@ Copy-Item .env.example .env
 
 | 变量名 | 必填 | 说明 |
 | --- | --- | --- |
-| `S3_REGION` | 否 | 区域（可不填，默认 `us-east-1`） |
+| `S3_REGION` | 否 | 区域（可不填，默认空值） |
 | `S3_ENDPOINT` | 是 | S3 API 地址，例如 `https://s3.amazonaws.com` 或 `https://<account>.r2.cloudflarestorage.com` |
 | `S3_BUCKET` | 是 | Bucket 名称 |
 | `S3_ACCESS_KEY_ID` | 是 | 访问 Key |
@@ -58,7 +56,7 @@ Copy-Item .env.example .env
 MinIO 本地：
 
 ```env
-S3_REGION=us-east-1
+S3_REGION=
 S3_ENDPOINT=http://127.0.0.1:9000
 S3_BUCKET=bendy-temp
 S3_ACCESS_KEY_ID=minioadmin
@@ -131,7 +129,7 @@ npm run dev
 | --- | --- | --- |
 | `DATABASE_URL` | 是 | Prisma 数据库连接串 |
 | `CHAT_ENCRYPTION_KEY` | 是 | 聊天消息加密 Key（至少 32 字符） |
-| `S3_REGION` | 否 | S3 区域（可不填，默认 `us-east-1`） |
+| `S3_REGION` | 否 | S3 区域（可不填，默认空值） |
 | `S3_ENDPOINT` | 是 | S3 兼容 API Endpoint |
 | `S3_BUCKET` | 是 | Bucket 名称 |
 | `S3_ACCESS_KEY_ID` | 是 | S3 Access Key |
