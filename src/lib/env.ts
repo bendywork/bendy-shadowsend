@@ -24,6 +24,7 @@ if (!parsed.success) {
 }
 
 const devFallbackKey = "0123456789abcdef0123456789abcdef";
+const defaultS3Region = "us-east-1";
 
 export const env = {
   appVersion: parsed.data.NEXT_PUBLIC_APP_VERSION ?? "0.1.0",
@@ -31,7 +32,7 @@ export const env = {
     parsed.data.CHAT_ENCRYPTION_KEY ??
     (process.env.NODE_ENV === "production" ? undefined : devFallbackKey),
   s3: {
-    region: parsed.data.S3_REGION,
+    region: parsed.data.S3_REGION || defaultS3Region,
     endpoint: parsed.data.S3_ENDPOINT,
     bucket: parsed.data.S3_BUCKET,
     accessKeyId: parsed.data.S3_ACCESS_KEY_ID,
@@ -43,11 +44,7 @@ export const env = {
 export function isS3Configured() {
   const s3 = env.s3;
   return Boolean(
-    s3.region &&
-      s3.endpoint &&
-      s3.bucket &&
-      s3.accessKeyId &&
-      s3.secretAccessKey,
+    s3.endpoint && s3.bucket && s3.accessKeyId && s3.secretAccessKey,
   );
 }
 

@@ -42,12 +42,16 @@ Copy-Item .env.example .env
 
 | 变量名 | 必填 | 说明 |
 | --- | --- | --- |
-| `S3_REGION` | 是 | 区域，例如 `us-east-1` |
+| `S3_REGION` | 否 | 区域（可不填，默认 `us-east-1`） |
 | `S3_ENDPOINT` | 是 | S3 API 地址，例如 `https://s3.amazonaws.com` 或 `https://<account>.r2.cloudflarestorage.com` |
 | `S3_BUCKET` | 是 | Bucket 名称 |
 | `S3_ACCESS_KEY_ID` | 是 | 访问 Key |
 | `S3_SECRET_ACCESS_KEY` | 是 | Secret Key |
-| `S3_FORCE_PATH_STYLE` | 建议配置 | `true` 常用于 MinIO/Ceph；AWS S3 常用 `false` |
+| `S3_FORCE_PATH_STYLE` | 建议配置 | 示例：`true`（推荐给 MinIO/Ceph/自建 S3）；AWS S3 常用 `false` |
+
+> 说明：部分自建或兼容 S3 服务不要求 region，可直接不配置 `S3_REGION`。
+> 
+> `S3_FORCE_PATH_STYLE` 推荐先填 `true`（尤其是自建 S3 或 IP/内网 endpoint）；若你的服务要求虚拟主机风格再改为 `false`。
 
 ### 3. 推荐配置样例
 
@@ -121,18 +125,18 @@ npm run dev
 
 ### 2. Vercel 需要配置的环境变量
 
-至少在 **Production / Preview / Development** 三个环境都配置以下变量：
+至少在 **Production / Preview / Development** 三个环境都配置以下变量（`S3_REGION` 可选）：
 
 | 变量名 | 必填 | 用途 |
 | --- | --- | --- |
 | `DATABASE_URL` | 是 | Prisma 数据库连接串 |
 | `CHAT_ENCRYPTION_KEY` | 是 | 聊天消息加密 Key（至少 32 字符） |
-| `S3_REGION` | 是 | S3 区域 |
+| `S3_REGION` | 否 | S3 区域（可不填，默认 `us-east-1`） |
 | `S3_ENDPOINT` | 是 | S3 兼容 API Endpoint |
 | `S3_BUCKET` | 是 | Bucket 名称 |
 | `S3_ACCESS_KEY_ID` | 是 | S3 Access Key |
 | `S3_SECRET_ACCESS_KEY` | 是 | S3 Secret Key |
-| `S3_FORCE_PATH_STYLE` | 建议 | `true/false`，按存储服务要求设置 |
+| `S3_FORCE_PATH_STYLE` | 建议 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用） |
 | `NEXT_PUBLIC_APP_VERSION` | 可选 | 前端展示版本号 |
 
 > 说明：项目运行时会优先读取 `DATABASE_URL`，若缺失会回退 `POSTGRES_PRISMA_URL` 或 `POSTGRES_URL`。生产环境仍建议显式配置 `DATABASE_URL`。
