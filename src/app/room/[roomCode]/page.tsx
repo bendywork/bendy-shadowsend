@@ -637,8 +637,8 @@ export default function RoomPage() {
 
   return (
     <>
-      <main className={clsx("mx-auto grid min-h-screen w-full max-w-[1680px] grid-cols-1 gap-4 p-3 md:p-4", showMembers ? "lg:grid-cols-[290px_minmax(0,1fr)_290px]" : "lg:grid-cols-[290px_minmax(0,1fr)]") }>
-        <aside className="flex min-h-[220px] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4">
+      <main className={clsx("mx-auto grid h-[100dvh] w-full max-w-[1680px] grid-cols-1 gap-4 overflow-hidden p-3 md:p-4", showMembers ? "lg:grid-cols-[290px_minmax(0,1fr)_290px]" : "lg:grid-cols-[290px_minmax(0,1fr)]") }>
+        <aside className="flex min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">房间导航</p>
@@ -675,7 +675,7 @@ export default function RoomPage() {
           </div>
         </aside>
 
-        <section className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/90">
+        <section className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-950/90">
           <header className="space-y-3 border-b border-slate-800 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -697,7 +697,7 @@ export default function RoomPage() {
             {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
           </header>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
               <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">
                 暂无消息，开始发送吧。
@@ -940,7 +940,7 @@ export default function RoomPage() {
         </section>
 
         {showMembers ? (
-          <aside className="flex min-h-[220px] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4">
+          <aside className="flex min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4">
             <div className="mb-3">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">成员列表</p>
               <h2 className="text-lg font-semibold text-slate-100">{snap.members.length} 人</h2>
