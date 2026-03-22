@@ -132,6 +132,7 @@ export async function POST(
             mimeType: attachment.mimeType,
             sizeBytes: attachment.sizeBytes,
             s3Key: attachment.s3Key,
+            storage: attachment.storage,
             previewType: resolvePreviewType(attachment.mimeType),
           })),
         });

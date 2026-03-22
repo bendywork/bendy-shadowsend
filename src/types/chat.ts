@@ -1,4 +1,10 @@
-﻿import type { MemberStatus, PreviewType, RequestStatus, RoomRole } from "@prisma/client";
+﻿import type {
+  AttachmentStorage,
+  MemberStatus,
+  PreviewType,
+  RequestStatus,
+  RoomRole,
+} from "@prisma/client";
 
 export type ClientUser = {
   id: string;
@@ -40,6 +46,7 @@ export type RoomMemberItem = {
   role: RoomRole;
   status: MemberStatus;
   joinedAt: string | null;
+  lastSeenAt: string | null;
   requiresApproval?: boolean;
   user: ClientUser;
 };
@@ -58,6 +65,7 @@ export type AttachmentItem = {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
+  storage: AttachmentStorage;
   previewType: PreviewType;
   previewUrl?: string | null;
   createdAt: string;
@@ -108,4 +116,3 @@ export type RoomSnapshot = {
   };
   waitingApproval?: boolean;
 };
-

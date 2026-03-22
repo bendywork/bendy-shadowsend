@@ -1,4 +1,5 @@
-import { PreviewType } from "@prisma/client";
+import { AttachmentStorage, PreviewType } from "@prisma/client";
+import { createDufsPublicUrl } from "@/lib/dufs";
 import { createAttachmentPreviewUrl } from "@/lib/s3";
 
 type PreviewAttachment = {
@@ -7,6 +8,7 @@ type PreviewAttachment = {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
+  storage: AttachmentStorage;
   previewType: PreviewType;
 };
 
@@ -41,6 +43,13 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
           }
 
           try {
+            if (attachment.storage === AttachmentStorage.DUFS) {
+              return {
+                ...attachment,
+                previewUrl: createDufsPublicUrl(attachment.s3Key),
+              };
+            }
+
             const previewUrl = await createAttachmentPreviewUrl({
               key: attachment.s3Key,
               fileName: attachment.fileName,
@@ -78,4 +87,3 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
     }),
   );
 }
-

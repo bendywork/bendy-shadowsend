@@ -15,6 +15,9 @@ const baseSchema = z.object({
     .string()
     .optional()
     .transform((value) => value === "true"),
+  DUFS_BASE_URL: z.string().url().optional(),
+  DUFS_PUBLIC_BASE_URL: z.string().url().optional(),
+  DUFS_AUTH: z.string().optional(),
   OSS_PREVIEW_RPC_URL: z.string().url().optional(),
   OSS_PREVIEW_BUCKET_NAME: z.string().optional(),
   OSS_PREVIEW_COOKIE: z.string().optional(),
@@ -40,6 +43,11 @@ export const env = {
     accessKeyId: parsed.data.S3_ACCESS_KEY_ID,
     secretAccessKey: parsed.data.S3_SECRET_ACCESS_KEY,
     forcePathStyle: parsed.data.S3_FORCE_PATH_STYLE ?? true,
+  },
+  dufs: {
+    baseUrl: parsed.data.DUFS_BASE_URL,
+    publicBaseUrl: parsed.data.DUFS_PUBLIC_BASE_URL,
+    auth: parsed.data.DUFS_AUTH,
   },
   ossPreview: {
     rpcUrl: parsed.data.OSS_PREVIEW_RPC_URL,

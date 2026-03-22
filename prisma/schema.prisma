@@ -62,6 +62,13 @@ enum PreviewType {
   @@map("bendy_shadowsend_preview_type")
 }
 
+enum AttachmentStorage {
+  S3
+  DUFS
+
+  @@map("bendy_shadowsend_attachment_storage")
+}
+
 model User {
   id                 String         @id @default(cuid())
   nickname           String
@@ -94,6 +101,7 @@ model Room {
   announcementText  String?
   announcementImageKey String?
   announcementImageName String?
+  announcementImageStorage AttachmentStorage?
   announcementUpdatedAt DateTime?
   status            RoomStatus   @default(ACTIVE)
   deletedAt         DateTime?
@@ -200,6 +208,7 @@ model MessageAttachment {
   mimeType   String
   sizeBytes  Int
   s3Key      String
+  storage    AttachmentStorage @default(S3)
   previewType PreviewType @default(NONE)
   createdAt  DateTime     @default(now())
   message    Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)

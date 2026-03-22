@@ -6,18 +6,44 @@ import clsx from "clsx";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { Check, Clock3, Copy, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, Clock3, Copy, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
-type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; previewUrl?: string | null };
+type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
 type DownloadPayload = { url: string };
+type PendingAttachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  previewType: AttachmentItem["previewType"];
+  previewUrl?: string | null;
+};
+type PendingMessage = {
+  localId: string;
+  createdAt: string;
+  content: string;
+  attachments: PendingAttachment[];
+  progress: number;
+  status: "sending" | "failed";
+  error?: string;
+};
 
-const isPreviewable = (a: AttachmentItem) => a.previewType === "IMAGE" || a.previewType === "VIDEO";
+const isPreviewable = (a: { previewType: AttachmentItem["previewType"] }) =>
+  a.previewType === "IMAGE" || a.previewType === "VIDEO";
 const fmt = (v: string) => new Date(v).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const hasInlinePreview = (a: AttachmentItem) => isPreviewable(a) && Boolean(a.previewUrl);
+const hasInlinePreview = (a: {
+  previewType: AttachmentItem["previewType"];
+  previewUrl?: string | null;
+}) => isPreviewable(a) && Boolean(a.previewUrl);
+const guessPreviewType = (mimeType: string): AttachmentItem["previewType"] => {
+  if (mimeType.startsWith("image/")) return "IMAGE";
+  if (mimeType.startsWith("video/")) return "VIDEO";
+  return "NONE";
+};
 
 function withStableAttachmentPreviewUrls(
   prev: RoomSnapshot | null,
@@ -96,7 +122,7 @@ export default function RoomPage() {
 
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [sending, setSending] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
 
   const [showManage, setShowManage] = useState(true);
   const [showQr, setShowQr] = useState(false);
@@ -138,7 +164,7 @@ export default function RoomPage() {
     return () => { window.clearInterval(hb); window.clearInterval(poll); };
   }, [roomCode, snap, refresh]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
   useEffect(() => {
     if (!showQr || !joinLink) return;
@@ -183,84 +209,209 @@ export default function RoomPage() {
     if (fs.length) { addFiles(fs); e.preventDefault(); }
   }
 
-  async function upload(file: File) {
+  async function upload(file: File, onProgress?: (percent: number) => void) {
     const formData = new FormData();
     formData.append("file", file, file.name);
 
     const requestUrl = `/api/rooms/${roomCode}/upload`;
-    let response: Response;
+    const payload = await new Promise<ProxyUploadResult>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", requestUrl, true);
+      xhr.withCredentials = true;
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable || !onProgress) return;
+        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+        onProgress(percent);
+      };
+
+      xhr.onerror = () => {
+        console.error("[upload] xhr network error", {
+          requestUrl,
+          roomCode,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+        });
+        reject(new Error(`Upload failed: ${file.name}`));
+      };
+
+      xhr.onload = () => {
+        let parsed:
+          | {
+              ok: boolean;
+              data?: ProxyUploadResult;
+              error?: { message?: string; code?: string };
+            }
+          | null = null;
+
+        try {
+          parsed = xhr.responseText
+            ? (JSON.parse(xhr.responseText) as {
+                ok: boolean;
+                data?: ProxyUploadResult;
+                error?: { message?: string; code?: string };
+              })
+            : null;
+        } catch (parseError) {
+          console.error("[upload] xhr parse error", {
+            requestUrl,
+            roomCode,
+            status: xhr.status,
+            responseText: xhr.responseText,
+            error: parseError,
+          });
+          reject(new Error(`Upload failed: ${file.name}`));
+          return;
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300 && parsed?.ok && parsed.data) {
+          if (onProgress) onProgress(100);
+          resolve(parsed.data);
+          return;
+        }
+
+        console.error("[upload] xhr response error", {
+          requestUrl,
+          roomCode,
+          status: xhr.status,
+          responseText: xhr.responseText,
+          payload: parsed,
+        });
+
+        reject(new Error(parsed?.error?.message ?? `Upload failed: ${file.name}`));
+      };
+
+      xhr.send(formData);
+    });
+
+    return payload;
+  }
+
+  function updatePendingMessage(localId: string, patch: Partial<PendingMessage>) {
+    setPendingMessages((prev) =>
+      prev.map((item) => (item.localId === localId ? { ...item, ...patch } : item)),
+    );
+  }
+
+  function getMessageDeliveryState(message: MessageItem): "sent" | "read" | null {
+    if (!snap) return null;
+    if (message.sender.id !== snap.me.id) return null;
+
+    const messageTime = new Date(message.createdAt).getTime();
+    const readByOthers = snap.members.some(
+      (member) =>
+        member.userId !== snap.me.id &&
+        member.lastSeenAt &&
+        new Date(member.lastSeenAt).getTime() >= messageTime,
+    );
+
+    return readByOthers ? "read" : "sent";
+  }
+
+  async function runSend(localId: string, content: string, sendingFiles: File[]) {
     try {
-      response = await fetch(requestUrl, {
-        method: "POST",
-        body: formData,
-        cache: "no-store",
-        credentials: "include",
+      let attachments: ProxyUploadResult[] = [];
+
+      if (sendingFiles.length > 0) {
+        const totalBytes = sendingFiles.reduce((sum, file) => sum + file.size, 0);
+        const loadedBytesMap = new Map<number, number>();
+
+        attachments = await Promise.all(
+          sendingFiles.map((file, index) =>
+            upload(file, (percent) => {
+              if (totalBytes <= 0) {
+                updatePendingMessage(localId, { progress: percent });
+                return;
+              }
+
+              const loadedBytes = Math.round((file.size * percent) / 100);
+              loadedBytesMap.set(index, loadedBytes);
+              const loadedTotal = Array.from(loadedBytesMap.values()).reduce(
+                (sum, value) => sum + value,
+                0,
+              );
+              const progress = Math.min(99, Math.round((loadedTotal / totalBytes) * 100));
+              updatePendingMessage(localId, { progress });
+            }),
+          ),
+        );
+      }
+
+      updatePendingMessage(localId, { progress: 99 });
+
+      const result = await apiFetch<{ message: MessageItem }>(
+        `/api/rooms/${roomCode}/messages`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            content: content || undefined,
+            attachments: attachments.map((attachment) => ({
+              fileName: attachment.fileName,
+              mimeType: attachment.mimeType,
+              sizeBytes: attachment.sizeBytes,
+              s3Key: attachment.s3Key,
+              storage: attachment.storage,
+            })),
+          }),
+        },
+      );
+
+      setPendingMessages((prev) => prev.filter((item) => item.localId !== localId));
+      setSnap((prev) => {
+        if (!prev) return prev;
+        return withStableAttachmentPreviewUrls(prev, {
+          ...prev,
+          messages: [...prev.messages, result.message],
+        });
       });
-    } catch (networkError) {
-      console.error("[upload] proxy request network error", {
-        requestUrl,
-        roomCode,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        error: networkError,
+      void refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Send failed";
+      updatePendingMessage(localId, {
+        status: "failed",
+        error: message,
       });
-      throw new Error(`Upload failed: ${file.name}`);
+      setError(message);
     }
-
-    type UploadProxyEnvelope = {
-      ok: boolean;
-      data?: ProxyUploadResult;
-      error?: { message: string; code?: string };
-    };
-
-    let payload: UploadProxyEnvelope;
-    try {
-      payload = (await response.json()) as UploadProxyEnvelope;
-    } catch (parseError) {
-      console.error("[upload] proxy response parse error", {
-        requestUrl,
-        roomCode,
-        status: response.status,
-        statusText: response.statusText,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        error: parseError,
-      });
-      throw new Error(`Upload failed: ${file.name}`);
-    }
-
-    if (!response.ok || !payload.ok || !payload.data) {
-      console.error("[upload] proxy response error", {
-        requestUrl,
-        roomCode,
-        status: response.status,
-        statusText: response.statusText,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        payload,
-      });
-      throw new Error(payload.error?.message ?? `Upload failed: ${file.name}`);
-    }
-
-    return payload.data;
   }
 
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const content = text.trim();
-    if (!content && !files.length) return;
-    setSending(true);
-    try {
-      const attachments = await Promise.all(files.map(upload));
-      await apiFetch<{ message: MessageItem }>(`/api/rooms/${roomCode}/messages`, { method: "POST", body: JSON.stringify({ content: content || undefined, attachments }) });
-      setText(""); setFiles([]); await refresh();
-    } catch (err) { setError(err instanceof Error ? err.message : "发送失败"); }
-    finally { setSending(false); }
-  }
+    const sendingFiles = [...files];
+    if (!content && sendingFiles.length === 0) return;
 
+    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const pendingAttachments: PendingAttachment[] = sendingFiles.map((file, index) => ({
+      id: `${localId}-${index}`,
+      fileName: file.name,
+      mimeType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+      previewType: guessPreviewType(file.type || "application/octet-stream"),
+      previewUrl:
+        (file.type || "").startsWith("image/") || (file.type || "").startsWith("video/")
+          ? URL.createObjectURL(file)
+          : null,
+    }));
+
+    setPendingMessages((prev) => [
+      ...prev,
+      {
+        localId,
+        createdAt: new Date().toISOString(),
+        content,
+        attachments: pendingAttachments,
+        progress: 0,
+        status: "sending",
+      },
+    ]);
+
+    setText("");
+    setFiles([]);
+
+    void runSend(localId, content, sendingFiles);
+  }
   async function kick(m: RoomMemberItem) {
     if (!window.confirm(`确认将 ${m.user.nickname} 踢出房间？`)) return;
     setAction(`kick-${m.id}`);
@@ -291,7 +442,7 @@ export default function RoomPage() {
   async function saveNotice() {
     setAction("notice");
     try {
-      let image: { s3Key: string; fileName: string; mimeType: string; sizeBytes: number } | undefined;
+      let image: { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"] } | undefined;
       if (noticeImage) image = await upload(noticeImage);
       await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, { method: "POST", body: JSON.stringify({ text: noticeText || undefined, image, clearImage: clearNoticeImage }) });
       setShowNoticeEditor(false); await refresh(); setHint("公告已更新"); window.setTimeout(() => setHint(null), 2200);
@@ -372,53 +523,175 @@ export default function RoomPage() {
           </header>
 
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-            {snap.messages.length === 0 ? <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">暂无消息，开始发送吧。</div> : snap.messages.map((m) => (
-              <article key={m.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-                <div className="mb-2 flex items-center justify-between"><div className="flex items-center gap-2"><Avatar initial={m.sender.avatarInitial} color={m.sender.avatarColor} className="h-7 w-7" /><span className="text-sm font-medium text-slate-200">{m.sender.nickname}</span></div><time className="text-[11px] text-slate-500">{fmt(m.createdAt)}</time></div>
-                {m.content ? <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{m.content}</p> : null}
-                {m.attachments.length ? (
-                  <div className="mt-3 space-y-2">
-                    {m.attachments.map((a) => (
-                      <div key={a.id} className="rounded-lg border border-slate-700/80 bg-slate-900 p-2.5">
-                        {hasInlinePreview(a) ? (
-                          <div className="mb-2 overflow-hidden rounded-md border border-slate-700 bg-black">
-                            {a.previewType === "IMAGE" ? (
-                              <img
-                                src={a.previewUrl ?? ""}
-                                alt={a.fileName}
-                                className="max-h-[360px] w-full object-contain"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <video
-                                src={a.previewUrl ?? ""}
-                                controls
-                                preload="metadata"
-                                className="max-h-[360px] w-full"
-                              />
-                            )}
-                          </div>
-                        ) : null}
+            {snap.messages.length === 0 && pendingMessages.length === 0 ? (
+              <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">
+                暂无消息，开始发送吧。
+              </div>
+            ) : null}
 
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm text-slate-200">{a.fileName}</p>
-                            <p className="text-xs text-slate-500">{a.mimeType} | {formatBytes(a.sizeBytes)}</p>
-                          </div>
-                          <FileAction roomCode={roomCode} attachment={a} />
-                        </div>
+            {snap.messages.map((m) => {
+              const isOwnMessage = m.sender.id === snap.me.id;
+              const deliveryState = getMessageDeliveryState(m);
+              return (
+                <article key={m.id} className={clsx("flex", isOwnMessage ? "justify-end" : "justify-start")}>
+                  <div
+                    className={clsx(
+                      "w-full max-w-[85%] rounded-xl border p-3",
+                      isOwnMessage
+                        ? "border-zinc-500/40 bg-zinc-500/10"
+                        : "border-slate-800 bg-slate-900/60",
+                    )}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Avatar
+                          initial={m.sender.avatarInitial}
+                          color={m.sender.avatarColor}
+                          className="h-7 w-7"
+                        />
+                        <span className="text-sm font-medium text-slate-200">{m.sender.nickname}</span>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                        <time>{fmt(m.createdAt)}</time>
+                        {isOwnMessage && deliveryState === "sent" ? (
+                          <Check className="h-3.5 w-3.5 text-slate-300" />
+                        ) : null}
+                        {isOwnMessage && deliveryState === "read" ? (
+                          <CheckCheck className="h-3.5 w-3.5 text-zinc-300" />
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {m.content ? (
+                      <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{m.content}</p>
+                    ) : null}
+
+                    {m.attachments.length ? (
+                      <div className="mt-3 space-y-2">
+                        {m.attachments.map((a) => (
+                          <div
+                            key={a.id}
+                            className="rounded-lg border border-slate-700/80 bg-slate-900 p-2.5"
+                          >
+                            {hasInlinePreview(a) ? (
+                              <div className="mb-2 overflow-hidden rounded-md border border-slate-700 bg-black">
+                                {a.previewType === "IMAGE" ? (
+                                  <img
+                                    src={a.previewUrl ?? ""}
+                                    alt={a.fileName}
+                                    className="max-h-[360px] w-full object-contain"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <video
+                                    src={a.previewUrl ?? ""}
+                                    controls
+                                    preload="metadata"
+                                    className="max-h-[360px] w-full"
+                                  />
+                                )}
+                              </div>
+                            ) : null}
+
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm text-slate-200">{a.fileName}</p>
+                                <p className="text-xs text-slate-500">{a.mimeType} | {formatBytes(a.sizeBytes)}</p>
+                              </div>
+                              <FileAction roomCode={roomCode} attachment={a} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                </article>
+              );
+            })}
+
+            {pendingMessages.map((message) => (
+              <article key={message.localId} className="flex justify-end">
+                <div className="w-full max-w-[85%] rounded-xl border border-zinc-500/40 bg-zinc-500/10 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Avatar
+                        initial={snap.me.avatarInitial}
+                        color={snap.me.avatarColor}
+                        className="h-7 w-7"
+                      />
+                      <span className="text-sm font-medium text-slate-200">{snap.me.nickname}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                      <time>{fmt(message.createdAt)}</time>
+                      {message.status === "sending" ? (
+                        <>
+                          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-slate-300" />
+                          <span>{message.progress}%</span>
+                        </>
+                      ) : (
+                        <>
+                          <X className="h-3.5 w-3.5 text-red-300" />
+                          <span>发送失败</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {message.content ? (
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                      {message.content}
+                    </p>
+                  ) : null}
+
+                  {message.attachments.length ? (
+                    <div className="mt-3 space-y-2">
+                      {message.attachments.map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className="rounded-lg border border-slate-700/80 bg-slate-900 p-2.5"
+                        >
+                          {hasInlinePreview(attachment) ? (
+                            <div className="mb-2 overflow-hidden rounded-md border border-slate-700 bg-black">
+                              {attachment.previewType === "IMAGE" ? (
+                                <img
+                                  src={attachment.previewUrl ?? ""}
+                                  alt={attachment.fileName}
+                                  className="max-h-[360px] w-full object-contain"
+                                  loading="lazy"
+                                />
+                              ) : attachment.previewType === "VIDEO" ? (
+                                <video
+                                  src={attachment.previewUrl ?? ""}
+                                  controls
+                                  preload="metadata"
+                                  className="max-h-[360px] w-full"
+                                />
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-slate-200">{attachment.fileName}</p>
+                            <p className="text-xs text-slate-500">
+                              {attachment.mimeType} | {formatBytes(attachment.sizeBytes)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {message.status === "failed" && message.error ? (
+                    <p className="mt-2 text-xs text-red-300">{message.error}</p>
+                  ) : null}
+                </div>
               </article>
-            ))}
-            <div ref={endRef} />
+            ))}            <div ref={endRef} />
           </div>
 
           <form onSubmit={send} className="border-t border-slate-800 p-4">
             {files.length ? <div className="mb-2 flex flex-wrap gap-2">{files.map((f, i) => <span key={`${f.name}-${f.size}-${i}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-200"><FileText className="h-3 w-3" /><span className="max-w-[220px] truncate">{f.name}</span><button type="button" onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="rounded-full p-0.5 hover:bg-slate-700"><X className="h-3 w-3" /></button></span>)}</div> : null}
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/90 p-2"><textarea value={text} onChange={(e) => setText(e.target.value)} onPaste={onPaste} placeholder="粘贴文本/文件后可直接发送..." className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500" /><div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 pb-1"><div className="flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"><Plus className="h-3.5 w-3.5" /> 文件<input type="file" className="hidden" multiple onChange={(e) => { if (e.target.files) { addFiles(e.target.files); e.target.value = ""; } }} /></label><button type="button" onClick={readClipboard} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"><Copy className="h-3.5 w-3.5" /> 读取剪贴板</button></div><button type="submit" disabled={sending} className="inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60">{sending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <SendHorizonal className="h-3.5 w-3.5" />}发送</button></div></div>
+            <div className="rounded-2xl border border-slate-700 bg-slate-900/90 p-2"><textarea value={text} onChange={(e) => setText(e.target.value)} onPaste={onPaste} placeholder="粘贴文本/文件后可直接发送..." className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500" /><div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 pb-1"><div className="flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"><Plus className="h-3.5 w-3.5" /> 文件<input type="file" className="hidden" multiple onChange={(e) => { if (e.target.files) { addFiles(e.target.files); e.target.value = ""; } }} /></label><button type="button" onClick={readClipboard} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"><Copy className="h-3.5 w-3.5" /> 读取剪贴板</button></div><button type="submit" disabled={false} className="inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"><SendHorizonal className="h-3.5 w-3.5" />发送</button></div></div>
             <p className="mt-2 text-xs text-slate-500">输入框支持直接 Ctrl+V 粘贴文本或文件；图片/视频可预览，其它文件仅下载。</p>
           </form>
         </section>

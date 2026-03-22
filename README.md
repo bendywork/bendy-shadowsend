@@ -46,6 +46,9 @@ Copy-Item .env.example .env
 | `S3_ACCESS_KEY_ID` | 是 | 访问 Key |
 | `S3_SECRET_ACCESS_KEY` | 是 | Secret Key |
 | `S3_FORCE_PATH_STYLE` | 建议配置 | 示例：`true`（推荐给 MinIO/Ceph/自建 S3）；AWS S3 常用 `false` |
+| `DUFS_BASE_URL` | 否 | 图片专用文件服务地址（DUFS），例如 `https://ykujzozhxkva.ap-southeast-1.clawcloudrun.com` |
+| `DUFS_PUBLIC_BASE_URL` | 否 | 图片对外访问地址（默认等于 `DUFS_BASE_URL`） |
+| `DUFS_AUTH` | 否 | DUFS 上传鉴权头（完整 Authorization 值） |
 | `OSS_PREVIEW_RPC_URL` | 否 | 预览 URL 的 JSON-RPC 接口地址（例如 `https://www.hi168.com/api/user/oss/preview/url`） |
 | `OSS_PREVIEW_BUCKET_NAME` | 否 | 调用预览 RPC 时使用的 bucket（默认跟 `S3_BUCKET` 一致） |
 | `OSS_PREVIEW_COOKIE` | 否 | 预览 RPC 鉴权 Cookie（不填时会转发当前请求 Cookie） |
@@ -55,6 +58,8 @@ Copy-Item .env.example .env
 > `S3_FORCE_PATH_STYLE` 推荐先填 `true`（尤其是自建 S3 或 IP/内网 endpoint）；若你的服务要求虚拟主机风格再改为 `false`。
 > 
 > 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
+>
+> 当前上传分流策略：`image/*` 走 DUFS；非图片（视频/文档等）走 S3。
 
 ### 3. 推荐配置样例
 
@@ -67,6 +72,9 @@ S3_BUCKET=bendy-temp
 S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin
 S3_FORCE_PATH_STYLE=true
+DUFS_BASE_URL=
+DUFS_PUBLIC_BASE_URL=
+DUFS_AUTH=
 ```
 
 AWS S3：
@@ -164,6 +172,9 @@ npm run dev
 | `S3_ACCESS_KEY_ID` | 是 | S3 Access Key |
 | `S3_SECRET_ACCESS_KEY` | 是 | S3 Secret Key |
 | `S3_FORCE_PATH_STYLE` | 建议 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用） |
+| `DUFS_BASE_URL` | 可选 | 图片专用 DUFS 服务地址 |
+| `DUFS_PUBLIC_BASE_URL` | 可选 | 图片公开访问地址（默认同 DUFS_BASE_URL） |
+| `DUFS_AUTH` | 可选 | DUFS 上传 Authorization 头 |
 | `OSS_PREVIEW_RPC_URL` | 可选 | 外部预览 URL 的 JSON-RPC 接口 |
 | `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |
 | `OSS_PREVIEW_COOKIE` | 可选 | 外部预览接口鉴权 Cookie |
@@ -279,6 +290,7 @@ npm run db:reinit:prefixed
 - `本次迭代` 修复 S3 `getaddrinfo ENOTFOUND`：对非 AWS endpoint 自动使用 path-style，避免 `<bucket>.<endpoint>` 解析失败。
 - `本次迭代` 增强网络错误日志：前端 `apiFetch/upload` 与服务端上传相关路由均输出详细错误上下文，便于快速定位。
 - `本次迭代` 调整预览交互：图片/视频在聊天历史中直接内联展示，不再依赖点击“预览”按钮触发请求。
+- `本次迭代` 新增 DUFS 图片分流：`image/*` 上传到 DUFS，非图片继续走 S3；聊天气泡改为左右两侧并支持发送进度、单勾已发送、双勾已读。
 
 ### 2026-03-21
 

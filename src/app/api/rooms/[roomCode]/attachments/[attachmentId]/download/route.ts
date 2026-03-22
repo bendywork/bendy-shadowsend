@@ -1,6 +1,7 @@
-﻿import { RoomStatus } from "@prisma/client";
+﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { createDufsPublicUrl } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { createDownloadUrl } from "@/lib/s3";
@@ -41,6 +42,7 @@ export async function GET(
         id: true,
         s3Key: true,
         fileName: true,
+        storage: true,
       },
     });
 
@@ -48,11 +50,14 @@ export async function GET(
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
     }
 
-    const downloadUrl = await createDownloadUrl({
-      key: attachment.s3Key,
-      filename: attachment.fileName,
-      expiresInSeconds: 90,
-    });
+    const downloadUrl =
+      attachment.storage === AttachmentStorage.DUFS
+        ? createDufsPublicUrl(attachment.s3Key)
+        : await createDownloadUrl({
+            key: attachment.s3Key,
+            filename: attachment.fileName,
+            expiresInSeconds: 90,
+          });
 
     const response = jsonOk({
       url: downloadUrl,

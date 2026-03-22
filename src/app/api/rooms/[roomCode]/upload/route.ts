@@ -1,7 +1,8 @@
-import { RoomStatus } from "@prisma/client";
+import { AttachmentStorage, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { customAlphabet } from "nanoid";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { isDufsConfigured, uploadImageToDufs } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
@@ -61,33 +62,49 @@ export async function POST(
     const fileName = sanitizeFileName(uploaded.name || `upload-${Date.now()}`);
     const mimeType = uploaded.type?.trim() || "application/octet-stream";
     const suffix = keyId();
-    const key = `rooms/${room.id}/${Date.now()}-${suffix}-${fileName}`;
     const content = new Uint8Array(await uploaded.arrayBuffer());
+    const isImage = mimeType.startsWith("image/");
 
-    await uploadObject({
-      key,
-      contentType: mimeType,
-      body: content,
-    });
+    let key = "";
+    let previewUrl: string | null = null;
+    let storage: AttachmentStorage = AttachmentStorage.S3;
 
-    const shouldPreparePreview =
-      mimeType.startsWith("image/") || mimeType.startsWith("video/");
-    const previewUrl = shouldPreparePreview
-      ? await createAttachmentPreviewUrl({
-          key,
-          fileName,
-          mimeType,
-          sizeBytes: uploaded.size,
-          cookieHeader: request.headers.get("cookie") ?? undefined,
-          expiresInSeconds: 120,
-        })
-      : null;
+    if (isImage && isDufsConfigured()) {
+      key = `img-${room.id}-${Date.now()}-${suffix}-${fileName}`;
+      const uploadedToDufs = await uploadImageToDufs({
+        path: key,
+        body: content,
+        contentType: mimeType,
+      });
+      storage = AttachmentStorage.DUFS;
+      previewUrl = uploadedToDufs.publicUrl;
+    } else {
+      key = `rooms/${room.id}/${Date.now()}-${suffix}-${fileName}`;
+      await uploadObject({
+        key,
+        contentType: mimeType,
+        body: content,
+      });
+
+      const shouldPreparePreview = isImage || mimeType.startsWith("video/");
+      previewUrl = shouldPreparePreview
+        ? await createAttachmentPreviewUrl({
+            key,
+            fileName,
+            mimeType,
+            sizeBytes: uploaded.size,
+            cookieHeader: request.headers.get("cookie") ?? undefined,
+            expiresInSeconds: 120,
+          })
+        : null;
+    }
 
     const response = jsonOk({
       s3Key: key,
       fileName,
       mimeType,
       sizeBytes: uploaded.size,
+      storage,
       previewUrl,
     });
 

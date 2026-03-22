@@ -1,6 +1,12 @@
-﻿import { MemberStatus, RoomRole, RoomStatus } from "@prisma/client";
+﻿import {
+  AttachmentStorage,
+  MemberStatus,
+  RoomRole,
+  RoomStatus,
+} from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { createDufsPublicUrl } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { parseJsonBody } from "@/lib/route";
@@ -29,6 +35,7 @@ export async function POST(
         id: true,
         status: true,
         announcementImageKey: true,
+        announcementImageStorage: true,
       },
     });
 
@@ -53,7 +60,12 @@ export async function POST(
       throw new ApiError(400, "公告图片必须是图片格式", "ANNOUNCEMENT_IMAGE_INVALID");
     }
 
-    const nextImageKey = payload.clearImage ? null : payload.image?.s3Key ?? room.announcementImageKey;
+    const nextImageKey = payload.clearImage
+      ? null
+      : payload.image?.s3Key ?? room.announcementImageKey;
+    const nextImageStorage = payload.clearImage
+      ? null
+      : payload.image?.storage ?? room.announcementImageStorage;
     const nextImageName = payload.clearImage ? null : payload.image?.fileName ?? null;
     const nextText = payload.text ?? null;
 
@@ -67,12 +79,14 @@ export async function POST(
         announcementText: nextText,
         announcementImageKey: nextImageKey,
         announcementImageName: nextImageName,
+        announcementImageStorage: nextImageStorage,
         announcementUpdatedAt: new Date(),
       },
       select: {
         announcementText: true,
         announcementImageKey: true,
         announcementImageName: true,
+        announcementImageStorage: true,
         announcementUpdatedAt: true,
       },
     });
@@ -80,7 +94,12 @@ export async function POST(
     await touchRoom(room.id);
 
     const imageUrl = updated.announcementImageKey
-      ? await createInlineReadUrl({ key: updated.announcementImageKey, expiresInSeconds: 120 })
+      ? updated.announcementImageStorage === AttachmentStorage.DUFS
+        ? createDufsPublicUrl(updated.announcementImageKey)
+        : await createInlineReadUrl({
+            key: updated.announcementImageKey,
+            expiresInSeconds: 120,
+          })
       : null;
 
     const response = jsonOk({

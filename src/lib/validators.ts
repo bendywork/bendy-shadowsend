@@ -47,6 +47,7 @@ export const sendMessageSchema = z.object({
         mimeType: z.string().trim().min(1).max(120),
         sizeBytes: z.number().int().positive().max(1024 * 1024 * 1024),
         s3Key: z.string().trim().min(1).max(512),
+        storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
       }),
     )
     .optional()
@@ -90,6 +91,7 @@ export const roomAnnouncementSchema = z.object({
       fileName: z.string().trim().min(1).max(255),
       mimeType: z.string().trim().min(1).max(120),
       sizeBytes: z.number().int().positive().max(20 * 1024 * 1024),
+      storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
     })
     .optional(),
 });

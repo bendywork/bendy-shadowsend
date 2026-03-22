@@ -1,4 +1,9 @@
-﻿import { MessageType, PreviewType, RoomRole } from "@prisma/client";
+﻿import {
+  AttachmentStorage,
+  MessageType,
+  PreviewType,
+  RoomRole,
+} from "@prisma/client";
 import { decryptText } from "@/lib/encryption";
 import type { MessageWithRelations } from "@/lib/room-service";
 
@@ -14,6 +19,7 @@ export type ClientAttachment = {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
+  storage: AttachmentStorage;
   previewType: PreviewType;
   previewUrl?: string | null;
   createdAt: string;
@@ -58,6 +64,7 @@ export function mapClientMessage(message: MessageWithRelations): ClientMessage {
       fileName: attachment.fileName,
       mimeType: attachment.mimeType,
       sizeBytes: attachment.sizeBytes,
+      storage: attachment.storage,
       previewType: attachment.previewType,
       previewUrl:
         (
@@ -69,4 +76,3 @@ export function mapClientMessage(message: MessageWithRelations): ClientMessage {
     })),
   };
 }
-
