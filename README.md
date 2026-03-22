@@ -48,6 +48,7 @@ Copy-Item .env.example .env
 | `S3_FORCE_PATH_STYLE` | 建议配置 | 示例：`true`（推荐给 MinIO/Ceph/自建 S3）；AWS S3 常用 `false` |
 | `DUFS_BASE_URL` | 否 | 图片专用文件服务地址（DUFS），例如 `https://ykujzozhxkva.ap-southeast-1.clawcloudrun.com` |
 | `DUFS_PUBLIC_BASE_URL` | 否 | 图片对外访问地址（默认等于 `DUFS_BASE_URL`） |
+| `DUFS_PATH_PREFIX` | 否 | DUFS 路径前缀（例如部署在 `/dufs` 或需要写入 `/data` 时） |
 | `DUFS_AUTH` | 否 | DUFS 上传鉴权头（完整 Authorization 值） |
 | `OSS_PREVIEW_RPC_URL` | 否 | 预览 URL 的 JSON-RPC 接口地址（例如 `https://www.hi168.com/api/user/oss/preview/url`） |
 | `OSS_PREVIEW_BUCKET_NAME` | 否 | 调用预览 RPC 时使用的 bucket（默认跟 `S3_BUCKET` 一致） |
@@ -60,6 +61,8 @@ Copy-Item .env.example .env
 > 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
 >
 > 当前上传分流策略：`image/*` 走 DUFS；非图片（视频/文档等）走 S3。
+>
+> 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
 
 ### 3. 推荐配置样例
 
@@ -74,6 +77,7 @@ S3_SECRET_ACCESS_KEY=minioadmin
 S3_FORCE_PATH_STYLE=true
 DUFS_BASE_URL=
 DUFS_PUBLIC_BASE_URL=
+DUFS_PATH_PREFIX=
 DUFS_AUTH=
 ```
 
@@ -174,6 +178,7 @@ npm run dev
 | `S3_FORCE_PATH_STYLE` | 建议 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用） |
 | `DUFS_BASE_URL` | 可选 | 图片专用 DUFS 服务地址 |
 | `DUFS_PUBLIC_BASE_URL` | 可选 | 图片公开访问地址（默认同 DUFS_BASE_URL） |
+| `DUFS_PATH_PREFIX` | 可选 | DUFS 路径前缀（如 `/dufs` 或 `/data`） |
 | `DUFS_AUTH` | 可选 | DUFS 上传 Authorization 头 |
 | `OSS_PREVIEW_RPC_URL` | 可选 | 外部预览 URL 的 JSON-RPC 接口 |
 | `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |

@@ -17,6 +17,7 @@ const baseSchema = z.object({
     .transform((value) => value === "true"),
   DUFS_BASE_URL: z.string().url().optional(),
   DUFS_PUBLIC_BASE_URL: z.string().url().optional(),
+  DUFS_PATH_PREFIX: z.string().optional(),
   DUFS_AUTH: z.string().optional(),
   OSS_PREVIEW_RPC_URL: z.string().url().optional(),
   OSS_PREVIEW_BUCKET_NAME: z.string().optional(),
@@ -47,6 +48,7 @@ export const env = {
   dufs: {
     baseUrl: parsed.data.DUFS_BASE_URL,
     publicBaseUrl: parsed.data.DUFS_PUBLIC_BASE_URL,
+    pathPrefix: parsed.data.DUFS_PATH_PREFIX,
     auth: parsed.data.DUFS_AUTH,
   },
   ossPreview: {
