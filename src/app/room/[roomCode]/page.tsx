@@ -15,6 +15,7 @@ import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem,
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
 type DownloadPayload = { url: string };
 type MessageListPayload = { messages: MessageItem[] };
+type ImageViewerState = { url: string; fileName: string };
 type PendingAttachment = {
   id: string;
   fileName: string;
@@ -166,6 +167,7 @@ export default function RoomPage() {
   const [gateCodeInput, setGateCodeInput] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
+  const [imageViewer, setImageViewer] = useState<ImageViewerState | null>(null);
 
   const isOwner = snap?.me.role === "OWNER";
   const showMembers = isOwner ? showManage : true;
@@ -217,6 +219,19 @@ export default function RoomPage() {
     if (!showQr || !joinLink) return;
     void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark: "#e5edf9", light: "#00000000" } }).then(setQr);
   }, [showQr, joinLink]);
+
+  useEffect(() => {
+    if (!imageViewer) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setImageViewer(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [imageViewer]);
 
   useEffect(() => {
     if (!snap || snap.me.role !== "OWNER") return;
@@ -354,6 +369,14 @@ export default function RoomPage() {
     );
 
     return readByOthers ? "read" : "sent";
+  }
+
+  function openImageViewer(url: string | null | undefined, fileName: string) {
+    if (!url) return;
+    setImageViewer({
+      url,
+      fileName,
+    });
   }
 
   async function runSend(localId: string, content: string, sendingFiles: File[]) {
@@ -730,8 +753,9 @@ export default function RoomPage() {
                                   <img
                                     src={a.previewUrl ?? ""}
                                     alt={a.fileName}
-                                    className="max-h-[360px] w-full object-contain"
+                                    className="max-h-[360px] w-full cursor-zoom-in object-contain"
                                     loading="lazy"
+                                    onDoubleClick={() => openImageViewer(a.previewUrl, a.fileName)}
                                   />
                                 ) : (
                                   <video
@@ -807,8 +831,11 @@ export default function RoomPage() {
                                 <img
                                   src={attachment.previewUrl ?? ""}
                                   alt={attachment.fileName}
-                                  className="max-h-[360px] w-full object-contain"
+                                  className="max-h-[360px] w-full cursor-zoom-in object-contain"
                                   loading="lazy"
+                                  onDoubleClick={() =>
+                                    openImageViewer(attachment.previewUrl, attachment.fileName)
+                                  }
                                 />
                               ) : attachment.previewType === "VIDEO" ? (
                                 <video
@@ -1180,6 +1207,34 @@ export default function RoomPage() {
                 我知道了
               </button>
             </div>
+          </section>
+        </div>
+      ) : null}
+
+      {imageViewer ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+          onClick={() => setImageViewer(null)}
+        >
+          <section
+            className="w-full max-w-5xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="truncate text-xs text-slate-300">{imageViewer.fileName}</p>
+              <button
+                type="button"
+                onClick={() => setImageViewer(null)}
+                className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800"
+              >
+                关闭
+              </button>
+            </div>
+            <img
+              src={imageViewer.url}
+              alt={imageViewer.fileName}
+              className="max-h-[80vh] w-full rounded-lg border border-slate-700 bg-black object-contain"
+            />
           </section>
         </div>
       ) : null}
