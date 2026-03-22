@@ -3,28 +3,74 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ApiError } from "@/lib/api";
 import { env, isS3Configured } from "@/lib/env";
 
-let s3ClientSingleton: S3Client | null = null;
+const s3ClientCache = new Map<string, S3Client>();
 
-function getS3Client() {
-  if (s3ClientSingleton) {
-    return s3ClientSingleton;
+function isAwsS3Endpoint(endpoint?: string) {
+  if (!endpoint) return false;
+  try {
+    const host = new URL(endpoint).hostname.toLowerCase();
+    return (
+      host === "s3.amazonaws.com" ||
+      host.endsWith(".amazonaws.com") ||
+      host.endsWith(".amazonaws.com.cn")
+    );
+  } catch {
+    return false;
   }
+}
+
+function resolveForcePathStyle(configuredValue: boolean) {
+  if (configuredValue) return true;
+
+  // Custom S3-compatible endpoints usually do not support bucket subdomain hosts reliably.
+  // For safety, non-AWS endpoints are normalized to path-style addressing.
+  if (!isAwsS3Endpoint(env.s3.endpoint)) {
+    return true;
+  }
+
+  return false;
+}
+
+function isHostNotFoundError(error: unknown) {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+
+  return (
+    code === "ENOTFOUND" ||
+    (error instanceof Error && error.message.includes("getaddrinfo ENOTFOUND"))
+  );
+}
+
+function getS3Client(options?: { forcePathStyle?: boolean }) {
+  const forcePathStyle = resolveForcePathStyle(
+    options?.forcePathStyle ?? env.s3.forcePathStyle,
+  );
 
   if (!isS3Configured()) {
     throw new ApiError(500, "S3 未配置完整，无法上传文件", "S3_NOT_CONFIGURED");
   }
 
-  s3ClientSingleton = new S3Client({
+  const cacheKey = `${env.s3.endpoint}|${forcePathStyle ? "path" : "virtual"}`;
+  const cached = s3ClientCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const client = new S3Client({
     ...(env.s3.region ? { region: env.s3.region } : {}),
     endpoint: env.s3.endpoint,
-    forcePathStyle: env.s3.forcePathStyle,
+    forcePathStyle,
     credentials: {
       accessKeyId: env.s3.accessKeyId!,
       secretAccessKey: env.s3.secretAccessKey!,
     },
   });
 
-  return s3ClientSingleton;
+  s3ClientCache.set(cacheKey, client);
+
+  return client;
 }
 
 function getBucketName() {
@@ -61,14 +107,26 @@ export async function uploadObject(params: {
   contentType: string;
   body: Uint8Array;
 }) {
-  const command = new PutObjectCommand({
-    Bucket: getBucketName(),
-    Key: params.key,
-    ContentType: params.contentType,
-    Body: params.body,
-  });
+  const primaryForcePathStyle = resolveForcePathStyle(env.s3.forcePathStyle);
+  const createCommand = () =>
+    new PutObjectCommand({
+      Bucket: getBucketName(),
+      Key: params.key,
+      ContentType: params.contentType,
+      Body: params.body,
+    });
 
-  await getS3Client().send(command);
+  try {
+    await getS3Client({ forcePathStyle: primaryForcePathStyle }).send(
+      createCommand(),
+    );
+  } catch (error) {
+    if (!primaryForcePathStyle && isHostNotFoundError(error)) {
+      await getS3Client({ forcePathStyle: true }).send(createCommand());
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function createDownloadUrl(params: {

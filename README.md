@@ -53,6 +53,8 @@ Copy-Item .env.example .env
 > 说明：部分自建或兼容 S3 服务不要求 region，可直接不配置 `S3_REGION`。
 > 
 > `S3_FORCE_PATH_STYLE` 推荐先填 `true`（尤其是自建 S3 或 IP/内网 endpoint）；若你的服务要求虚拟主机风格再改为 `false`。
+> 
+> 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
 
 ### 3. 推荐配置样例
 
@@ -273,6 +275,7 @@ npm run db:reinit:prefixed
 - `1766dbb` 合并上游分支改动。
 - `本次迭代` 修复剪贴板图片上传 `Failed to fetch`：新增服务端中转上传兜底，直传失败时自动回退。
 - `本次迭代` 新增附件预览 URL 通道：支持对接 `OSS_PREVIEW_RPC_URL`（JSON-RPC）并提供精简请求参数。
+- `本次迭代` 修复 S3 `getaddrinfo ENOTFOUND`：对非 AWS endpoint 自动使用 path-style，避免 `<bucket>.<endpoint>` 解析失败。
 
 ### 2026-03-21
 
