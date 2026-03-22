@@ -77,6 +77,13 @@ Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
+### Vercel 部署注意
+
+- Prisma 运行时必须有 `DATABASE_URL`。
+- 如果你使用 Vercel Postgres Integration，平台通常会注入 `POSTGRES_PRISMA_URL` / `POSTGRES_URL`，但不一定自动有 `DATABASE_URL`。
+- 本项目已做运行时兜底：会优先使用 `DATABASE_URL`，缺失时回退到 `POSTGRES_PRISMA_URL` 或 `POSTGRES_URL`。
+- 仍建议在 Vercel 项目环境变量中显式配置 `DATABASE_URL`（Production/Preview/Development 都配置），然后重新部署。
+
 ## 3. 初始化数据库
 
 ```bash
