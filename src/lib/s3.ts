@@ -122,9 +122,25 @@ export async function uploadObject(params: {
     );
   } catch (error) {
     if (!primaryForcePathStyle && isHostNotFoundError(error)) {
+      console.error("[s3] upload failed with virtual-host style, retrying path-style", {
+        endpoint: env.s3.endpoint,
+        bucket: getBucketName(),
+        key: params.key,
+        contentType: params.contentType,
+        error,
+      });
       await getS3Client({ forcePathStyle: true }).send(createCommand());
       return;
     }
+
+    console.error("[s3] upload failed", {
+      endpoint: env.s3.endpoint,
+      bucket: getBucketName(),
+      forcePathStyle: primaryForcePathStyle,
+      key: params.key,
+      contentType: params.contentType,
+      error,
+    });
     throw error;
   }
 }
@@ -218,16 +234,66 @@ export async function createAttachmentPreviewUrl(params: {
         cache: "no-store",
       });
 
-      if (response.ok) {
-        const payload = (await response.json()) as OssPreviewRpcResponse;
+      const rawText = await response.text();
+      let payload: OssPreviewRpcResponse | null = null;
+      try {
+        payload = rawText ? (JSON.parse(rawText) as OssPreviewRpcResponse) : null;
+      } catch (parseError) {
+        console.error("[oss-preview] rpc response parse error", {
+          rpcUrl,
+          bucketName,
+          fileKey: params.key,
+          fileName: params.fileName,
+          mimeType: params.mimeType,
+          sizeBytes: params.sizeBytes,
+          status: response.status,
+          statusText: response.statusText,
+          rawText,
+          error: parseError,
+        });
+      }
+
+      if (response.ok && payload) {
         const code = payload.result?.code;
         const url = payload.result?.data?.url;
         if (code === 2000 && typeof url === "string" && url) {
           return url;
         }
+
+        console.error("[oss-preview] rpc business error", {
+          rpcUrl,
+          bucketName,
+          fileKey: params.key,
+          fileName: params.fileName,
+          mimeType: params.mimeType,
+          sizeBytes: params.sizeBytes,
+          responseCode: code,
+          responseMessage: payload.result?.message,
+          payload,
+        });
+      } else {
+        console.error("[oss-preview] rpc http error", {
+          rpcUrl,
+          bucketName,
+          fileKey: params.key,
+          fileName: params.fileName,
+          mimeType: params.mimeType,
+          sizeBytes: params.sizeBytes,
+          status: response.status,
+          statusText: response.statusText,
+          rawText,
+        });
       }
-    } catch {
-      // fallback to S3 inline signed URL below
+    } catch (rpcError) {
+      console.error("[oss-preview] rpc request failed", {
+        rpcUrl,
+        bucketName,
+        fileKey: params.key,
+        fileName: params.fileName,
+        mimeType: params.mimeType,
+        sizeBytes: params.sizeBytes,
+        error: rpcError,
+      });
     }
   }
 

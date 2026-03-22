@@ -17,6 +17,14 @@ export function jsonOk<T>(data: T, init?: ResponseInit) {
 
 export function jsonError(error: unknown) {
   if (error instanceof ApiError) {
+    console.error("[api:error]", {
+      type: "ApiError",
+      status: error.status,
+      code: error.code,
+      message: error.message,
+      stack: error.stack,
+    });
+
     return NextResponse.json(
       {
         ok: false,
@@ -30,6 +38,13 @@ export function jsonError(error: unknown) {
   }
 
   const message = error instanceof Error ? error.message : "服务器内部错误";
+
+  console.error("[api:error]", {
+    type: error instanceof Error ? error.name : typeof error,
+    message,
+    stack: error instanceof Error ? error.stack : undefined,
+    raw: error,
+  });
 
   return NextResponse.json(
     {

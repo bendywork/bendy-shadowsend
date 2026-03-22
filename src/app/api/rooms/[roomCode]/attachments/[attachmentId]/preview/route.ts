@@ -65,7 +65,11 @@ export async function GET(
 
     return applyUserCookie(response, cookieToSet);
   } catch (error) {
+    console.error("[route] /api/rooms/[roomCode]/attachments/[attachmentId]/preview failed", {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      error,
+    });
     return jsonError(error);
   }
 }
-

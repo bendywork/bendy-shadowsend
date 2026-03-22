@@ -12,7 +12,6 @@ import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
-type UploadPrep = { uploadUrl: string; previewUrl?: string | null; s3Key: string; method: "PUT"; headers: { "Content-Type": string } };
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; previewUrl?: string | null };
 type DownloadPayload = { url: string };
 
@@ -157,60 +156,68 @@ export default function RoomPage() {
   }
 
   async function upload(file: File) {
-    const uploadViaProxy = async () => {
-      const formData = new FormData();
-      formData.append("file", file, file.name);
+    const formData = new FormData();
+    formData.append("file", file, file.name);
 
-      const response = await fetch(`/api/rooms/${roomCode}/upload`, {
+    const requestUrl = `/api/rooms/${roomCode}/upload`;
+    let response: Response;
+    try {
+      response = await fetch(requestUrl, {
         method: "POST",
         body: formData,
         cache: "no-store",
         credentials: "include",
       });
+    } catch (networkError) {
+      console.error("[upload] proxy request network error", {
+        requestUrl,
+        roomCode,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        error: networkError,
+      });
+      throw new Error(`Upload failed: ${file.name}`);
+    }
 
-      type UploadProxyEnvelope = {
-        ok: boolean;
-        data?: ProxyUploadResult;
-        error?: { message: string; code?: string };
-      };
-
-      const payload = (await response.json()) as UploadProxyEnvelope;
-      if (!response.ok || !payload.ok || !payload.data) {
-        throw new Error(payload.error?.message ?? `文件上传失败: ${file.name}`);
-      }
-
-      return payload.data;
+    type UploadProxyEnvelope = {
+      ok: boolean;
+      data?: ProxyUploadResult;
+      error?: { message: string; code?: string };
     };
 
-    let prep: UploadPrep;
+    let payload: UploadProxyEnvelope;
     try {
-      prep = await apiFetch<UploadPrep>(`/api/rooms/${roomCode}/upload-url`, { method: "POST", body: JSON.stringify({ fileName: file.name, mimeType: file.type || "application/octet-stream", sizeBytes: file.size }) });
-    } catch {
-      return uploadViaProxy();
+      payload = (await response.json()) as UploadProxyEnvelope;
+    } catch (parseError) {
+      console.error("[upload] proxy response parse error", {
+        requestUrl,
+        roomCode,
+        status: response.status,
+        statusText: response.statusText,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        error: parseError,
+      });
+      throw new Error(`Upload failed: ${file.name}`);
     }
 
-    const mustUseProxyInBrowser =
-      typeof window !== "undefined" &&
-      window.location.protocol === "https:" &&
-      prep.uploadUrl.startsWith("http://");
-
-    if (mustUseProxyInBrowser) {
-      return uploadViaProxy();
+    if (!response.ok || !payload.ok || !payload.data) {
+      console.error("[upload] proxy response error", {
+        requestUrl,
+        roomCode,
+        status: response.status,
+        statusText: response.statusText,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        payload,
+      });
+      throw new Error(payload.error?.message ?? `Upload failed: ${file.name}`);
     }
 
-    try {
-      const r = await fetch(prep.uploadUrl, { method: prep.method, headers: prep.headers, body: file });
-      if (!r.ok) throw new Error(`DIRECT_UPLOAD_HTTP_${r.status}`);
-      return { fileName: file.name, mimeType: file.type || "application/octet-stream", sizeBytes: file.size, s3Key: prep.s3Key, previewUrl: prep.previewUrl ?? null };
-    } catch (directError) {
-      try {
-        return await uploadViaProxy();
-      } catch (proxyError) {
-        if (proxyError instanceof Error) throw proxyError;
-        if (directError instanceof Error) throw directError;
-        throw new Error(`文件上传失败: ${file.name}`);
-      }
-    }
+    return payload.data;
   }
 
   async function send(e: FormEvent<HTMLFormElement>) {

@@ -107,6 +107,7 @@ curl 'https://www.hi168.com/api/user/oss/preview/url' \
 - 若报错 `S3_NOT_CONFIGURED`，说明必填项缺失或格式错误。
 - 若前端提示 `Failed to fetch`：项目会自动回退到后端中转上传接口（`/api/rooms/[roomCode]/upload`），但中转上传建议控制在 `20MB` 以内。
 - 生产环境建议优先使用 `HTTPS` 的 `S3_ENDPOINT`，可减少浏览器混合内容拦截与 CORS 问题。
+- 网络请求出错时：前端会在浏览器控制台输出 `apiFetch`/`upload` 详细上下文；服务端会在 Vercel Function Logs 打印路由级和 S3 级错误细节。
 
 ## 快速开始
 
@@ -276,6 +277,7 @@ npm run db:reinit:prefixed
 - `本次迭代` 修复剪贴板图片上传 `Failed to fetch`：新增服务端中转上传兜底，直传失败时自动回退。
 - `本次迭代` 新增附件预览 URL 通道：支持对接 `OSS_PREVIEW_RPC_URL`（JSON-RPC）并提供精简请求参数。
 - `本次迭代` 修复 S3 `getaddrinfo ENOTFOUND`：对非 AWS endpoint 自动使用 path-style，避免 `<bucket>.<endpoint>` 解析失败。
+- `本次迭代` 增强网络错误日志：前端 `apiFetch/upload` 与服务端上传相关路由均输出详细错误上下文，便于快速定位。
 
 ### 2026-03-21
 

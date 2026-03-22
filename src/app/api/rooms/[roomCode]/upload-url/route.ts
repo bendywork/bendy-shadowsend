@@ -75,6 +75,11 @@ export async function POST(
 
     return applyUserCookie(response, cookieToSet);
   } catch (error) {
+    console.error("[route] /api/rooms/[roomCode]/upload-url failed", {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      error,
+    });
     return jsonError(error);
   }
 }
