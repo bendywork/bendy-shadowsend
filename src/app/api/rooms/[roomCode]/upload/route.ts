@@ -1,15 +1,14 @@
-﻿import { RoomStatus } from "@prisma/client";
+import { RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { customAlphabet } from "nanoid";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
-import { parseJsonBody } from "@/lib/route";
-import { createAttachmentPreviewUrl, createUploadUrl } from "@/lib/s3";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
-import { uploadPrepareSchema } from "@/lib/validators";
+import { createAttachmentPreviewUrl, uploadObject } from "@/lib/s3";
 
 const keyId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
+const proxyUploadLimitBytes = 20 * 1024 * 1024;
 
 type Params = {
   roomCode: string;
@@ -28,7 +27,6 @@ export async function POST(
 
     const { roomCode } = await params;
     const { user, cookieToSet } = await getOrCreateUser(request);
-    const payload = await parseJsonBody(request, uploadPrepareSchema);
 
     const room = await prisma.room.findUnique({
       where: { roomCode },
@@ -36,41 +34,61 @@ export async function POST(
     });
 
     if (!room || room.status !== RoomStatus.ACTIVE) {
-      throw new ApiError(404, "房间不存在或已销毁", "ROOM_NOT_FOUND");
+      throw new ApiError(404, "Room not found or already deleted", "ROOM_NOT_FOUND");
     }
 
     await assertRoomMember(room.id, user.id);
 
-    const suffix = keyId();
-    const key = `rooms/${room.id}/${Date.now()}-${suffix}-${sanitizeFileName(payload.fileName)}`;
+    const formData = await request.formData();
+    const uploaded = formData.get("file");
 
-    const uploadUrl = await createUploadUrl({
+    if (!(uploaded instanceof File)) {
+      throw new ApiError(400, "Missing uploaded file", "FILE_MISSING");
+    }
+
+    if (uploaded.size <= 0) {
+      throw new ApiError(400, "File size must be greater than 0", "INVALID_FILE_SIZE");
+    }
+
+    if (uploaded.size > proxyUploadLimitBytes) {
+      throw new ApiError(
+        413,
+        `Proxy upload supports files up to ${Math.floor(proxyUploadLimitBytes / 1024 / 1024)}MB`,
+        "FILE_TOO_LARGE",
+      );
+    }
+
+    const fileName = sanitizeFileName(uploaded.name || `upload-${Date.now()}`);
+    const mimeType = uploaded.type?.trim() || "application/octet-stream";
+    const suffix = keyId();
+    const key = `rooms/${room.id}/${Date.now()}-${suffix}-${fileName}`;
+    const content = new Uint8Array(await uploaded.arrayBuffer());
+
+    await uploadObject({
       key,
-      contentType: payload.mimeType,
-      expiresInSeconds: 120,
+      contentType: mimeType,
+      body: content,
     });
 
     const shouldPreparePreview =
-      payload.mimeType.startsWith("image/") || payload.mimeType.startsWith("video/");
+      mimeType.startsWith("image/") || mimeType.startsWith("video/");
     const previewUrl = shouldPreparePreview
       ? await createAttachmentPreviewUrl({
           key,
-          fileName: payload.fileName,
-          mimeType: payload.mimeType,
-          sizeBytes: payload.sizeBytes,
+          fileName,
+          mimeType,
+          sizeBytes: uploaded.size,
           cookieHeader: request.headers.get("cookie") ?? undefined,
           expiresInSeconds: 120,
         })
       : null;
 
     const response = jsonOk({
-      uploadUrl,
-      previewUrl,
       s3Key: key,
-      method: "PUT",
-      headers: {
-        "Content-Type": payload.mimeType,
-      },
+      fileName,
+      mimeType,
+      sizeBytes: uploaded.size,
+      previewUrl,
     });
 
     return applyUserCookie(response, cookieToSet);

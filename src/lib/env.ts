@@ -15,6 +15,9 @@ const baseSchema = z.object({
     .string()
     .optional()
     .transform((value) => value === "true"),
+  OSS_PREVIEW_RPC_URL: z.string().url().optional(),
+  OSS_PREVIEW_BUCKET_NAME: z.string().optional(),
+  OSS_PREVIEW_COOKIE: z.string().optional(),
 });
 
 const parsed = baseSchema.safeParse(process.env);
@@ -37,6 +40,11 @@ export const env = {
     accessKeyId: parsed.data.S3_ACCESS_KEY_ID,
     secretAccessKey: parsed.data.S3_SECRET_ACCESS_KEY,
     forcePathStyle: parsed.data.S3_FORCE_PATH_STYLE ?? true,
+  },
+  ossPreview: {
+    rpcUrl: parsed.data.OSS_PREVIEW_RPC_URL,
+    bucketName: parsed.data.OSS_PREVIEW_BUCKET_NAME,
+    cookie: parsed.data.OSS_PREVIEW_COOKIE,
   },
 };
 

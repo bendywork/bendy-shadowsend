@@ -46,6 +46,9 @@ Copy-Item .env.example .env
 | `S3_ACCESS_KEY_ID` | 是 | 访问 Key |
 | `S3_SECRET_ACCESS_KEY` | 是 | Secret Key |
 | `S3_FORCE_PATH_STYLE` | 建议配置 | 示例：`true`（推荐给 MinIO/Ceph/自建 S3）；AWS S3 常用 `false` |
+| `OSS_PREVIEW_RPC_URL` | 否 | 预览 URL 的 JSON-RPC 接口地址（例如 `https://www.hi168.com/api/user/oss/preview/url`） |
+| `OSS_PREVIEW_BUCKET_NAME` | 否 | 调用预览 RPC 时使用的 bucket（默认跟 `S3_BUCKET` 一致） |
+| `OSS_PREVIEW_COOKIE` | 否 | 预览 RPC 鉴权 Cookie（不填时会转发当前请求 Cookie） |
 
 > 说明：部分自建或兼容 S3 服务不要求 region，可直接不配置 `S3_REGION`。
 > 
@@ -75,11 +78,33 @@ S3_SECRET_ACCESS_KEY=...
 S3_FORCE_PATH_STYLE=false
 ```
 
+可选：第三方预览 URL（JSON-RPC）配置示例：
+
+```env
+OSS_PREVIEW_RPC_URL=https://www.hi168.com/api/user/oss/preview/url
+OSS_PREVIEW_BUCKET_NAME=hi168-27979-3306shvc
+OSS_PREVIEW_COOKIE=
+```
+
+精简后的请求（服务端实际只需这些）：
+
+```bash
+curl 'https://www.hi168.com/api/user/oss/preview/url' \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/plain, */*' \
+  -H 'cookie: <your-cookie-if-needed>' \
+  --data-raw '{"jsonrpc":"2.0","method":"call","params":{"bucket_name":"hi168-27979-3306shvc","file_key":"3_1.png","file_size":116292,"file_type":"image/png","file_name":"3_1.png"},"id":null}'
+```
+
+> 实测不带有效会话 Cookie 会返回 `Session Expired`，因此该接口通常需要登录态（`OSS_PREVIEW_COOKIE` 或转发当前请求 Cookie）。
+
 ### 4. 验证是否配置成功
 
 - 启动项目后进入房间，上传任意文件。
 - 文件消息能正常显示且可下载，说明 S3 签名 URL 与存储访问正常。
 - 若报错 `S3_NOT_CONFIGURED`，说明必填项缺失或格式错误。
+- 若前端提示 `Failed to fetch`：项目会自动回退到后端中转上传接口（`/api/rooms/[roomCode]/upload`），但中转上传建议控制在 `20MB` 以内。
+- 生产环境建议优先使用 `HTTPS` 的 `S3_ENDPOINT`，可减少浏览器混合内容拦截与 CORS 问题。
 
 ## 快速开始
 
@@ -136,6 +161,9 @@ npm run dev
 | `S3_ACCESS_KEY_ID` | 是 | S3 Access Key |
 | `S3_SECRET_ACCESS_KEY` | 是 | S3 Secret Key |
 | `S3_FORCE_PATH_STYLE` | 建议 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用） |
+| `OSS_PREVIEW_RPC_URL` | 可选 | 外部预览 URL 的 JSON-RPC 接口 |
+| `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |
+| `OSS_PREVIEW_COOKIE` | 可选 | 外部预览接口鉴权 Cookie |
 | `NEXT_PUBLIC_APP_VERSION` | 可选 | 前端展示版本号 |
 | `FORCE_DB_MIGRATE` | 可选 | `true` 时强制执行迁移（默认不强制） |
 | `PRISMA_MIGRATE_RETRIES` | 可选 | 迁移锁冲突重试次数（默认 `3`） |
@@ -243,6 +271,8 @@ npm run db:reinit:prefixed
 - `0d8be5c` 修复房间过期处理与用户创建逻辑。
 - `275d68f` 更新构建脚本，加入 `prisma generate`。
 - `1766dbb` 合并上游分支改动。
+- `本次迭代` 修复剪贴板图片上传 `Failed to fetch`：新增服务端中转上传兜底，直传失败时自动回退。
+- `本次迭代` 新增附件预览 URL 通道：支持对接 `OSS_PREVIEW_RPC_URL`（JSON-RPC）并提供精简请求参数。
 
 ### 2026-03-21
 

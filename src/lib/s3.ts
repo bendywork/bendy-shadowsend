@@ -34,6 +34,10 @@ function getBucketName() {
   return env.s3.bucket;
 }
 
+function getOssPreviewBucketName() {
+  return env.ossPreview.bucketName || env.s3.bucket || "";
+}
+
 export async function createUploadUrl(params: {
   key: string;
   contentType: string;
@@ -50,6 +54,21 @@ export async function createUploadUrl(params: {
   });
 
   return url;
+}
+
+export async function uploadObject(params: {
+  key: string;
+  contentType: string;
+  body: Uint8Array;
+}) {
+  const command = new PutObjectCommand({
+    Bucket: getBucketName(),
+    Key: params.key,
+    ContentType: params.contentType,
+    Body: params.body,
+  });
+
+  await getS3Client().send(command);
 }
 
 export async function createDownloadUrl(params: {
@@ -86,5 +105,77 @@ export async function createInlineReadUrl(params: {
   });
 
   return url;
+}
+
+type OssPreviewRpcResponse = {
+  result?: {
+    code?: number;
+    message?: string;
+    data?: {
+      url?: string;
+      expires_in?: number;
+      is_charged?: boolean;
+    };
+  };
+};
+
+export async function createAttachmentPreviewUrl(params: {
+  key: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  cookieHeader?: string;
+  expiresInSeconds?: number;
+}) {
+  const rpcUrl = env.ossPreview.rpcUrl;
+  const bucketName = getOssPreviewBucketName();
+
+  if (rpcUrl && bucketName) {
+    try {
+      const headers: HeadersInit = {
+        Accept: "application/json, text/plain, */*",
+        "Content-Type": "application/json",
+      };
+
+      const cookie = env.ossPreview.cookie || params.cookieHeader;
+      if (cookie) {
+        headers.Cookie = cookie;
+      }
+
+      const response = await fetch(rpcUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "call",
+          params: {
+            bucket_name: bucketName,
+            file_key: params.key,
+            file_size: params.sizeBytes,
+            file_type: params.mimeType,
+            file_name: params.fileName,
+          },
+          id: null,
+        }),
+        cache: "no-store",
+      });
+
+      if (response.ok) {
+        const payload = (await response.json()) as OssPreviewRpcResponse;
+        const code = payload.result?.code;
+        const url = payload.result?.data?.url;
+        if (code === 2000 && typeof url === "string" && url) {
+          return url;
+        }
+      }
+    } catch {
+      // fallback to S3 inline signed URL below
+    }
+  }
+
+  return createInlineReadUrl({
+    key: params.key,
+    expiresInSeconds: params.expiresInSeconds,
+  });
 }
 
