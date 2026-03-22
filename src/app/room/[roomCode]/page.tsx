@@ -6,7 +6,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { Check, Clock3, Copy, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, Video, X } from "lucide-react";
+import { Check, Clock3, Copy, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -17,6 +17,38 @@ type DownloadPayload = { url: string };
 
 const isPreviewable = (a: AttachmentItem) => a.previewType === "IMAGE" || a.previewType === "VIDEO";
 const fmt = (v: string) => new Date(v).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const hasInlinePreview = (a: AttachmentItem) => isPreviewable(a) && Boolean(a.previewUrl);
+
+function withStableAttachmentPreviewUrls(
+  prev: RoomSnapshot | null,
+  next: RoomSnapshot,
+) {
+  if (!prev) return next;
+
+  const existing = new Map<string, string>();
+  prev.messages.forEach((message) => {
+    message.attachments.forEach((attachment) => {
+      if (attachment.previewUrl) {
+        existing.set(attachment.id, attachment.previewUrl);
+      }
+    });
+  });
+
+  return {
+    ...next,
+    messages: next.messages.map((message) => ({
+      ...message,
+      attachments: message.attachments.map((attachment) => {
+        const stablePreviewUrl =
+          existing.get(attachment.id) ?? attachment.previewUrl ?? null;
+        return {
+          ...attachment,
+          previewUrl: stablePreviewUrl,
+        };
+      }),
+    })),
+  };
+}
 
 function Tree({ title, rooms, activeCode }: { title: string; rooms: RoomTreeItem[]; activeCode: string }) {
   return (
@@ -39,18 +71,14 @@ function FileAction({ roomCode, attachment }: { roomCode: string; attachment: At
   async function open() {
     setLoading(true);
     try {
-      const apiPath = isPreviewable(attachment)
-        ? `/api/rooms/${roomCode}/attachments/${attachment.id}/preview`
-        : `/api/rooms/${roomCode}/attachments/${attachment.id}/download`;
-      const p = await apiFetch<DownloadPayload>(apiPath);
+      const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
       window.open(p.url, "_blank", "noopener,noreferrer");
     } catch (e) {
       alert(e instanceof Error ? e.message : "打开失败");
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : isPreviewable(attachment) ? <Video className="h-3 w-3" /> : <Download className="h-3 w-3" />}{isPreviewable(attachment) ? "预览" : "下载"}</button>;
+  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}下载</button>;
 }
-
 function Btn({ icon, label, onClick, danger, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
   return <button type="button" onClick={onClick} disabled={disabled} className={clsx("inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", danger ? "border-zinc-500/40 text-zinc-200 hover:bg-zinc-600/10" : "border-slate-700 text-slate-200 hover:bg-slate-800")}>{icon}{label}</button>;
 }
@@ -89,7 +117,7 @@ export default function RoomPage() {
 
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([apiFetch<BootstrapPayload>("/api/bootstrap"), apiFetch<RoomSnapshot>(`/api/rooms/${roomCode}`)]);
-    setBoot(b); setSnap(s); setError(null);
+    setBoot(b); setSnap((prev) => withStableAttachmentPreviewUrls(prev, s)); setError(null);
     if (s.announcement.showToMe) setShowNoticePopup(true);
   }, [roomCode]);
 
@@ -348,7 +376,41 @@ export default function RoomPage() {
               <article key={m.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
                 <div className="mb-2 flex items-center justify-between"><div className="flex items-center gap-2"><Avatar initial={m.sender.avatarInitial} color={m.sender.avatarColor} className="h-7 w-7" /><span className="text-sm font-medium text-slate-200">{m.sender.nickname}</span></div><time className="text-[11px] text-slate-500">{fmt(m.createdAt)}</time></div>
                 {m.content ? <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{m.content}</p> : null}
-                {m.attachments.length ? <div className="mt-3 space-y-2">{m.attachments.map((a) => <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-700/80 bg-slate-900 px-2.5 py-2"><div className="min-w-0 flex-1"><p className="truncate text-sm text-slate-200">{a.fileName}</p><p className="text-xs text-slate-500">{a.mimeType} · {formatBytes(a.sizeBytes)}</p></div><FileAction roomCode={roomCode} attachment={a} /></div>)}</div> : null}
+                {m.attachments.length ? (
+                  <div className="mt-3 space-y-2">
+                    {m.attachments.map((a) => (
+                      <div key={a.id} className="rounded-lg border border-slate-700/80 bg-slate-900 p-2.5">
+                        {hasInlinePreview(a) ? (
+                          <div className="mb-2 overflow-hidden rounded-md border border-slate-700 bg-black">
+                            {a.previewType === "IMAGE" ? (
+                              <img
+                                src={a.previewUrl ?? ""}
+                                alt={a.fileName}
+                                className="max-h-[360px] w-full object-contain"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <video
+                                src={a.previewUrl ?? ""}
+                                controls
+                                preload="metadata"
+                                className="max-h-[360px] w-full"
+                              />
+                            )}
+                          </div>
+                        ) : null}
+
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm text-slate-200">{a.fileName}</p>
+                            <p className="text-xs text-slate-500">{a.mimeType} | {formatBytes(a.sizeBytes)}</p>
+                          </div>
+                          <FileAction roomCode={roomCode} attachment={a} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </article>
             ))}
             <div ref={endRef} />

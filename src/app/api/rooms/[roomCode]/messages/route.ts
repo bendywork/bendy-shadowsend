@@ -1,6 +1,7 @@
 ﻿import { MemberStatus, MessageType, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { enrichMessagesWithAttachmentPreviewUrls } from "@/lib/attachment-preview";
 import { MESSAGE_PAGE_SIZE } from "@/lib/constants";
 import { encryptText } from "@/lib/encryption";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
@@ -59,8 +60,17 @@ export async function GET(
       take: MESSAGE_PAGE_SIZE,
     });
 
+    const messagesWithPreview = await enrichMessagesWithAttachmentPreviewUrls(
+      messages.reverse(),
+      {
+        cookieHeader: request.headers.get("cookie") ?? undefined,
+        expiresInSeconds: 3600,
+        logLabel: "message-list",
+      },
+    );
+
     const response = jsonOk({
-      messages: messages.reverse().map(mapClientMessage),
+      messages: messagesWithPreview.map(mapClientMessage),
     });
 
     return applyUserCookie(response, cookieToSet);
@@ -155,8 +165,17 @@ export async function POST(
 
     await touchRoom(room.id);
 
+    const [messageWithPreview] = await enrichMessagesWithAttachmentPreviewUrls(
+      [message],
+      {
+        cookieHeader: request.headers.get("cookie") ?? undefined,
+        expiresInSeconds: 3600,
+        logLabel: "message-create",
+      },
+    );
+
     const response = jsonOk({
-      message: mapClientMessage(message),
+      message: mapClientMessage(messageWithPreview),
     });
 
     return applyUserCookie(response, cookieToSet);

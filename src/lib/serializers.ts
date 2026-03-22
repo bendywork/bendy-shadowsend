@@ -15,6 +15,7 @@ export type ClientAttachment = {
   mimeType: string;
   sizeBytes: number;
   previewType: PreviewType;
+  previewUrl?: string | null;
   createdAt: string;
 };
 
@@ -58,6 +59,12 @@ export function mapClientMessage(message: MessageWithRelations): ClientMessage {
       mimeType: attachment.mimeType,
       sizeBytes: attachment.sizeBytes,
       previewType: attachment.previewType,
+      previewUrl:
+        (
+          attachment as typeof attachment & {
+            previewUrl?: string | null;
+          }
+        ).previewUrl ?? null,
       createdAt: attachment.createdAt.toISOString(),
     })),
   };

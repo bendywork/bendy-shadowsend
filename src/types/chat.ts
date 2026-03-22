@@ -59,6 +59,7 @@ export type AttachmentItem = {
   mimeType: string;
   sizeBytes: number;
   previewType: PreviewType;
+  previewUrl?: string | null;
   createdAt: string;
 };
 

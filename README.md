@@ -278,6 +278,7 @@ npm run db:reinit:prefixed
 - `本次迭代` 新增附件预览 URL 通道：支持对接 `OSS_PREVIEW_RPC_URL`（JSON-RPC）并提供精简请求参数。
 - `本次迭代` 修复 S3 `getaddrinfo ENOTFOUND`：对非 AWS endpoint 自动使用 path-style，避免 `<bucket>.<endpoint>` 解析失败。
 - `本次迭代` 增强网络错误日志：前端 `apiFetch/upload` 与服务端上传相关路由均输出详细错误上下文，便于快速定位。
+- `本次迭代` 调整预览交互：图片/视频在聊天历史中直接内联展示，不再依赖点击“预览”按钮触发请求。
 
 ### 2026-03-21
 

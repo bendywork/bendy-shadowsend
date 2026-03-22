@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { APP_NAME, APP_OPEN_SOURCE, MESSAGE_PAGE_SIZE } from "@/lib/constants";
 import { env } from "@/lib/env";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { enrichMessagesWithAttachmentPreviewUrls } from "@/lib/attachment-preview";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { mapClientMessage } from "@/lib/serializers";
@@ -146,6 +147,15 @@ export async function GET(
         !membership.announcementSeenAt,
     );
 
+    const messagesWithPreview = await enrichMessagesWithAttachmentPreviewUrls(
+      messagesRaw.reverse(),
+      {
+        cookieHeader: request.headers.get("cookie") ?? undefined,
+        expiresInSeconds: 3600,
+        logLabel: "room-snapshot",
+      },
+    );
+
     const response = jsonOk({
       app: {
         name: APP_NAME,
@@ -192,7 +202,7 @@ export async function GET(
         createdAt: requestItem.createdAt.toISOString(),
         user: requestItem.user,
       })),
-      messages: messagesRaw.reverse().map(mapClientMessage),
+      messages: messagesWithPreview.map(mapClientMessage),
       stats: {
         roomOnline: stats.roomOnline,
         totalOnline: stats.totalOnline,
