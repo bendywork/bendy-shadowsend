@@ -207,7 +207,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-10 sm:px-6">
+    <main className="relative min-h-screen overflow-hidden px-4 py-10 sm:px-6 lg:flex lg:items-center">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.10),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.08),transparent_38%)]" />
 
       <section className="relative mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-2 lg:items-center">
