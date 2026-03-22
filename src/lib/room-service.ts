@@ -18,12 +18,15 @@ import {
 import { prisma } from "@/lib/prisma";
 
 const roomCodeAlphabet = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 10);
+const CLEANUP_MIN_INTERVAL_MS = 30_000;
+let cleanupLastRunAt = 0;
+let cleanupInFlight: Promise<number> | null = null;
 
 export function createRoomCode() {
   return roomCodeAlphabet();
 }
 
-export async function cleanupStaleRooms() {
+async function runCleanupStaleRooms() {
   const now = new Date();
   const idleCutoff = new Date(now.getTime() - ROOM_IDLE_DESTROY_MS);
 
@@ -70,6 +73,29 @@ export async function cleanupStaleRooms() {
   });
 
   return staleRooms.length;
+}
+
+export async function cleanupStaleRooms() {
+  const now = Date.now();
+
+  if (now - cleanupLastRunAt < CLEANUP_MIN_INTERVAL_MS) {
+    return 0;
+  }
+
+  if (cleanupInFlight) {
+    return cleanupInFlight;
+  }
+
+  cleanupInFlight = runCleanupStaleRooms()
+    .then((removedCount) => {
+      cleanupLastRunAt = Date.now();
+      return removedCount;
+    })
+    .finally(() => {
+      cleanupInFlight = null;
+    });
+
+  return cleanupInFlight;
 }
 
 export async function countUserActiveRooms(userId: string) {

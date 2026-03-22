@@ -36,12 +36,31 @@ export async function GET(
 
     await assertRoomMember(room.id, user.id);
 
-    const before = request.nextUrl.searchParams.get("before");
+    const beforeRaw = request.nextUrl.searchParams.get("before");
+    const afterRaw = request.nextUrl.searchParams.get("after");
+
+    if (beforeRaw && afterRaw) {
+      throw new ApiError(400, "before 与 after 不能同时使用", "INVALID_MESSAGE_QUERY");
+    }
+
+    const before = beforeRaw ? new Date(beforeRaw) : null;
+    const after = afterRaw ? new Date(afterRaw) : null;
+
+    if (before && Number.isNaN(before.getTime())) {
+      throw new ApiError(400, "before 参数无效", "INVALID_BEFORE_PARAM");
+    }
+
+    if (after && Number.isNaN(after.getTime())) {
+      throw new ApiError(400, "after 参数无效", "INVALID_AFTER_PARAM");
+    }
+
+    const isIncrementalFetch = Boolean(after);
 
     const messages = await prisma.message.findMany({
       where: {
         roomId: room.id,
-        ...(before ? { createdAt: { lt: new Date(before) } } : {}),
+        ...(before ? { createdAt: { lt: before } } : {}),
+        ...(after ? { createdAt: { gte: after } } : {}),
       },
       include: {
         sender: {
@@ -55,18 +74,20 @@ export async function GET(
         attachments: true,
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: isIncrementalFetch ? "asc" : "desc",
       },
-      take: MESSAGE_PAGE_SIZE,
+      take: isIncrementalFetch ? 80 : MESSAGE_PAGE_SIZE,
     });
 
+    const orderedMessages = isIncrementalFetch ? messages : messages.reverse();
+
     const messagesWithPreview = await enrichMessagesWithAttachmentPreviewUrls(
-      messages.reverse(),
+      orderedMessages,
       {
         roomCode,
         cookieHeader: request.headers.get("cookie") ?? undefined,
         expiresInSeconds: 3600,
-        logLabel: "message-list",
+        logLabel: isIncrementalFetch ? "message-list-incremental" : "message-list",
       },
     );
 

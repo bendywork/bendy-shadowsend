@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
 import { type ClipboardEvent, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +14,7 @@ import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem,
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
 type DownloadPayload = { url: string };
+type MessageListPayload = { messages: MessageItem[] };
 type PendingAttachment = {
   id: string;
   fileName: string;
@@ -44,6 +45,9 @@ const guessPreviewType = (mimeType: string): AttachmentItem["previewType"] => {
   if (mimeType.startsWith("video/")) return "VIDEO";
   return "NONE";
 };
+const FAST_POLL_INTERVAL_MS = 1200;
+const SNAPSHOT_SYNC_INTERVAL_MS = 15_000;
+const MAX_MESSAGES_IN_MEMORY = 220;
 
 function withStableAttachmentPreviewUrls(
   prev: RoomSnapshot | null,
@@ -76,12 +80,37 @@ function withStableAttachmentPreviewUrls(
   };
 }
 
+function mergeIncomingMessages(
+  prev: RoomSnapshot,
+  incoming: MessageItem[],
+) {
+  if (incoming.length === 0) return prev;
+
+  const existingIds = new Set(prev.messages.map((message) => message.id));
+  const uniqueIncoming = incoming.filter((message) => !existingIds.has(message.id));
+
+  if (uniqueIncoming.length === 0) {
+    return prev;
+  }
+
+  const merged = [...prev.messages, ...uniqueIncoming];
+  const trimmed =
+    merged.length > MAX_MESSAGES_IN_MEMORY
+      ? merged.slice(-MAX_MESSAGES_IN_MEMORY)
+      : merged;
+
+  return withStableAttachmentPreviewUrls(prev, {
+    ...prev,
+    messages: trimmed,
+  });
+}
+
 function Tree({ title, rooms, activeCode }: { title: string; rooms: RoomTreeItem[]; activeCode: string }) {
   return (
     <div className="space-y-2">
       <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{title}</p>
       <div className="space-y-1">
-        {rooms.length === 0 ? <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">暂无</p> : rooms.map((r) => (
+        {rooms.length === 0 ? <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">鏆傛棤</p> : rooms.map((r) => (
           <Link key={r.id} href={`/room/${r.roomCode}`} className={clsx("block rounded-lg border px-3 py-2 text-sm", activeCode === r.roomCode ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100" : "border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700") }>
             <div className="flex items-center justify-between"><span className="truncate">{r.name}</span>{r.hasGateCode ? <Shield className="h-3.5 w-3.5 text-zinc-300" /> : null}</div>
             <p className="mt-1 truncate font-mono text-[11px] text-slate-500">{r.roomCode}</p>
@@ -100,10 +129,10 @@ function FileAction({ roomCode, attachment }: { roomCode: string; attachment: At
       const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
       window.open(p.url, "_blank", "noopener,noreferrer");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "打开失败");
+      alert(e instanceof Error ? e.message : "鎵撳紑澶辫触");
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}下载</button>;
+  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}涓嬭浇</button>;
 }
 function Btn({ icon, label, onClick, danger, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
   return <button type="button" onClick={onClick} disabled={disabled} className={clsx("inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", danger ? "border-zinc-500/40 text-zinc-200 hover:bg-zinc-600/10" : "border-slate-700 text-slate-200 hover:bg-slate-800")}>{icon}{label}</button>;
@@ -136,33 +165,51 @@ export default function RoomPage() {
   const [showNoticePopup, setShowNoticePopup] = useState(false);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
+  const latestMessageAtRef = useRef<string | null>(null);
 
   const isOwner = snap?.me.role === "OWNER";
   const showMembers = isOwner ? showManage : true;
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
+  const pollingEnabled = Boolean(snap && !snap.waitingApproval);
 
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([apiFetch<BootstrapPayload>("/api/bootstrap"), apiFetch<RoomSnapshot>(`/api/rooms/${roomCode}`)]);
+    latestMessageAtRef.current = s.messages.at(-1)?.createdAt ?? null;
     setBoot(b); setSnap((prev) => withStableAttachmentPreviewUrls(prev, s)); setError(null);
     if (s.announcement.showToMe) setShowNoticePopup(true);
+  }, [roomCode]);
+
+  const pollLatestMessages = useCallback(async () => {
+    const after = latestMessageAtRef.current;
+    const search = after ? `?after=${encodeURIComponent(after)}` : "";
+    const payload = await apiFetch<MessageListPayload>(`/api/rooms/${roomCode}/messages${search}`);
+
+    if (payload.messages.length === 0) {
+      return;
+    }
+
+    latestMessageAtRef.current = payload.messages.at(-1)?.createdAt ?? after ?? null;
+    setSnap((prev) => (prev ? mergeIncomingMessages(prev, payload.messages) : prev));
+    setError(null);
   }, [roomCode]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try { await refresh(); if (alive) localStorage.setItem(LAST_ROOM_STORAGE_KEY, roomCode); }
-      catch (e) { if (alive) setError(e instanceof Error ? e.message : "加载失败"); }
+      catch (e) { if (alive) setError(e instanceof Error ? e.message : "鍔犺浇澶辫触"); }
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
   }, [roomCode, refresh]);
 
   useEffect(() => {
-    if (!snap || snap.waitingApproval) return;
+    if (!pollingEnabled) return;
     const hb = window.setInterval(() => { void apiFetch<{ success: boolean }>("/api/presence", { method: "POST", body: JSON.stringify({ roomCode }) }).catch(() => undefined); }, 25000);
-    const poll = window.setInterval(() => { void refresh().catch((e) => setError(e instanceof Error ? e.message : "刷新失败")); }, 4000);
-    return () => { window.clearInterval(hb); window.clearInterval(poll); };
-  }, [roomCode, snap, refresh]);
+    const messagePoll = window.setInterval(() => { void pollLatestMessages().catch((e) => setError(e instanceof Error ? e.message : "消息刷新失败")); }, FAST_POLL_INTERVAL_MS);
+    const snapshotSync = window.setInterval(() => { void refresh().catch((e) => setError(e instanceof Error ? e.message : "房间同步失败")); }, SNAPSHOT_SYNC_INTERVAL_MS);
+    return () => { window.clearInterval(hb); window.clearInterval(messagePoll); window.clearInterval(snapshotSync); };
+  }, [roomCode, pollingEnabled, pollLatestMessages, refresh]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
@@ -360,12 +407,9 @@ export default function RoomPage() {
       setPendingMessages((prev) => prev.filter((item) => item.localId !== localId));
       setSnap((prev) => {
         if (!prev) return prev;
-        return withStableAttachmentPreviewUrls(prev, {
-          ...prev,
-          messages: [...prev.messages, result.message],
-        });
+        return mergeIncomingMessages(prev, [result.message]);
       });
-      void refresh();
+      latestMessageAtRef.current = result.message.createdAt;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Send failed";
       updatePendingMessage(localId, {
@@ -413,24 +457,24 @@ export default function RoomPage() {
     void runSend(localId, content, sendingFiles);
   }
   async function kick(m: RoomMemberItem) {
-    if (!window.confirm(`确认将 ${m.user.nickname} 踢出房间？`)) return;
+    if (!window.confirm(`Confirm kicking ${m.user.nickname} from the room?`)) return;
     setAction(`kick-${m.id}`);
     try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "踢出失败"); }
+    catch (err) { setError(err instanceof Error ? err.message : "韪㈠嚭澶辫触"); }
     finally { setAction(null); }
   }
 
   async function review(r: PendingRequestItem, act: "approve" | "reject") {
     setAction(`${act}-${r.id}`);
     try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/join-requests/${r.id}`, { method: "POST", body: JSON.stringify({ action: act }) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "审批失败"); }
+    catch (err) { setError(err instanceof Error ? err.message : "瀹℃壒澶辫触"); }
     finally { setAction(null); }
   }
 
   async function copyLink() {
     if (!joinLink) return;
     try { await navigator.clipboard.writeText(joinLink); setHint("当前房间加入链接已复制"); window.setTimeout(() => setHint(null), 2200); }
-    catch { setError("复制失败，请检查浏览器权限"); }
+    catch { setError("澶嶅埗澶辫触锛岃妫€鏌ユ祻瑙堝櫒鏉冮檺"); }
   }
 
   function openNoticeEditor() {
@@ -446,7 +490,7 @@ export default function RoomPage() {
       if (noticeImage) image = await upload(noticeImage);
       await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, { method: "POST", body: JSON.stringify({ text: noticeText || undefined, image, clearImage: clearNoticeImage }) });
       setShowNoticeEditor(false); await refresh(); setHint("公告已更新"); window.setTimeout(() => setHint(null), 2200);
-    } catch (err) { setError(err instanceof Error ? err.message : "公告保存失败"); }
+    } catch (err) { setError(err instanceof Error ? err.message : "鍏憡淇濆瓨澶辫触"); }
     finally { setAction(null); }
   }
 
@@ -455,14 +499,14 @@ export default function RoomPage() {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
       setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
       setShowNoticePopup(false);
-    } catch (err) { setError(err instanceof Error ? err.message : "公告已读失败"); }
+    } catch (err) { setError(err instanceof Error ? err.message : "鍏憡宸茶澶辫触"); }
   }
 
   async function dissolve() {
     if (!window.confirm("确认解散当前房间？解散后成员将全部退出。")) return;
     setAction("dissolve");
     try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/dissolve`, { method: "POST", body: JSON.stringify({}) }); router.push("/"); }
-    catch (err) { setError(err instanceof Error ? err.message : "解散失败"); }
+    catch (err) { setError(err instanceof Error ? err.message : "瑙ｆ暎澶辫触"); }
     finally { setAction(null); }
   }
 
@@ -486,7 +530,7 @@ export default function RoomPage() {
         },
       );
       await refresh();
-      setHint(normalized ? "门禁码已更新" : "已清除门禁码");
+      setHint(normalized ? "闂ㄧ鐮佸凡鏇存柊" : "宸叉竻闄ら棬绂佺爜");
       window.setTimeout(() => setHint(null), 2200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "门禁码更新失败");
@@ -526,35 +570,106 @@ export default function RoomPage() {
       window.setTimeout(() => setHint(null), 2200);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新永不过期失败");
+      setError(err instanceof Error ? err.message : "鏇存柊姘镐笉杩囨湡澶辫触");
     } finally {
       setAction(null);
     }
   }
 
-  if (loading) return <main className="flex min-h-screen items-center justify-center text-slate-300"><LoaderCircle className="h-6 w-6 animate-spin" /></main>;
-  if (error && !snap) return <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center"><p className="text-sm text-zinc-300">{error}</p><Link href="/" className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200">返回首页</Link></main>;
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-slate-300">
+        <LoaderCircle className="h-6 w-6 animate-spin" />
+      </main>
+    );
+  }
+
+  if (error && !snap) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-sm text-zinc-300">{error}</p>
+        <Link href="/" className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200">
+          返回首页
+        </Link>
+      </main>
+    );
+  }
+
   if (!snap) return null;
-  if (snap.waitingApproval) return <main className="flex min-h-screen items-center justify-center px-4"><section className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900/90 p-8 text-center"><Clock3 className="mx-auto h-8 w-8 text-zinc-300" /><h1 className="mt-4 text-xl font-semibold text-slate-100">等待房主审批</h1><p className="mt-2 text-sm text-slate-400">你曾被踢出该房间，再次加入需要房主审批。</p><Link href="/" className="mt-6 inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white">返回首页</Link></section></main>;
+
+  if (snap.waitingApproval) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-4">
+        <section className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900/90 p-8 text-center">
+          <Clock3 className="mx-auto h-8 w-8 text-zinc-300" />
+          <h1 className="mt-4 text-xl font-semibold text-slate-100">等待房主审批</h1>
+          <p className="mt-2 text-sm text-slate-400">你曾被移出该房间，再次加入需要房主审批。</p>
+          <Link href="/" className="mt-6 inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white">
+            返回首页
+          </Link>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <>
       <main className={clsx("mx-auto grid min-h-screen w-full max-w-[1680px] grid-cols-1 gap-4 p-3 md:p-4", showMembers ? "lg:grid-cols-[290px_minmax(0,1fr)_290px]" : "lg:grid-cols-[290px_minmax(0,1fr)]") }>
         <aside className="flex min-h-[220px] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4">
-          <div className="mb-4 flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-slate-500">房间导航</p><h2 className="text-lg font-semibold text-slate-100">已创建/已加入</h2></div><Link href="/" className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:bg-slate-800"><LogOut className="h-4 w-4" /></Link></div>
-          <div className="space-y-4 overflow-y-auto pb-3"><Tree title="创建的房间" rooms={rooms.created} activeCode={roomCode} /><Tree title="加入的房间" rooms={rooms.joined} activeCode={roomCode} /></div>
-          <div className="mt-auto space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3 text-xs text-slate-400"><p>版本 <span className="font-semibold text-slate-200">{snap.app.version}</span></p><p>开源协议 <span className="font-semibold text-slate-200">{snap.app.openSource}</span></p><p>房间在线 <span className="font-semibold text-slate-200">{snap.stats.roomOnline}</span></p><p>全站在线 <span className="font-semibold text-slate-200">{snap.stats.totalOnline}</span></p><div className="pt-2"><p className="text-slate-500">当前用户</p><div className="mt-1 flex items-center gap-2"><Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} /><span className="text-sm text-slate-200">{snap.me.nickname}</span></div></div></div>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">房间导航</p>
+              <h2 className="text-lg font-semibold text-slate-100">已创建 / 已加入</h2>
+            </div>
+            <Link href="/" className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:bg-slate-800">
+              <LogOut className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="space-y-4 overflow-y-auto pb-3">
+            <Tree title="创建的房间" rooms={rooms.created} activeCode={roomCode} />
+            <Tree title="加入的房间" rooms={rooms.joined} activeCode={roomCode} />
+          </div>
+          <div className="mt-auto space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3 text-xs text-slate-400">
+            <p>
+              版本 <span className="font-semibold text-slate-200">{snap.app.version}</span>
+            </p>
+            <p>
+              开源协议 <span className="font-semibold text-slate-200">{snap.app.openSource}</span>
+            </p>
+            <p>
+              房间在线 <span className="font-semibold text-slate-200">{snap.stats.roomOnline}</span>
+            </p>
+            <p>
+              全站在线 <span className="font-semibold text-slate-200">{snap.stats.totalOnline}</span>
+            </p>
+            <div className="pt-2">
+              <p className="text-slate-500">当前用户</p>
+              <div className="mt-1 flex items-center gap-2">
+                <Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} />
+                <span className="text-sm text-slate-200">{snap.me.nickname}</span>
+              </div>
+            </div>
+          </div>
         </aside>
 
         <section className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/90">
           <header className="space-y-3 border-b border-slate-800 px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-semibold text-slate-100">{snap.room.name}</h1><p className="font-mono text-xs text-slate-500">/{snap.room.roomCode}</p></div><div className="text-xs text-slate-400"><Users className="mr-1 inline h-3.5 w-3.5" />{snap.members.length}/20 人</div></div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h1 className="text-xl font-semibold text-slate-100">{snap.room.name}</h1>
+                <p className="font-mono text-xs text-slate-500">/{snap.room.roomCode}</p>
+              </div>
+              <div className="text-xs text-slate-400">
+                <Users className="mr-1 inline h-3.5 w-3.5" />
+                {snap.members.length}/20 人
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Btn icon={<Copy className="h-3.5 w-3.5" />} label="邀请" onClick={copyLink} />
               <Btn icon={<QrCode className="h-3.5 w-3.5" />} label="二维码" onClick={() => setShowQr(true)} />
-              {isOwner ? <Btn icon={<Megaphone className="h-3.5 w-3.5" />} label="公告" onClick={openNoticeEditor} /> : null}
-              {isOwner ? <Btn icon={<Settings2 className="h-3.5 w-3.5" />} label={showManage ? "管理(隐藏)" : "管理(显示)"} onClick={() => setShowManage((v) => !v)} /> : null}
-              {isOwner ? <Btn icon={<Trash2 className="h-3.5 w-3.5" />} label={action === "dissolve" ? "解散中" : "解散"} onClick={dissolve} danger disabled={action === "dissolve"} /> : null}
+              {isOwner ? <Btn icon={<Megaphone className="h-3.5 w-3.5" />} label="鍏憡" onClick={openNoticeEditor} /> : null}
+              {isOwner ? <Btn icon={<Settings2 className="h-3.5 w-3.5" />} label={showManage ? "绠＄悊(闅愯棌)" : "绠＄悊(鏄剧ず)"} onClick={() => setShowManage((v) => !v)} /> : null}
+              {isOwner ? <Btn icon={<Trash2 className="h-3.5 w-3.5" />} label={action === "dissolve" ? "解散中..." : "解散"} onClick={dissolve} danger disabled={action === "dissolve"} /> : null}
             </div>
             {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
           </header>
@@ -562,8 +677,7 @@ export default function RoomPage() {
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
               <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">
-                暂无消息，开始发送吧。
-              </div>
+                鏆傛棤娑堟伅锛屽紑濮嬪彂閫佸惂銆?              </div>
             ) : null}
 
             {snap.messages.map((m) => {
@@ -727,9 +841,73 @@ export default function RoomPage() {
           </div>
 
           <form onSubmit={send} className="border-t border-slate-800 p-4">
-            {files.length ? <div className="mb-2 flex flex-wrap gap-2">{files.map((f, i) => <span key={`${f.name}-${f.size}-${i}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-200"><FileText className="h-3 w-3" /><span className="max-w-[220px] truncate">{f.name}</span><button type="button" onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="rounded-full p-0.5 hover:bg-slate-700"><X className="h-3 w-3" /></button></span>)}</div> : null}
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/90 p-2"><textarea value={text} onChange={(e) => setText(e.target.value)} onPaste={onPaste} placeholder="粘贴文本/文件后可直接发送..." className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500" /><div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 pb-1"><div className="flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"><Plus className="h-3.5 w-3.5" /> 文件<input type="file" className="hidden" multiple onChange={(e) => { if (e.target.files) { addFiles(e.target.files); e.target.value = ""; } }} /></label><button type="button" onClick={readClipboard} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"><Copy className="h-3.5 w-3.5" /> 读取剪贴板</button></div><button type="submit" disabled={false} className="inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"><SendHorizonal className="h-3.5 w-3.5" />发送</button></div></div>
-            <p className="mt-2 text-xs text-slate-500">输入框支持直接 Ctrl+V 粘贴文本或文件；图片/视频可预览，其它文件仅下载。</p>
+            {files.length ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {files.map((file, index) => (
+                  <span
+                    key={`${file.name}-${file.size}-${index}`}
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-200"
+                  >
+                    <FileText className="h-3 w-3" />
+                    <span className="max-w-[220px] truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
+                      className="rounded-full p-0.5 hover:bg-slate-700"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl border border-slate-700 bg-slate-900/90 p-2">
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onPaste={onPaste}
+                placeholder="粘贴文本/文件后可直接发送..."
+                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
+              />
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 pb-1">
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
+                    <Plus className="h-3.5 w-3.5" />
+                    文件
+                    <input
+                      type="file"
+                      className="hidden"
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          addFiles(e.target.files);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={readClipboard}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    读取剪贴板
+                  </button>
+                </div>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                >
+                  <SendHorizonal className="h-3.5 w-3.5" />
+                  发送
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              输入框支持直接 Ctrl+V 粘贴文本或文件；图片/视频可预览，其它文件仅下载。
+            </p>
           </form>
         </section>
 
@@ -749,7 +927,7 @@ export default function RoomPage() {
                       <div className="min-w-0">
                         <p className="truncate text-sm text-slate-200">{m.user.nickname}</p>
                         <p className="text-xs text-slate-500">
-                          {m.role === "OWNER" ? "房主" : "成员"} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
+                          {m.role === "OWNER" ? "鎴夸富" : "鎴愬憳"} 路 {m.joinedAt ? fmt(m.joinedAt) : "--"}
                         </p>
                       </div>
                     </div>
@@ -760,7 +938,7 @@ export default function RoomPage() {
                         disabled={action === `kick-${m.id}`}
                         className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                       >
-                        <UserMinus className="h-3 w-3" /> 踢出
+                        <UserMinus className="h-3 w-3" /> 韪㈠嚭
                       </button>
                     ) : null}
                   </div>
@@ -770,11 +948,11 @@ export default function RoomPage() {
 
             {isOwner ? (
               <div className="mt-4 border-t border-slate-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-slate-200">再次加入审批</h3>
+                <h3 className="mb-2 text-sm font-semibold text-slate-200">鍐嶆鍔犲叆瀹℃壒</h3>
                 <div className="space-y-2">
                   {snap.pendingRequests.length === 0 ? (
                     <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">
-                      暂无待审批
+                      鏆傛棤寰呭鎵?
                     </p>
                   ) : (
                     snap.pendingRequests.map((r) => (
@@ -793,7 +971,7 @@ export default function RoomPage() {
                             disabled={action === `approve-${r.id}`}
                             className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                           >
-                            <Check className="h-3 w-3" /> 通过
+                            <Check className="h-3 w-3" /> 閫氳繃
                           </button>
                           <button
                             type="button"
@@ -801,7 +979,7 @@ export default function RoomPage() {
                             disabled={action === `reject-${r.id}`}
                             className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                           >
-                            <X className="h-3 w-3" /> 拒绝
+                            <X className="h-3 w-3" /> 鎷掔粷
                           </button>
                         </div>
                       </div>
@@ -813,7 +991,7 @@ export default function RoomPage() {
 
             {isOwner ? (
               <div className="mt-4 border-t border-slate-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-slate-200">修改邀请码</h3>
+                <h3 className="mb-2 text-sm font-semibold text-slate-200">淇敼閭€璇风爜</h3>
                 <div className="flex items-center gap-2">
                   <input
                     value={gateCodeInput}
@@ -827,7 +1005,7 @@ export default function RoomPage() {
                     disabled={action === "gate-code"}
                     className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
                   >
-                    {action === "gate-code" ? "保存中..." : "保存"}
+                    {action === "gate-code" ? "淇濆瓨涓?.." : "淇濆瓨"}
                   </button>
                 </div>
                 <p className="mt-2 text-[11px] text-slate-500">
@@ -859,7 +1037,7 @@ export default function RoomPage() {
                     )}
                   >
                     {action === "never-expire"
-                      ? "保存中..."
+                      ? "淇濆瓨涓?.."
                       : snap.room.neverExpire
                         ? "已开启"
                         : "已关闭"}
@@ -873,11 +1051,138 @@ export default function RoomPage() {
         ) : null}
       </main>
 
-      {showQr ? <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4"><section className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-950 p-5"><div className="mb-3 flex items-center justify-between"><h3 className="text-base font-semibold text-slate-100">房间二维码</h3><button type="button" onClick={() => setShowQr(false)} className="rounded-md border border-slate-700 p-1 text-slate-300"><X className="h-4 w-4" /></button></div>{qr ? <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-slate-700" /> : <div className="flex h-64 items-center justify-center"><LoaderCircle className="h-5 w-5 animate-spin text-slate-400" /></div>}<p className="mt-3 break-all text-xs text-slate-400">{joinLink}</p></section></div> : null}
+      {showQr ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+          <section className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-950 p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-100">房间二维码</h3>
+              <button
+                type="button"
+                onClick={() => setShowQr(false)}
+                className="rounded-md border border-slate-700 p-1 text-slate-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {qr ? (
+              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-slate-700" />
+            ) : (
+              <div className="flex h-64 items-center justify-center">
+                <LoaderCircle className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
+            )}
+            <p className="mt-3 break-all text-xs text-slate-400">{joinLink}</p>
+          </section>
+        </div>
+      ) : null}
 
-      {showNoticeEditor ? <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4"><section className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-950 p-5"><div className="mb-3 flex items-center justify-between"><h3 className="text-base font-semibold text-slate-100">配置公告</h3><button type="button" onClick={() => setShowNoticeEditor(false)} className="rounded-md border border-slate-700 p-1 text-slate-300"><X className="h-4 w-4" /></button></div><textarea value={noticeText} onChange={(e) => setNoticeText(e.target.value)} placeholder="输入公告内容..." className="min-h-[120px] w-full rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none" /><div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-300"><label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 hover:bg-slate-800"><Plus className="h-3.5 w-3.5" /> 上传公告图片<input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setNoticeImage(f); setClearNoticeImage(false); } }} /></label><label className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5"><input type="checkbox" checked={clearNoticeImage} onChange={(e) => setClearNoticeImage(e.target.checked)} />清除当前图片</label>{noticeImage ? <span className="text-slate-400">新图片: {noticeImage.name}</span> : null}</div>{snap.announcement.imageUrl && !clearNoticeImage ? <img src={snap.announcement.imageUrl} alt={snap.announcement.imageName ?? "announcement-image"} className="mt-3 max-h-48 rounded-lg border border-slate-700 object-contain" /> : null}<div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setShowNoticeEditor(false)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300">取消</button><button type="button" onClick={saveNotice} disabled={action === "notice"} className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white disabled:opacity-60">{action === "notice" ? "保存中..." : "保存公告"}</button></div></section></div> : null}
+      {showNoticeEditor ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+          <section className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-950 p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-100">配置公告</h3>
+              <button
+                type="button"
+                onClick={() => setShowNoticeEditor(false)}
+                className="rounded-md border border-slate-700 p-1 text-slate-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-      {showNoticePopup && snap.announcement.showToMe ? <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4"><section className="w-full max-w-lg rounded-2xl border border-zinc-400/50 bg-slate-950 p-5"><div className="mb-3 flex items-center gap-2 text-zinc-300"><Megaphone className="h-5 w-5" /><h3 className="text-base font-semibold">房间公告</h3></div>{snap.announcement.text ? <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{snap.announcement.text}</p> : null}{snap.announcement.imageUrl ? <img src={snap.announcement.imageUrl} alt={snap.announcement.imageName ?? "announcement"} className="mt-3 max-h-60 rounded-lg border border-slate-700 object-contain" /> : null}<div className="mt-4 flex justify-end"><button type="button" onClick={closeNoticePopup} className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white">我知道了</button></div></section></div> : null}
+            <textarea
+              value={noticeText}
+              onChange={(e) => setNoticeText(e.target.value)}
+              placeholder="输入公告内容..."
+              className="min-h-[120px] w-full rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none"
+            />
+
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
+              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 hover:bg-slate-800">
+                <Plus className="h-3.5 w-3.5" />
+                上传公告图片
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setNoticeImage(file);
+                      setClearNoticeImage(false);
+                    }
+                  }}
+                />
+              </label>
+              <label className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5">
+                <input
+                  type="checkbox"
+                  checked={clearNoticeImage}
+                  onChange={(e) => setClearNoticeImage(e.target.checked)}
+                />
+                清除当前图片
+              </label>
+              {noticeImage ? <span className="text-slate-400">新图片: {noticeImage.name}</span> : null}
+            </div>
+
+            {snap.announcement.imageUrl && !clearNoticeImage ? (
+              <img
+                src={snap.announcement.imageUrl}
+                alt={snap.announcement.imageName ?? "announcement-image"}
+                className="mt-3 max-h-48 rounded-lg border border-slate-700 object-contain"
+              />
+            ) : null}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowNoticeEditor(false)}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={saveNotice}
+                disabled={action === "notice"}
+                className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+              >
+                {action === "notice" ? "保存中..." : "保存公告"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showNoticePopup && snap.announcement.showToMe ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+          <section className="w-full max-w-lg rounded-2xl border border-zinc-400/50 bg-slate-950 p-5">
+            <div className="mb-3 flex items-center gap-2 text-zinc-300">
+              <Megaphone className="h-5 w-5" />
+              <h3 className="text-base font-semibold">房间公告</h3>
+            </div>
+            {snap.announcement.text ? (
+              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{snap.announcement.text}</p>
+            ) : null}
+            {snap.announcement.imageUrl ? (
+              <img
+                src={snap.announcement.imageUrl}
+                alt={snap.announcement.imageName ?? "announcement"}
+                className="mt-3 max-h-60 rounded-lg border border-slate-700 object-contain"
+              />
+            ) : null}
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={closeNoticePopup}
+                className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white"
+              >
+                我知道了
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }
