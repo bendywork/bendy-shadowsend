@@ -1,4 +1,4 @@
-﻿import { MemberStatus, MessageType, RoomStatus } from "@prisma/client";
+import { MemberStatus, MessageType, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
 import { enrichMessagesWithAttachmentPreviewUrls } from "@/lib/attachment-preview";
@@ -63,6 +63,7 @@ export async function GET(
     const messagesWithPreview = await enrichMessagesWithAttachmentPreviewUrls(
       messages.reverse(),
       {
+        roomCode,
         cookieHeader: request.headers.get("cookie") ?? undefined,
         expiresInSeconds: 3600,
         logLabel: "message-list",
@@ -169,6 +170,7 @@ export async function POST(
     const [messageWithPreview] = await enrichMessagesWithAttachmentPreviewUrls(
       [message],
       {
+        roomCode,
         cookieHeader: request.headers.get("cookie") ?? undefined,
         expiresInSeconds: 3600,
         logLabel: "message-create",

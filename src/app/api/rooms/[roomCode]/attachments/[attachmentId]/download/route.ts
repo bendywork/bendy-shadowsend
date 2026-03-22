@@ -1,7 +1,7 @@
 ﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
-import { createDufsPublicUrl } from "@/lib/dufs";
+import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { createDownloadUrl } from "@/lib/s3";
@@ -42,6 +42,7 @@ export async function GET(
         id: true,
         s3Key: true,
         fileName: true,
+        mimeType: true,
         storage: true,
       },
     });
@@ -50,14 +51,34 @@ export async function GET(
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
     }
 
-    const downloadUrl =
-      attachment.storage === AttachmentStorage.DUFS
-        ? createDufsPublicUrl(attachment.s3Key)
-        : await createDownloadUrl({
-            key: attachment.s3Key,
-            filename: attachment.fileName,
-            expiresInSeconds: 90,
-          });
+    const raw = request.nextUrl.searchParams.get("raw") === "1";
+
+    if (attachment.storage === AttachmentStorage.DUFS) {
+      if (raw) {
+        const upstream = await fetchDufsFile(attachment.s3Key);
+        const response = new NextResponse(upstream.body, {
+          status: 200,
+          headers: {
+            "Content-Type": upstream.headers.get("content-type") || attachment.mimeType,
+            "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
+            "Cache-Control": "private, max-age=60",
+          },
+        });
+
+        return applyUserCookie(response, cookieToSet);
+      }
+
+      const response = jsonOk({
+        url: `/api/rooms/${encodeURIComponent(roomCode)}/attachments/${encodeURIComponent(attachmentId)}/download?raw=1`,
+      });
+      return applyUserCookie(response, cookieToSet);
+    }
+
+    const downloadUrl = await createDownloadUrl({
+      key: attachment.s3Key,
+      filename: attachment.fileName,
+      expiresInSeconds: 90,
+    });
 
     const response = jsonOk({
       url: downloadUrl,

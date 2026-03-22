@@ -153,6 +153,7 @@ export async function GET(
     const messagesWithPreview = await enrichMessagesWithAttachmentPreviewUrls(
       messagesRaw.reverse(),
       {
+        roomCode,
         cookieHeader: request.headers.get("cookie") ?? undefined,
         expiresInSeconds: 3600,
         logLabel: "room-snapshot",
@@ -174,6 +175,7 @@ export async function GET(
         hasGateCode: Boolean(room.gateCode),
         gateCodeExpiresAt: room.gateCodeExpiresAt?.toISOString() ?? null,
         gateCode: membership.role === RoomRole.OWNER ? room.gateCode : null,
+        neverExpire: room.neverExpire,
       },
       announcement: {
         text: room.announcementText,

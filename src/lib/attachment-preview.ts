@@ -1,4 +1,4 @@
-import { AttachmentStorage, PreviewType } from "@prisma/client";
+﻿import { AttachmentStorage, PreviewType } from "@prisma/client";
 import { createDufsPublicUrl } from "@/lib/dufs";
 import { createAttachmentPreviewUrl } from "@/lib/s3";
 
@@ -22,6 +22,7 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
 >(
   messages: TMessage[],
   options?: {
+    roomCode?: string;
     cookieHeader?: string;
     expiresInSeconds?: number;
     logLabel?: string;
@@ -44,6 +45,13 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
 
           try {
             if (attachment.storage === AttachmentStorage.DUFS) {
+              if (options?.roomCode) {
+                return {
+                  ...attachment,
+                  previewUrl: `/api/rooms/${encodeURIComponent(options.roomCode)}/attachments/${encodeURIComponent(attachment.id)}/preview`,
+                };
+              }
+
               return {
                 ...attachment,
                 previewUrl: createDufsPublicUrl(attachment.s3Key),

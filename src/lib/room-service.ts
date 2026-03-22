@@ -30,6 +30,7 @@ export async function cleanupStaleRooms() {
   const staleRooms = await prisma.room.findMany({
     where: {
       status: RoomStatus.ACTIVE,
+      neverExpire: false,
       lastActiveAt: { lt: idleCutoff },
     },
     select: { id: true },

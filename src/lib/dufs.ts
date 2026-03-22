@@ -1,4 +1,4 @@
-import { ApiError } from "@/lib/api";
+﻿import { ApiError } from "@/lib/api";
 import { env } from "@/lib/env";
 
 function trimSlash(url: string) {
@@ -55,6 +55,18 @@ function encodePath(path: string) {
     .join("/");
 }
 
+function getInternalBaseUrl() {
+  const base = env.dufs.baseUrl;
+  if (!base) {
+    throw new ApiError(500, "DUFS not configured", "DUFS_NOT_CONFIGURED");
+  }
+  return `${trimSlash(base)}${normalizePrefix(env.dufs.pathPrefix)}`;
+}
+
+function getAuthHeader() {
+  return normalizeAuthHeader(env.dufs.auth) || parseBaseAuth(env.dufs.baseUrl);
+}
+
 export function isDufsConfigured() {
   return Boolean(env.dufs.baseUrl);
 }
@@ -62,10 +74,9 @@ export function isDufsConfigured() {
 export function createDufsPublicUrl(path: string) {
   const base = env.dufs.publicBaseUrl || env.dufs.baseUrl;
   if (!base) {
-    throw new ApiError(500, "DUFS 未配置", "DUFS_NOT_CONFIGURED");
+    throw new ApiError(500, "DUFS not configured", "DUFS_NOT_CONFIGURED");
   }
-  const prefix = normalizePrefix(env.dufs.pathPrefix);
-  return `${trimSlash(base)}${prefix}/${encodePath(path)}`;
+  return `${trimSlash(base)}${normalizePrefix(env.dufs.pathPrefix)}/${encodePath(path)}`;
 }
 
 export async function uploadImageToDufs(params: {
@@ -73,19 +84,12 @@ export async function uploadImageToDufs(params: {
   body: Uint8Array;
   contentType: string;
 }) {
-  const base = env.dufs.baseUrl;
-  if (!base) {
-    throw new ApiError(500, "DUFS 未配置", "DUFS_NOT_CONFIGURED");
-  }
-
-  const prefix = normalizePrefix(env.dufs.pathPrefix);
-  const uploadUrl = `${trimSlash(base)}${prefix}/${encodePath(params.path)}`;
+  const uploadUrl = `${getInternalBaseUrl()}/${encodePath(params.path)}`;
   const headers: HeadersInit = {
     "Content-Type": params.contentType,
   };
 
-  const authHeader =
-    normalizeAuthHeader(env.dufs.auth) || parseBaseAuth(env.dufs.baseUrl);
+  const authHeader = getAuthHeader();
   if (authHeader) {
     headers.Authorization = authHeader;
   }
@@ -105,7 +109,7 @@ export async function uploadImageToDufs(params: {
       sizeBytes: params.body.byteLength,
       error,
     });
-    throw new ApiError(502, "DUFS 上传请求失败", "DUFS_UPLOAD_REQUEST_FAILED");
+    throw new ApiError(502, "DUFS upload request failed", "DUFS_UPLOAD_REQUEST_FAILED");
   }
 
   if (!response.ok) {
@@ -122,7 +126,7 @@ export async function uploadImageToDufs(params: {
     });
     throw new ApiError(
       502,
-      `DUFS 上传失败 (${response.status})`,
+      `DUFS upload failed (${response.status})`,
       "DUFS_UPLOAD_FAILED",
     );
   }
@@ -131,4 +135,42 @@ export async function uploadImageToDufs(params: {
     path: params.path,
     publicUrl: createDufsPublicUrl(params.path),
   };
+}
+
+export async function fetchDufsFile(path: string) {
+  const fileUrl = `${getInternalBaseUrl()}/${encodePath(path)}`;
+  const headers: HeadersInit = {};
+
+  const authHeader = getAuthHeader();
+  if (authHeader) {
+    headers.Authorization = authHeader;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(fileUrl, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+  } catch (error) {
+    console.error("[dufs] fetch request failed", {
+      fileUrl,
+      error,
+    });
+    throw new ApiError(502, "DUFS file request failed", "DUFS_FILE_REQUEST_FAILED");
+  }
+
+  if (!response.ok) {
+    const rawText = await response.text().catch(() => "");
+    console.error("[dufs] fetch http error", {
+      fileUrl,
+      status: response.status,
+      statusText: response.statusText,
+      rawText,
+    });
+    throw new ApiError(502, `DUFS file fetch failed (${response.status})`, "DUFS_FILE_FETCH_FAILED");
+  }
+
+  return response;
 }

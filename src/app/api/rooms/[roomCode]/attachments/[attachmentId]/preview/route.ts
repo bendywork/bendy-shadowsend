@@ -1,7 +1,7 @@
 ﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
-import { NextRequest } from "next/server";
-import { ApiError, jsonError, jsonOk } from "@/lib/api";
-import { createDufsPublicUrl } from "@/lib/dufs";
+import { NextRequest, NextResponse } from "next/server";
+import { ApiError, jsonError } from "@/lib/api";
+import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
@@ -52,22 +52,29 @@ export async function GET(
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
     }
 
-    const previewUrl =
-      attachment.storage === AttachmentStorage.DUFS
-        ? createDufsPublicUrl(attachment.s3Key)
-        : await createAttachmentPreviewUrl({
-            key: attachment.s3Key,
-            fileName: attachment.fileName,
-            mimeType: attachment.mimeType,
-            sizeBytes: attachment.sizeBytes,
-            cookieHeader: request.headers.get("cookie") ?? undefined,
-            expiresInSeconds: 120,
-          });
+    if (attachment.storage === AttachmentStorage.DUFS) {
+      const upstream = await fetchDufsFile(attachment.s3Key);
+      const response = new NextResponse(upstream.body, {
+        status: 200,
+        headers: {
+          "Content-Type": upstream.headers.get("content-type") || attachment.mimeType,
+          "Cache-Control": "private, max-age=60",
+        },
+      });
 
-    const response = jsonOk({
-      url: previewUrl,
+      return applyUserCookie(response, cookieToSet);
+    }
+
+    const previewUrl = await createAttachmentPreviewUrl({
+      key: attachment.s3Key,
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      cookieHeader: request.headers.get("cookie") ?? undefined,
+      expiresInSeconds: 120,
     });
 
+    const response = NextResponse.redirect(previewUrl, 307);
     return applyUserCookie(response, cookieToSet);
   } catch (error) {
     console.error("[route] /api/rooms/[roomCode]/attachments/[attachmentId]/preview failed", {

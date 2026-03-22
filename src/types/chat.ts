@@ -96,6 +96,7 @@ export type RoomSnapshot = {
     hasGateCode: boolean;
     gateCodeExpiresAt: string | null;
     gateCode: string | null;
+    neverExpire: boolean;
   };
   announcement: {
     text: string | null;

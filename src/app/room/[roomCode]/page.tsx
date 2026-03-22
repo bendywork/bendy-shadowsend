@@ -66,7 +66,7 @@ function withStableAttachmentPreviewUrls(
       ...message,
       attachments: message.attachments.map((attachment) => {
         const stablePreviewUrl =
-          existing.get(attachment.id) ?? attachment.previewUrl ?? null;
+          attachment.previewUrl ?? existing.get(attachment.id) ?? null;
         return {
           ...attachment,
           previewUrl: stablePreviewUrl,
@@ -495,6 +495,43 @@ export default function RoomPage() {
     }
   }
 
+  async function updateNeverExpire(nextNeverExpire: boolean) {
+    if (!isOwner) return;
+    setAction("never-expire");
+    setError(null);
+    try {
+      const result = await apiFetch<{ neverExpire: boolean }>(
+        `/api/rooms/${roomCode}/never-expire`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            neverExpire: nextNeverExpire,
+          }),
+        },
+      );
+
+      setSnap((prev) =>
+        prev
+          ? {
+              ...prev,
+              room: {
+                ...prev.room,
+                neverExpire: result.neverExpire,
+              },
+            }
+          : prev,
+      );
+
+      setHint(result.neverExpire ? "已开启永不过期" : "已关闭永不过期");
+      window.setTimeout(() => setHint(null), 2200);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "更新永不过期失败");
+    } finally {
+      setAction(null);
+    }
+  }
+
   if (loading) return <main className="flex min-h-screen items-center justify-center text-slate-300"><LoaderCircle className="h-6 w-6 animate-spin" /></main>;
   if (error && !snap) return <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center"><p className="text-sm text-zinc-300">{error}</p><Link href="/" className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200">返回首页</Link></main>;
   if (!snap) return null;
@@ -796,6 +833,38 @@ export default function RoomPage() {
                 <p className="mt-2 text-[11px] text-slate-500">
                   当前门禁码：{snap.room.gateCode ?? "未设置"}
                 </p>
+              </div>
+            ) : null}
+
+            {isOwner ? (
+              <div className="mt-3 rounded-lg border border-slate-700/80 bg-slate-900/80 p-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-slate-200">永不过期</p>
+                    <p className="text-[11px] text-slate-500">开启后房间不会因长时间无活动自动解散</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={snap.room.neverExpire}
+                    onClick={() => {
+                      void updateNeverExpire(!snap.room.neverExpire);
+                    }}
+                    disabled={action === "never-expire"}
+                    className={clsx(
+                      "inline-flex shrink-0 items-center rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60",
+                      snap.room.neverExpire
+                        ? "border-zinc-500/50 bg-zinc-500/20 text-zinc-100"
+                        : "border-slate-700 text-slate-300 hover:bg-slate-800",
+                    )}
+                  >
+                    {action === "never-expire"
+                      ? "保存中..."
+                      : snap.room.neverExpire
+                        ? "已开启"
+                        : "已关闭"}
+                  </button>
+                </div>
               </div>
             ) : null}
 

@@ -77,6 +77,10 @@ export const updateRoomGateCodeSchema = z.object({
     }),
 });
 
+export const updateRoomNeverExpireSchema = z.object({
+  neverExpire: z.boolean(),
+});
+
 export const roomAnnouncementSchema = z.object({
   text: z
     .string()
