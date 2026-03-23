@@ -1,16 +1,13 @@
-﻿import {
-  AttachmentStorage,
+import {
   MemberStatus,
   RoomRole,
   RoomStatus,
 } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
-import { createDufsPublicUrl } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { parseJsonBody } from "@/lib/route";
-import { createInlineReadUrl } from "@/lib/s3";
 import { cleanupStaleRooms, touchRoom } from "@/lib/room-service";
 import { roomAnnouncementSchema } from "@/lib/validators";
 
@@ -94,12 +91,7 @@ export async function POST(
     await touchRoom(room.id);
 
     const imageUrl = updated.announcementImageKey
-      ? updated.announcementImageStorage === AttachmentStorage.DUFS
-        ? createDufsPublicUrl(updated.announcementImageKey)
-        : await createInlineReadUrl({
-            key: updated.announcementImageKey,
-            expiresInSeconds: 120,
-          })
+      ? `/api/rooms/${encodeURIComponent(roomCode)}/announcement/image`
       : null;
 
     const response = jsonOk({

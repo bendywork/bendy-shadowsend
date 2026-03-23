@@ -1,15 +1,13 @@
-import { AttachmentStorage, MemberStatus, RoomRole, RoomStatus } from "@prisma/client";
+import { MemberStatus, RoomRole, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { APP_NAME, APP_OPEN_SOURCE, MESSAGE_PAGE_SIZE } from "@/lib/constants";
 import { env } from "@/lib/env";
-import { createDufsPublicUrl } from "@/lib/dufs";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
 import { enrichMessagesWithAttachmentPreviewUrls } from "@/lib/attachment-preview";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { mapClientMessage } from "@/lib/serializers";
 import { cleanupStaleRooms, getOnlineStats } from "@/lib/room-service";
-import { createInlineReadUrl } from "@/lib/s3";
 
 type Params = {
   roomCode: string;
@@ -134,12 +132,7 @@ export async function GET(
     ]);
 
     const announcementImageUrl = room.announcementImageKey
-      ? room.announcementImageStorage === AttachmentStorage.DUFS
-        ? createDufsPublicUrl(room.announcementImageKey)
-        : await createInlineReadUrl({
-            key: room.announcementImageKey,
-            expiresInSeconds: 120,
-          })
+      ? `/api/rooms/${encodeURIComponent(roomCode)}/announcement/image`
       : null;
 
     const showAnnouncementToMe = Boolean(
