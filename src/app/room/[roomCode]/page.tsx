@@ -430,6 +430,11 @@ export default function RoomPage() {
   }
 
   async function upload(file: File, onProgress?: (percent: number) => void) {
+    const isImage = file.type.startsWith("image/");
+    if (isImage) {
+      return uploadByProxy(file, onProgress);
+    }
+
     try {
       return await uploadDirectToS3(file, onProgress);
     } catch (directUploadError) {

@@ -60,7 +60,10 @@ Copy-Item .env.example .env
 > 
 > 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
 >
-> 当前上传策略：前端优先使用 S3 预签名 URL 直传；若直传失败且文件不超过 `200MB`，自动回退到后端中转上传（`/api/rooms/[roomCode]/upload`）。
+> 当前上传策略：
+>
+> - `image/*`：固定走后端中转上传接口（`/api/rooms/[roomCode]/upload`），并写入 DUFS（不走 S3）。
+> - 非图片文件：优先使用 S3 预签名 URL 直传；若直传失败且文件不超过 `200MB`，自动回退到后端中转上传。
 >
 > 单文件大小上限为 `10GB`（服务端会校验）。
 >

@@ -41,6 +41,10 @@ export async function POST(
 
     await assertRoomMember(room.id, user.id);
 
+    if (payload.mimeType.startsWith("image/")) {
+      throw new ApiError(400, "图片上传请走 DUFS 后端通道", "IMAGE_UPLOAD_USE_DUFS");
+    }
+
     const suffix = keyId();
     const key = `rooms/${room.id}/${Date.now()}-${suffix}-${sanitizeFileName(payload.fileName)}`;
 

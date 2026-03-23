@@ -70,7 +70,11 @@ export async function POST(
     let previewUrl: string | null = null;
     let storage: AttachmentStorage = AttachmentStorage.S3;
 
-    if (isImage && isDufsConfigured()) {
+    if (isImage) {
+      if (!isDufsConfigured()) {
+        throw new ApiError(503, "图片上传依赖 DUFS，当前未配置", "DUFS_NOT_CONFIGURED");
+      }
+
       key = `img-${room.id}-${Date.now()}-${suffix}-${fileName}`;
       const uploadedToDufs = await uploadImageToDufs({
         path: key,
