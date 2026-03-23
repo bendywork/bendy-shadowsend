@@ -2,6 +2,7 @@ import { AttachmentStorage, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { customAlphabet } from "nanoid";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
 import { isDufsConfigured, uploadImageToDufs } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +10,7 @@ import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 import { createAttachmentPreviewUrl, uploadObject } from "@/lib/s3";
 
 const keyId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
-const proxyUploadLimitBytes = 20 * 1024 * 1024;
+const proxyUploadLimitBytes = MAX_PROXY_UPLOAD_BYTES;
 
 type Params = {
   roomCode: string;

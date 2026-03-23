@@ -1,4 +1,4 @@
-﻿import { RoomStatus } from "@prisma/client";
+import { AttachmentStorage, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { customAlphabet } from "nanoid";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
@@ -67,6 +67,10 @@ export async function POST(
       uploadUrl,
       previewUrl,
       s3Key: key,
+      fileName: payload.fileName,
+      mimeType: payload.mimeType,
+      sizeBytes: payload.sizeBytes,
+      storage: AttachmentStorage.S3,
       method: "PUT",
       headers: {
         "Content-Type": payload.mimeType,

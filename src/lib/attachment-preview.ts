@@ -7,7 +7,7 @@ type PreviewAttachment = {
   s3Key: string;
   fileName: string;
   mimeType: string;
-  sizeBytes: number;
+  sizeBytes: number | bigint;
   storage: AttachmentStorage;
   previewType: PreviewType;
 };
@@ -15,6 +15,10 @@ type PreviewAttachment = {
 type PreviewMessage<TAttachment extends PreviewAttachment = PreviewAttachment> = {
   attachments: TAttachment[];
 };
+
+function toPreviewSizeBytes(sizeBytes: number | bigint) {
+  return typeof sizeBytes === "bigint" ? Number(sizeBytes) : sizeBytes;
+}
 
 export async function enrichMessagesWithAttachmentPreviewUrls<
   TMessage extends PreviewMessage<TAttachment>,
@@ -62,7 +66,7 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
               key: attachment.s3Key,
               fileName: attachment.fileName,
               mimeType: attachment.mimeType,
-              sizeBytes: attachment.sizeBytes,
+              sizeBytes: toPreviewSizeBytes(attachment.sizeBytes),
               cookieHeader: options?.cookieHeader,
               expiresInSeconds: options?.expiresInSeconds ?? 3600,
             });

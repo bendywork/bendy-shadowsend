@@ -60,7 +60,9 @@ Copy-Item .env.example .env
 > 
 > 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
 >
-> 当前上传分流策略：`image/*` 走 DUFS；非图片（视频/文档等）走 S3。
+> 当前上传策略：前端优先使用 S3 预签名 URL 直传；若直传失败且文件不超过 `200MB`，自动回退到后端中转上传（`/api/rooms/[roomCode]/upload`）。
+>
+> 单文件大小上限为 `10GB`（服务端会校验）。
 >
 > 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
 
@@ -117,7 +119,7 @@ curl 'https://www.hi168.com/api/user/oss/preview/url' \
 - 启动项目后进入房间，上传任意文件。
 - 文件消息能正常显示且可下载，说明 S3 签名 URL 与存储访问正常。
 - 若报错 `S3_NOT_CONFIGURED`，说明必填项缺失或格式错误。
-- 若前端提示 `Failed to fetch`：项目会自动回退到后端中转上传接口（`/api/rooms/[roomCode]/upload`），但中转上传建议控制在 `20MB` 以内。
+- 若前端提示 `Failed to fetch`：项目会自动回退到后端中转上传接口（`/api/rooms/[roomCode]/upload`），当前中转上限为 `200MB`。超过该大小请优先检查 S3 CORS 与网络策略，确保直传链路可用。
 - 生产环境建议优先使用 `HTTPS` 的 `S3_ENDPOINT`，可减少浏览器混合内容拦截与 CORS 问题。
 - 网络请求出错时：前端会在浏览器控制台输出 `apiFetch`/`upload` 详细上下文；服务端会在 Vercel Function Logs 打印路由级和 S3 级错误细节。
 
@@ -215,7 +217,7 @@ npm run dev
   - 每个用户最多创建/加入 10 个房间。
   - 每个房间最多 20 人。
 - 成员权限：
-  - 房主：可踢人、可邀请、可审批再次加入。
+  - 房主：可踢人、可转让房主、可邀请、可审批再次加入。
   - 成员：可邀请，不可踢人。
 - 房间顶部五按钮：
   - `邀请`：复制当前房间加入链接。

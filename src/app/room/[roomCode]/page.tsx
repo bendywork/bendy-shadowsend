@@ -6,13 +6,24 @@ import clsx from "clsx";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { Check, CheckCheck, Clock3, Copy, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
+import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { LAST_ROOM_STORAGE_KEY, MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
+type DirectUploadPreparePayload = {
+  uploadUrl: string;
+  previewUrl?: string | null;
+  s3Key: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storage: AttachmentItem["storage"];
+  method: "PUT";
+  headers?: Record<string, string>;
+};
 type DownloadPayload = { url: string };
 type MessageListPayload = { messages: MessageItem[] };
 type ImageViewerState = { url: string; fileName: string };
@@ -271,7 +282,7 @@ export default function RoomPage() {
     if (fs.length) { addFiles(fs); e.preventDefault(); }
   }
 
-  async function upload(file: File, onProgress?: (percent: number) => void) {
+  async function uploadByProxy(file: File, onProgress?: (percent: number) => void) {
     const formData = new FormData();
     formData.append("file", file, file.name);
 
@@ -348,6 +359,96 @@ export default function RoomPage() {
     });
 
     return payload;
+  }
+
+  async function uploadDirectToS3(file: File, onProgress?: (percent: number) => void) {
+    const mimeType = file.type?.trim() || "application/octet-stream";
+    const prepare = await apiFetch<DirectUploadPreparePayload>(`/api/rooms/${roomCode}/upload-url`, {
+      method: "POST",
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType,
+        sizeBytes: file.size,
+      }),
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(prepare.method ?? "PUT", prepare.uploadUrl, true);
+
+      Object.entries(prepare.headers ?? {}).forEach(([key, value]) => {
+        xhr.setRequestHeader(key, value);
+      });
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable || !onProgress) return;
+        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+        onProgress(percent);
+      };
+
+      xhr.onerror = () => {
+        console.error("[upload-direct] xhr network error", {
+          roomCode,
+          uploadUrl: prepare.uploadUrl,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+        });
+        reject(new Error(`Upload failed: ${file.name}`));
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          if (onProgress) onProgress(100);
+          resolve();
+          return;
+        }
+
+        console.error("[upload-direct] xhr response error", {
+          roomCode,
+          uploadUrl: prepare.uploadUrl,
+          status: xhr.status,
+          responseText: xhr.responseText,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+        });
+        reject(new Error(`Upload failed: ${file.name}`));
+      };
+
+      xhr.send(file);
+    });
+
+    return {
+      s3Key: prepare.s3Key,
+      fileName: prepare.fileName,
+      mimeType: prepare.mimeType,
+      sizeBytes: prepare.sizeBytes,
+      storage: prepare.storage ?? "S3",
+      previewUrl: prepare.previewUrl ?? null,
+    } satisfies ProxyUploadResult;
+  }
+
+  async function upload(file: File, onProgress?: (percent: number) => void) {
+    try {
+      return await uploadDirectToS3(file, onProgress);
+    } catch (directUploadError) {
+      console.error("[upload] direct upload failed, falling back to proxy", {
+        roomCode,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        error: directUploadError,
+      });
+
+      if (file.size > MAX_PROXY_UPLOAD_BYTES) {
+        throw new Error(
+          `文件直传失败，且超过 ${Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024)}MB 中转上限，请检查 S3 CORS 后重试`,
+        );
+      }
+
+      return uploadByProxy(file, onProgress);
+    }
   }
 
   function updatePendingMessage(localId: string, patch: Partial<PendingMessage>) {
@@ -485,6 +586,24 @@ export default function RoomPage() {
     try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) }); await refresh(); }
     catch (err) { setError(err instanceof Error ? err.message : "移出失败"); }
     finally { setAction(null); }
+  }
+
+  async function transferOwner(m: RoomMemberItem) {
+    if (!window.confirm(`确认将房主身份转让给 ${m.user.nickname} 吗？转让后你将变为普通成员。`)) return;
+    setAction(`transfer-${m.id}`);
+    try {
+      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/transfer`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await refresh();
+      setHint(`已将房主身份转让给 ${m.user.nickname}`);
+      window.setTimeout(() => setHint(null), 2200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "转让失败");
+    } finally {
+      setAction(null);
+    }
   }
 
   async function review(r: PendingRequestItem, act: "approve" | "reject") {
@@ -960,14 +1079,24 @@ export default function RoomPage() {
                       </div>
                     </div>
                     {isOwner && m.role !== "OWNER" ? (
-                      <button
-                        type="button"
-                        onClick={() => kick(m)}
-                        disabled={action === `kick-${m.id}`}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
-                      >
-                        <UserMinus className="h-3 w-3" /> 移出
-                      </button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => transferOwner(m)}
+                          disabled={action === `transfer-${m.id}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                        >
+                          <Crown className="h-3 w-3" /> 转让
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => kick(m)}
+                          disabled={action === `kick-${m.id}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                        >
+                          <UserMinus className="h-3 w-3" /> 移出
+                        </button>
+                      </div>
                     ) : null}
                   </div>
                 </div>

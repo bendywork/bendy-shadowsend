@@ -207,7 +207,7 @@ model MessageAttachment {
   uploaderId String
   fileName   String
   mimeType   String
-  sizeBytes  Int
+  sizeBytes  BigInt
   s3Key      String
   storage    AttachmentStorage @default(S3)
   previewType PreviewType @default(NONE)

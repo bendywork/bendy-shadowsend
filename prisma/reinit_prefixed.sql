@@ -145,7 +145,7 @@ CREATE TABLE "bendy_shadowsend_message_attachment" (
     "uploaderId" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
     "mimeType" TEXT NOT NULL,
-    "sizeBytes" INTEGER NOT NULL,
+    "sizeBytes" BIGINT NOT NULL,
     "s3Key" TEXT NOT NULL,
     "previewType" "bendy_shadowsend_preview_type" NOT NULL DEFAULT 'NONE',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -263,4 +263,3 @@ ALTER TABLE "bendy_shadowsend_presence" ADD CONSTRAINT "bendy_shadowsend_presenc
 
 -- AddForeignKey
 ALTER TABLE "bendy_shadowsend_presence" ADD CONSTRAINT "bendy_shadowsend_presence_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "bendy_shadowsend_room"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-

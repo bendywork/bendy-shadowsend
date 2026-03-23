@@ -152,7 +152,7 @@ export async function POST(
             uploaderId: user.id,
             fileName: attachment.fileName,
             mimeType: attachment.mimeType,
-            sizeBytes: attachment.sizeBytes,
+            sizeBytes: BigInt(attachment.sizeBytes),
             s3Key: attachment.s3Key,
             storage: attachment.storage,
             previewType: resolvePreviewType(attachment.mimeType),

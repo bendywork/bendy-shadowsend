@@ -12,6 +12,10 @@ type Params = {
   attachmentId: string;
 };
 
+function toPreviewSizeBytes(sizeBytes: number | bigint) {
+  return typeof sizeBytes === "bigint" ? Number(sizeBytes) : sizeBytes;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<Params> },
@@ -69,7 +73,7 @@ export async function GET(
       key: attachment.s3Key,
       fileName: attachment.fileName,
       mimeType: attachment.mimeType,
-      sizeBytes: attachment.sizeBytes,
+      sizeBytes: toPreviewSizeBytes(attachment.sizeBytes),
       cookieHeader: request.headers.get("cookie") ?? undefined,
       expiresInSeconds: 120,
     });

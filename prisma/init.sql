@@ -122,7 +122,7 @@ CREATE TABLE "MessageAttachment" (
     "uploaderId" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
     "mimeType" TEXT NOT NULL,
-    "sizeBytes" INTEGER NOT NULL,
+    "sizeBytes" BIGINT NOT NULL,
     "s3Key" TEXT NOT NULL,
     "previewType" "PreviewType" NOT NULL DEFAULT 'NONE',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -240,4 +240,3 @@ ALTER TABLE "Presence" ADD CONSTRAINT "Presence_userId_fkey" FOREIGN KEY ("userI
 
 -- AddForeignKey
 ALTER TABLE "Presence" ADD CONSTRAINT "Presence_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "Room"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-

@@ -12,4 +12,7 @@ export const USER_COOKIE_NAME = "tb_uid";
 export const LAST_ROOM_STORAGE_KEY = "tb:last-room";
 
 export const MESSAGE_PAGE_SIZE = 120;
+export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
+export const MAX_ANNOUNCEMENT_IMAGE_BYTES = 200 * 1024 * 1024;
+export const MAX_PROXY_UPLOAD_BYTES = 200 * 1024 * 1024;
 

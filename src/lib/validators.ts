@@ -1,4 +1,8 @@
-﻿import { z } from "zod";
+import { z } from "zod";
+import {
+  MAX_ANNOUNCEMENT_IMAGE_BYTES,
+  MAX_ATTACHMENT_SIZE_BYTES,
+} from "@/lib/constants";
 
 export const gateCodeSchema = z
   .string()
@@ -45,7 +49,11 @@ export const sendMessageSchema = z.object({
       z.object({
         fileName: z.string().trim().min(1).max(255),
         mimeType: z.string().trim().min(1).max(120),
-        sizeBytes: z.number().int().positive().max(1024 * 1024 * 1024),
+        sizeBytes: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_ATTACHMENT_SIZE_BYTES, "单个文件不能超过 10GB"),
         s3Key: z.string().trim().min(1).max(512),
         storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
       }),
@@ -57,7 +65,11 @@ export const sendMessageSchema = z.object({
 export const uploadPrepareSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().min(1).max(120),
-  sizeBytes: z.number().int().positive().max(1024 * 1024 * 1024),
+  sizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_ATTACHMENT_SIZE_BYTES, "单个文件不能超过 10GB"),
 });
 
 export const reviewRequestSchema = z.object({
@@ -94,9 +106,12 @@ export const roomAnnouncementSchema = z.object({
       s3Key: z.string().trim().min(1).max(512),
       fileName: z.string().trim().min(1).max(255),
       mimeType: z.string().trim().min(1).max(120),
-      sizeBytes: z.number().int().positive().max(20 * 1024 * 1024),
+      sizeBytes: z
+        .number()
+        .int()
+        .positive()
+        .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "公告图片不能超过 200MB"),
       storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
     })
     .optional(),
 });
-

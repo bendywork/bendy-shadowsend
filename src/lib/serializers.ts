@@ -46,6 +46,10 @@ export type ClientRoomSummary = {
   role: RoomRole;
 };
 
+function toClientSizeBytes(sizeBytes: number | bigint) {
+  return typeof sizeBytes === "bigint" ? Number(sizeBytes) : sizeBytes;
+}
+
 export function mapClientMessage(message: MessageWithRelations): ClientMessage {
   return {
     id: message.id,
@@ -63,7 +67,7 @@ export function mapClientMessage(message: MessageWithRelations): ClientMessage {
       id: attachment.id,
       fileName: attachment.fileName,
       mimeType: attachment.mimeType,
-      sizeBytes: attachment.sizeBytes,
+      sizeBytes: toClientSizeBytes(attachment.sizeBytes),
       storage: attachment.storage,
       previewType: attachment.previewType,
       previewUrl:
