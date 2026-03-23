@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -214,9 +214,9 @@ export default function HomePage() {
         <div className="flex min-h-0 items-center px-1 sm:px-4 lg:min-h-[620px]">
           <div className="w-full max-w-xl space-y-6 sm:space-y-8">
             <Image
-              src="/2_1.png"
-              width={620}
-              height={200}
+              src="/new.png"
+              width={500}
+              height={155}
               alt="临时笨迪 Logo"
               className="h-auto w-full max-w-[560px]"
               priority
@@ -388,3 +388,4 @@ export default function HomePage() {
     </main>
   );
 }
+
