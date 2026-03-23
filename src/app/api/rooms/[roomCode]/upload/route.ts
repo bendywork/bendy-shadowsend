@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { customAlphabet } from "nanoid";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
 import { MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
+import { isS3Configured } from "@/lib/env";
 import { isDufsConfigured, uploadImageToDufs } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
@@ -65,13 +66,15 @@ export async function POST(
     const suffix = keyId();
     const content = new Uint8Array(await uploaded.arrayBuffer());
     const isImage = mimeType.startsWith("image/");
+    const dufsConfigured = isDufsConfigured();
+    const s3Configured = isS3Configured();
 
     let key = "";
     let previewUrl: string | null = null;
     let storage: AttachmentStorage = AttachmentStorage.S3;
 
     if (isImage) {
-      if (!isDufsConfigured()) {
+      if (!dufsConfigured) {
         throw new ApiError(503, "图片上传依赖 DUFS，当前未配置", "DUFS_NOT_CONFIGURED");
       }
 
@@ -83,7 +86,7 @@ export async function POST(
       });
       storage = AttachmentStorage.DUFS;
       previewUrl = uploadedToDufs.publicUrl;
-    } else {
+    } else if (s3Configured) {
       key = `rooms/${room.id}/${Date.now()}-${suffix}-${fileName}`;
       await uploadObject({
         key,
@@ -91,7 +94,7 @@ export async function POST(
         body: content,
       });
 
-      const shouldPreparePreview = isImage || mimeType.startsWith("video/");
+      const shouldPreparePreview = mimeType.startsWith("video/");
       previewUrl = shouldPreparePreview
         ? await createAttachmentPreviewUrl({
             key,
@@ -102,6 +105,17 @@ export async function POST(
             expiresInSeconds: 120,
           })
         : null;
+    } else if (dufsConfigured) {
+      key = `file-${room.id}-${Date.now()}-${suffix}-${fileName}`;
+      const uploadedToDufs = await uploadImageToDufs({
+        path: key,
+        body: content,
+        contentType: mimeType,
+      });
+      storage = AttachmentStorage.DUFS;
+      previewUrl = mimeType.startsWith("video/") ? uploadedToDufs.publicUrl : null;
+    } else {
+      throw new ApiError(500, "未配置可用存储（S3/DUFS）", "STORAGE_NOT_CONFIGURED");
     }
 
     const response = jsonOk({

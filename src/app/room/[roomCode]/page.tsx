@@ -44,6 +44,11 @@ type PendingMessage = {
   status: "sending" | "failed";
   error?: string;
 };
+type NoticePreviewState = {
+  text: string | null;
+  imageUrl: string | null;
+  imageName: string | null;
+};
 
 const isPreviewable = (a: { previewType: AttachmentItem["previewType"] }) =>
   a.previewType === "IMAGE" || a.previewType === "VIDEO";
@@ -172,9 +177,11 @@ export default function RoomPage() {
   const [showNoticeEditor, setShowNoticeEditor] = useState(false);
   const [noticeText, setNoticeText] = useState("");
   const [noticeImage, setNoticeImage] = useState<File | null>(null);
+  const [noticeImagePreviewUrl, setNoticeImagePreviewUrl] = useState<string | null>(null);
   const [clearNoticeImage, setClearNoticeImage] = useState(false);
 
   const [showNoticePopup, setShowNoticePopup] = useState(false);
+  const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
@@ -248,6 +255,19 @@ export default function RoomPage() {
     if (!snap || snap.me.role !== "OWNER") return;
     setGateCodeInput(snap.room.gateCode ?? "");
   }, [snap]);
+
+  useEffect(() => {
+    if (!noticeImage) {
+      setNoticeImagePreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(noticeImage);
+    setNoticeImagePreviewUrl(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [noticeImage]);
 
   const rooms = useMemo(() => ({ created: boot?.tree.createdRooms ?? [], joined: boot?.tree.joinedRooms ?? [] }), [boot]);
 
@@ -448,7 +468,7 @@ export default function RoomPage() {
 
       if (file.size > MAX_PROXY_UPLOAD_BYTES) {
         throw new Error(
-          `文件直传失败，且超过 ${Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024)}MB 中转上限，请检查 S3 CORS 后重试`,
+          `文件超过 ${Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024)}MB 中转上限，请启用 S3 直传或缩小文件后重试`,
         );
       }
 
@@ -627,7 +647,46 @@ export default function RoomPage() {
   function openNoticeEditor() {
     if (!snap) return;
     setNoticeText(snap.announcement.text ?? "");
-    setNoticeImage(null); setClearNoticeImage(false); setShowNoticeEditor(true);
+    setNoticeImage(null);
+    setClearNoticeImage(false);
+    setNoticePreview(null);
+    setShowNoticePopup(false);
+    setShowNoticeEditor(true);
+  }
+
+  function openNoticeViewer() {
+    if (!snap) return;
+    const hasNoticeContent = Boolean(snap.announcement.text || snap.announcement.imageUrl);
+    if (!hasNoticeContent) {
+      setHint("当前暂无公告");
+      window.setTimeout(() => setHint(null), 2200);
+      return;
+    }
+    setNoticePreview(null);
+    setShowNoticePopup(true);
+  }
+
+  function previewNoticeDraft() {
+    if (!snap) return;
+    const draftText = noticeText.trim() || null;
+    const draftImageUrl = clearNoticeImage
+      ? null
+      : noticeImagePreviewUrl ?? snap.announcement.imageUrl ?? null;
+    const draftImageName = clearNoticeImage
+      ? null
+      : noticeImage?.name ?? snap.announcement.imageName ?? null;
+
+    if (!draftText && !draftImageUrl) {
+      setError("公告内容与图片不能同时为空");
+      return;
+    }
+
+    setNoticePreview({
+      text: draftText,
+      imageUrl: draftImageUrl,
+      imageName: draftImageName,
+    });
+    setShowNoticePopup(true);
   }
 
   async function saveNotice() {
@@ -636,12 +695,27 @@ export default function RoomPage() {
       let image: { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"] } | undefined;
       if (noticeImage) image = await upload(noticeImage);
       await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, { method: "POST", body: JSON.stringify({ text: noticeText || undefined, image, clearImage: clearNoticeImage }) });
-      setShowNoticeEditor(false); await refresh(); setHint("公告已更新"); window.setTimeout(() => setHint(null), 2200);
+      setShowNoticeEditor(false);
+      setNoticePreview(null);
+      await refresh();
+      setHint("公告已更新");
+      window.setTimeout(() => setHint(null), 2200);
     } catch (err) { setError(err instanceof Error ? err.message : "公告保存失败"); }
     finally { setAction(null); }
   }
 
   async function closeNoticePopup() {
+    if (noticePreview) {
+      setNoticePreview(null);
+      setShowNoticePopup(false);
+      return;
+    }
+
+    if (!snap?.announcement.showToMe) {
+      setShowNoticePopup(false);
+      return;
+    }
+
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
       setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
@@ -759,6 +833,19 @@ export default function RoomPage() {
     );
   }
 
+  const noticeEditorImageUrl = clearNoticeImage
+    ? null
+    : noticeImagePreviewUrl ?? snap.announcement.imageUrl ?? null;
+  const noticeEditorImageName = clearNoticeImage
+    ? null
+    : noticeImage?.name ?? snap.announcement.imageName ?? null;
+  const noticePopupContent = noticePreview ?? {
+    text: snap.announcement.text,
+    imageUrl: snap.announcement.imageUrl,
+    imageName: snap.announcement.imageName,
+  };
+  const isPreviewingNoticeDraft = Boolean(noticePreview);
+
   return (
     <>
       <main className={clsx("mx-auto grid h-[100dvh] w-full max-w-[1680px] grid-cols-1 gap-4 overflow-hidden p-3 md:p-4", showMembers ? "lg:grid-cols-[290px_minmax(0,1fr)_290px]" : "lg:grid-cols-[290px_minmax(0,1fr)]") }>
@@ -814,7 +901,7 @@ export default function RoomPage() {
             <div className="flex flex-wrap gap-2">
               <Btn icon={<Copy className="h-3.5 w-3.5" />} label="邀请" onClick={copyLink} />
               <Btn icon={<QrCode className="h-3.5 w-3.5" />} label="二维码" onClick={() => setShowQr(true)} />
-              {isOwner ? <Btn icon={<Megaphone className="h-3.5 w-3.5" />} label="公告" onClick={openNoticeEditor} /> : null}
+              <Btn icon={<Megaphone className="h-3.5 w-3.5" />} label="公告" onClick={isOwner ? openNoticeEditor : openNoticeViewer} />
               {isOwner ? <Btn icon={<Settings2 className="h-3.5 w-3.5" />} label={showManage ? "管理(隐藏)" : "管理(显示)"} onClick={() => setShowManage((v) => !v)} /> : null}
               {isOwner ? <Btn icon={<Trash2 className="h-3.5 w-3.5" />} label={action === "dissolve" ? "解散中..." : "解散"} onClick={dissolve} danger disabled={action === "dissolve"} /> : null}
             </div>
@@ -1287,12 +1374,14 @@ export default function RoomPage() {
               {noticeImage ? <span className="text-slate-400">新图片: {noticeImage.name}</span> : null}
             </div>
 
-            {snap.announcement.imageUrl && !clearNoticeImage ? (
-              <img
-                src={snap.announcement.imageUrl}
-                alt={snap.announcement.imageName ?? "announcement-image"}
-                className="mt-3 max-h-48 rounded-lg border border-slate-700 object-contain"
-              />
+            {noticeEditorImageUrl ? (
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-700 bg-black">
+                <img
+                  src={noticeEditorImageUrl}
+                  alt={noticeEditorImageName ?? "announcement-image"}
+                  className="max-h-60 w-full object-contain"
+                />
+              </div>
             ) : null}
 
             <div className="mt-4 flex justify-end gap-2">
@@ -1302,6 +1391,13 @@ export default function RoomPage() {
                 className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300"
               >
                 取消
+              </button>
+              <button
+                type="button"
+                onClick={previewNoticeDraft}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
+              >
+                预览
               </button>
               <button
                 type="button"
@@ -1316,22 +1412,27 @@ export default function RoomPage() {
         </div>
       ) : null}
 
-      {showNoticePopup && snap.announcement.showToMe ? (
+      {showNoticePopup ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
           <section className="w-full max-w-lg rounded-2xl border border-zinc-400/50 bg-slate-950 p-5">
             <div className="mb-3 flex items-center gap-2 text-zinc-300">
               <Megaphone className="h-5 w-5" />
-              <h3 className="text-base font-semibold">房间公告</h3>
+              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
             </div>
-            {snap.announcement.text ? (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{snap.announcement.text}</p>
+            {noticePopupContent.text ? (
+              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{noticePopupContent.text}</p>
             ) : null}
-            {snap.announcement.imageUrl ? (
-              <img
-                src={snap.announcement.imageUrl}
-                alt={snap.announcement.imageName ?? "announcement"}
-                className="mt-3 max-h-60 rounded-lg border border-slate-700 object-contain"
-              />
+            {noticePopupContent.imageUrl ? (
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-700 bg-black">
+                <img
+                  src={noticePopupContent.imageUrl}
+                  alt={noticePopupContent.imageName ?? "announcement"}
+                  className="max-h-[60vh] w-full cursor-zoom-in object-contain"
+                  onDoubleClick={() =>
+                    openImageViewer(noticePopupContent.imageUrl, noticePopupContent.imageName ?? "announcement")
+                  }
+                />
+              </div>
             ) : null}
             <div className="mt-4 flex justify-end">
               <button
@@ -1339,7 +1440,7 @@ export default function RoomPage() {
                 onClick={closeNoticePopup}
                 className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white"
               >
-                我知道了
+                {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
               </button>
             </div>
           </section>

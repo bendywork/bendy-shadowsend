@@ -2,6 +2,7 @@ import { AttachmentStorage, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { customAlphabet } from "nanoid";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { isS3Configured } from "@/lib/env";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { parseJsonBody } from "@/lib/route";
@@ -45,6 +46,10 @@ export async function POST(
       throw new ApiError(400, "图片上传请走 DUFS 后端通道", "IMAGE_UPLOAD_USE_DUFS");
     }
 
+    if (!isS3Configured()) {
+      throw new ApiError(400, "当前未配置 S3，请走 DUFS 后端通道上传", "S3_NOT_CONFIGURED");
+    }
+
     const suffix = keyId();
     const key = `rooms/${room.id}/${Date.now()}-${suffix}-${sanitizeFileName(payload.fileName)}`;
 
@@ -54,8 +59,7 @@ export async function POST(
       expiresInSeconds: 120,
     });
 
-    const shouldPreparePreview =
-      payload.mimeType.startsWith("image/") || payload.mimeType.startsWith("video/");
+    const shouldPreparePreview = payload.mimeType.startsWith("video/");
     const previewUrl = shouldPreparePreview
       ? await createAttachmentPreviewUrl({
           key,
