@@ -207,12 +207,12 @@ export default function HomePage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-10 sm:px-6 lg:flex lg:items-center">
+    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 sm:py-10 lg:flex lg:items-center">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.10),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.08),transparent_38%)]" />
 
-      <section className="relative mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-2 lg:items-center">
-        <div className="flex min-h-[640px] items-center px-2 sm:px-4">
-          <div className="w-full max-w-xl space-y-8">
+      <section className="relative mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
+        <div className="flex min-h-0 items-center px-1 sm:px-4 lg:min-h-[620px]">
+          <div className="w-full max-w-xl space-y-6 sm:space-y-8">
             <Image
               src="/2_1.png"
               width={620}
@@ -222,31 +222,31 @@ export default function HomePage() {
               priority
             />
 
-            <h2 className="text-4xl font-semibold leading-tight text-zinc-100 sm:text-5xl">
+            <h2 className="text-3xl font-semibold leading-tight text-zinc-100 sm:text-5xl">
               临时信息传递空间
             </h2>
 
-            <p className="max-w-lg text-xl leading-relaxed text-zinc-300 sm:text-2xl">
+            <p className="max-w-lg text-lg leading-relaxed text-zinc-300 sm:text-2xl">
               房间 10 分钟无活跃自动销毁，信息短驻留、低负担。
             </p>
 
-            <p className="min-h-[2.5rem] font-mono text-2xl text-zinc-200 sm:text-3xl">
+            <p className="min-h-[2.5rem] font-mono text-xl text-zinc-200 sm:text-3xl">
               {typedText}
               <span className="ml-1 inline-block h-7 w-2 animate-pulse bg-zinc-300 align-middle" />
             </p>
           </div>
         </div>
 
-        <div className="flex min-h-[640px] items-center">
+        <div className="flex min-h-0 items-center lg:min-h-[620px]">
           <section className="w-full rounded-3xl border border-zinc-800/80 bg-black/65 p-6 shadow-[0_18px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-8">
-            <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">SESSION ENTRY</p>
                 <h1 className="mt-2 text-3xl font-semibold text-zinc-100">临时笨迪</h1>
                 <p className="mt-2 text-sm text-zinc-400">加入或创建房间，消息仅在活跃期内保留。</p>
               </div>
               {displayMe ? (
-                <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2">
+                <div className="flex w-full items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2 sm:w-auto">
                   <Avatar
                     initial={displayMe.avatarInitial}
                     color={displayMe.avatarColor}
@@ -260,13 +260,13 @@ export default function HomePage() {
               ) : null}
             </div>
 
-            <div className="mb-5 inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
+            <div className="mb-5 inline-flex w-full rounded-xl border border-zinc-800 bg-zinc-950 p-1 sm:w-auto">
               <button
                 type="button"
                 onClick={() => setTab("join")}
                 className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition ${
                   tab === "join" ? "bg-zinc-700 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800"
-                }`}
+                } flex-1 justify-center sm:flex-none`}
               >
                 <DoorOpen className="h-4 w-4" /> 加入
               </button>
@@ -275,7 +275,7 @@ export default function HomePage() {
                 onClick={() => setTab("create")}
                 className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition ${
                   tab === "create" ? "bg-zinc-700 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800"
-                }`}
+                } flex-1 justify-center sm:flex-none`}
               >
                 <PlusCircle className="h-4 w-4" /> 创建
               </button>

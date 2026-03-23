@@ -184,6 +184,8 @@ export default function RoomPage() {
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
+  const roomsPanelRef = useRef<HTMLElement | null>(null);
+  const membersPanelRef = useRef<HTMLElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
   const [imageViewer, setImageViewer] = useState<ImageViewerState | null>(null);
 
@@ -505,6 +507,11 @@ export default function RoomPage() {
     });
   }
 
+  function scrollToPanel(target: "rooms" | "members") {
+    const panelRef = target === "rooms" ? roomsPanelRef : membersPanelRef;
+    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function runSend(localId: string, content: string, sendingFiles: File[]) {
     try {
       let attachments: ProxyUploadResult[] = [];
@@ -642,6 +649,17 @@ export default function RoomPage() {
     if (!joinLink) return;
     try { await navigator.clipboard.writeText(joinLink); setHint("当前房间加入链接已复制"); window.setTimeout(() => setHint(null), 2200); }
     catch { setError("复制失败，请检查浏览器权限"); }
+  }
+
+  async function copyMessageText(content: string) {
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      setHint("文本已复制");
+      window.setTimeout(() => setHint(null), 2200);
+    } catch {
+      setError("复制失败，请检查浏览器权限");
+    }
   }
 
   function openNoticeEditor() {
@@ -848,8 +866,8 @@ export default function RoomPage() {
 
   return (
     <>
-      <main className={clsx("mx-auto grid h-[100dvh] w-full max-w-[1680px] grid-cols-1 gap-4 overflow-hidden p-3 md:p-4", showMembers ? "lg:grid-cols-[290px_minmax(0,1fr)_290px]" : "lg:grid-cols-[290px_minmax(0,1fr)]") }>
-        <aside className="flex min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4">
+      <main className={clsx("mx-auto grid min-h-[100dvh] w-full max-w-[1680px] grid-cols-1 gap-3 p-2 sm:gap-4 sm:p-3 md:p-4 xl:h-[100dvh] xl:overflow-hidden", showMembers ? "xl:grid-cols-[290px_minmax(0,1fr)_290px]" : "xl:grid-cols-[290px_minmax(0,1fr)]") }>
+        <aside ref={roomsPanelRef} className="order-2 flex min-h-0 max-h-[52vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4 xl:order-1 xl:max-h-none">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-500">房间导航</p>
@@ -886,8 +904,8 @@ export default function RoomPage() {
           </div>
         </aside>
 
-        <section className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-950/90">
-          <header className="space-y-3 border-b border-slate-800 px-4 py-3">
+        <section className="order-1 flex min-h-[60vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 xl:order-2 xl:h-full xl:min-h-0">
+          <header className="space-y-3 border-b border-slate-800 px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h1 className="text-xl font-semibold text-slate-100">{snap.room.name}</h1>
@@ -899,6 +917,22 @@ export default function RoomPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => scrollToPanel("rooms")}
+                className="inline-flex items-center rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 xl:hidden"
+              >
+                房间列表
+              </button>
+              {showMembers ? (
+                <button
+                  type="button"
+                  onClick={() => scrollToPanel("members")}
+                  className="inline-flex items-center rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 xl:hidden"
+                >
+                  成员列表
+                </button>
+              ) : null}
               <Btn icon={<Copy className="h-3.5 w-3.5" />} label="邀请" onClick={copyLink} />
               <Btn icon={<QrCode className="h-3.5 w-3.5" />} label="二维码" onClick={() => setShowQr(true)} />
               <Btn icon={<Megaphone className="h-3.5 w-3.5" />} label="公告" onClick={isOwner ? openNoticeEditor : openNoticeViewer} />
@@ -908,7 +942,7 @@ export default function RoomPage() {
             {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
           </header>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
               <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">
                 暂无消息，开始发送吧。
@@ -922,13 +956,13 @@ export default function RoomPage() {
                 <article key={m.id} className={clsx("flex", isOwnMessage ? "justify-end" : "justify-start")}>
                   <div
                     className={clsx(
-                      "w-full max-w-[85%] rounded-xl border p-3",
+                      "w-full max-w-[92%] rounded-xl border p-3 sm:max-w-[85%]",
                       isOwnMessage
                         ? "border-zinc-500/40 bg-zinc-500/10"
                         : "border-slate-800 bg-slate-900/60",
                     )}
                   >
-                    <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Avatar
                           initial={m.sender.avatarInitial}
@@ -949,7 +983,17 @@ export default function RoomPage() {
                     </div>
 
                     {m.content ? (
-                      <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{m.content}</p>
+                      <div className="space-y-2">
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{m.content}</p>
+                        <button
+                          type="button"
+                          onClick={() => void copyMessageText(m.content)}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+                        >
+                          <Copy className="h-3 w-3" />
+                          复制文本
+                        </button>
+                      </div>
                     ) : null}
 
                     {m.attachments.length ? (
@@ -998,8 +1042,8 @@ export default function RoomPage() {
 
             {pendingMessages.map((message) => (
               <article key={message.localId} className="flex justify-end">
-                <div className="w-full max-w-[85%] rounded-xl border border-zinc-500/40 bg-zinc-500/10 p-3">
-                  <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="w-full max-w-[92%] rounded-xl border border-zinc-500/40 bg-zinc-500/10 p-3 sm:max-w-[85%]">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Avatar
                         initial={snap.me.avatarInitial}
@@ -1076,10 +1120,11 @@ export default function RoomPage() {
                   ) : null}
                 </div>
               </article>
-            ))}            <div ref={endRef} />
+            ))}
+            <div ref={endRef} />
           </div>
 
-          <form onSubmit={send} className="border-t border-slate-800 p-4">
+          <form onSubmit={send} className="border-t border-slate-800 p-3 sm:p-4">
             {files.length ? (
               <div className="mb-2 flex flex-wrap gap-2">
                 {files.map((file, index) => (
@@ -1109,8 +1154,8 @@ export default function RoomPage() {
                 placeholder="粘贴文本/文件后可直接发送..."
                 className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
               />
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 pb-1">
-                <div className="flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2 px-1 pb-1">
+                <div className="flex flex-wrap items-center gap-2">
                   <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
                     <Plus className="h-3.5 w-3.5" />
                     文件
@@ -1137,7 +1182,7 @@ export default function RoomPage() {
                 </div>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                  className="ml-auto inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                 >
                   <SendHorizonal className="h-3.5 w-3.5" />
                   发送
@@ -1151,7 +1196,7 @@ export default function RoomPage() {
         </section>
 
         {showMembers ? (
-          <aside className="flex min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4">
+          <aside ref={membersPanelRef} className="order-3 flex min-h-0 max-h-[56vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4 xl:order-3 xl:max-h-none">
             <div className="mb-3">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">成员列表</p>
               <h2 className="text-lg font-semibold text-slate-100">{snap.members.length} 人</h2>
