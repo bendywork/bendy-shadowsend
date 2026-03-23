@@ -125,12 +125,12 @@ function mergeIncomingMessages(
 function Tree({ title, rooms, activeCode }: { title: string; rooms: RoomTreeItem[]; activeCode: string }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{title}</p>
+      <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">{title}</p>
       <div className="space-y-1">
-        {rooms.length === 0 ? <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">暂无</p> : rooms.map((r) => (
-          <Link key={r.id} href={`/room/${r.roomCode}`} className={clsx("block rounded-lg border px-3 py-2 text-sm", activeCode === r.roomCode ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100" : "border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700") }>
+        {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">暂无</p> : rooms.map((r) => (
+          <Link key={r.id} href={`/room/${r.roomCode}`} className={clsx("block rounded-lg border px-3 py-2 text-sm", activeCode === r.roomCode ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100" : "border-zinc-800 bg-zinc-900/70 text-zinc-300 hover:border-zinc-700") }>
             <div className="flex items-center justify-between"><span className="truncate">{r.name}</span>{r.hasGateCode ? <Shield className="h-3.5 w-3.5 text-zinc-300" /> : null}</div>
-            <p className="mt-1 truncate font-mono text-[11px] text-slate-500">{r.roomCode}</p>
+            <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">{r.roomCode}</p>
           </Link>
         ))}
       </div>
@@ -149,10 +149,10 @@ function FileAction({ roomCode, attachment }: { roomCode: string; attachment: At
       alert(e instanceof Error ? e.message : "打开失败");
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}下载</button>;
+  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}下载</button>;
 }
 function Btn({ icon, label, onClick, danger, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
-  return <button type="button" onClick={onClick} disabled={disabled} className={clsx("inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", danger ? "border-zinc-500/40 text-zinc-200 hover:bg-zinc-600/10" : "border-slate-700 text-slate-200 hover:bg-slate-800")}>{icon}{label}</button>;
+  return <button type="button" onClick={onClick} disabled={disabled} className={clsx("inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", danger ? "border-zinc-500/40 text-zinc-200 hover:bg-zinc-600/10" : "border-zinc-700 text-zinc-200 hover:bg-zinc-800")}>{icon}{label}</button>;
 }
 
 export default function RoomPage() {
@@ -237,7 +237,7 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (!showQr || !joinLink) return;
-    void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark: "#e5edf9", light: "#00000000" } }).then(setQr);
+    void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark: "#f4f4f5", light: "#00000000" } }).then(setQr);
   }, [showQr, joinLink]);
 
   useEffect(() => {
@@ -817,7 +817,7 @@ export default function RoomPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-slate-300">
+      <main className="flex min-h-screen items-center justify-center text-zinc-300">
         <LoaderCircle className="h-6 w-6 animate-spin" />
       </main>
     );
@@ -827,7 +827,7 @@ export default function RoomPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-sm text-zinc-300">{error}</p>
-        <Link href="/" className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-200">
+        <Link href="/" className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-200">
           返回首页
         </Link>
       </main>
@@ -839,10 +839,10 @@ export default function RoomPage() {
   if (snap.waitingApproval) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
-        <section className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900/90 p-8 text-center">
+        <section className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900/90 p-8 text-center">
           <Clock3 className="mx-auto h-8 w-8 text-zinc-300" />
-          <h1 className="mt-4 text-xl font-semibold text-slate-100">等待房主审批</h1>
-          <p className="mt-2 text-sm text-slate-400">你曾被移出该房间，再次加入需要房主审批。</p>
+          <h1 className="mt-4 text-xl font-semibold text-zinc-100">等待房主审批</h1>
+          <p className="mt-2 text-sm text-zinc-400">你曾被移出该房间，再次加入需要房主审批。</p>
           <Link href="/" className="mt-6 inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white">
             返回首页
           </Link>
@@ -866,14 +866,14 @@ export default function RoomPage() {
 
   return (
     <>
-      <main className={clsx("mx-auto grid min-h-[100dvh] w-full max-w-[1680px] grid-cols-1 gap-3 p-2 sm:gap-4 sm:p-3 md:p-4 xl:h-[100dvh] xl:overflow-hidden", showMembers ? "xl:grid-cols-[290px_minmax(0,1fr)_290px]" : "xl:grid-cols-[290px_minmax(0,1fr)]") }>
-        <aside ref={roomsPanelRef} className="order-2 flex min-h-0 max-h-[52vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4 xl:order-1 xl:max-h-none">
+      <main className={clsx("grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden", showMembers ? "xl:grid-cols-[290px_minmax(0,1fr)_290px]" : "xl:grid-cols-[290px_minmax(0,1fr)]") }>
+        <aside ref={roomsPanelRef} className="order-2 flex min-h-0 max-h-[52vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-1 xl:max-h-none">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">房间导航</p>
-              <h2 className="text-lg font-semibold text-slate-100">已创建 / 已加入</h2>
+              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">房间导航</p>
+              <h2 className="text-lg font-semibold text-zinc-100">已创建 / 已加入</h2>
             </div>
-            <Link href="/" className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:bg-slate-800">
+            <Link href="/" className="rounded-lg border border-zinc-700 p-2 text-zinc-300 hover:bg-zinc-800">
               <LogOut className="h-4 w-4" />
             </Link>
           </div>
@@ -881,37 +881,37 @@ export default function RoomPage() {
             <Tree title="创建的房间" rooms={rooms.created} activeCode={roomCode} />
             <Tree title="加入的房间" rooms={rooms.joined} activeCode={roomCode} />
           </div>
-          <div className="mt-auto space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3 text-xs text-slate-400">
+          <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
             <p>
-              版本 <span className="font-semibold text-slate-200">{snap.app.version}</span>
+              版本 <span className="font-semibold text-zinc-200">{snap.app.version}</span>
             </p>
             <p>
-              开源协议 <span className="font-semibold text-slate-200">{snap.app.openSource}</span>
+              开源协议 <span className="font-semibold text-zinc-200">{snap.app.openSource}</span>
             </p>
             <p>
-              房间在线 <span className="font-semibold text-slate-200">{snap.stats.roomOnline}</span>
+              房间在线 <span className="font-semibold text-zinc-200">{snap.stats.roomOnline}</span>
             </p>
             <p>
-              全站在线 <span className="font-semibold text-slate-200">{snap.stats.totalOnline}</span>
+              全站在线 <span className="font-semibold text-zinc-200">{snap.stats.totalOnline}</span>
             </p>
             <div className="pt-2">
-              <p className="text-slate-500">当前用户</p>
+              <p className="text-zinc-500">当前用户</p>
               <div className="mt-1 flex items-center gap-2">
                 <Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} />
-                <span className="text-sm text-slate-200">{snap.me.nickname}</span>
+                <span className="text-sm text-zinc-200">{snap.me.nickname}</span>
               </div>
             </div>
           </div>
         </aside>
 
-        <section className="order-1 flex min-h-[60vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 xl:order-2 xl:h-full xl:min-h-0">
-          <header className="space-y-3 border-b border-slate-800 px-3 py-3 sm:px-4">
+        <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 xl:order-2 xl:h-full xl:min-h-0">
+          <header className="space-y-3 border-b border-zinc-800 px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-xl font-semibold text-slate-100">{snap.room.name}</h1>
-                <p className="font-mono text-xs text-slate-500">/{snap.room.roomCode}</p>
+                <h1 className="text-xl font-semibold text-zinc-100">{snap.room.name}</h1>
+                <p className="font-mono text-xs text-zinc-500">/{snap.room.roomCode}</p>
               </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-zinc-400">
                 <Users className="mr-1 inline h-3.5 w-3.5" />
                 {snap.members.length}/20 人
               </div>
@@ -920,7 +920,7 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={() => scrollToPanel("rooms")}
-                className="inline-flex items-center rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 xl:hidden"
+                className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
               >
                 房间列表
               </button>
@@ -928,7 +928,7 @@ export default function RoomPage() {
                 <button
                   type="button"
                   onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 xl:hidden"
+                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
                 >
                   成员列表
                 </button>
@@ -944,7 +944,7 @@ export default function RoomPage() {
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
-              <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-6 text-center text-sm text-slate-500">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-6 text-center text-sm text-zinc-500">
                 暂无消息，开始发送吧。
               </div>
             ) : null}
@@ -959,7 +959,7 @@ export default function RoomPage() {
                       "w-full max-w-[92%] rounded-xl border p-3 sm:max-w-[85%]",
                       isOwnMessage
                         ? "border-zinc-500/40 bg-zinc-500/10"
-                        : "border-slate-800 bg-slate-900/60",
+                        : "border-zinc-800 bg-zinc-900/60",
                     )}
                   >
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -969,12 +969,12 @@ export default function RoomPage() {
                           color={m.sender.avatarColor}
                           className="h-7 w-7"
                         />
-                        <span className="text-sm font-medium text-slate-200">{m.sender.nickname}</span>
+                        <span className="text-sm font-medium text-zinc-200">{m.sender.nickname}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                      <div className="flex items-center gap-1 text-[11px] text-zinc-500">
                         <time>{fmt(m.createdAt)}</time>
                         {isOwnMessage && deliveryState === "sent" ? (
-                          <Check className="h-3.5 w-3.5 text-slate-300" />
+                          <Check className="h-3.5 w-3.5 text-zinc-300" />
                         ) : null}
                         {isOwnMessage && deliveryState === "read" ? (
                           <CheckCheck className="h-3.5 w-3.5 text-zinc-300" />
@@ -984,11 +984,11 @@ export default function RoomPage() {
 
                     {m.content ? (
                       <div className="space-y-2">
-                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">{m.content}</p>
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">{m.content}</p>
                         <button
                           type="button"
                           onClick={() => void copyMessageText(m.content)}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+                          className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
                         >
                           <Copy className="h-3 w-3" />
                           复制文本
@@ -1001,10 +1001,10 @@ export default function RoomPage() {
                         {m.attachments.map((a) => (
                           <div
                             key={a.id}
-                            className="rounded-lg border border-slate-700/80 bg-slate-900 p-2.5"
+                            className="rounded-lg border border-zinc-700/80 bg-zinc-900 p-2.5"
                           >
                             {hasInlinePreview(a) ? (
-                              <div className="mb-2 overflow-hidden rounded-md border border-slate-700 bg-black">
+                              <div className="mb-2 overflow-hidden rounded-md border border-zinc-700 bg-black">
                                 {a.previewType === "IMAGE" ? (
                                   <img
                                     src={a.previewUrl ?? ""}
@@ -1026,8 +1026,8 @@ export default function RoomPage() {
 
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm text-slate-200">{a.fileName}</p>
-                                <p className="text-xs text-slate-500">{a.mimeType} | {formatBytes(a.sizeBytes)}</p>
+                                <p className="truncate text-sm text-zinc-200">{a.fileName}</p>
+                                <p className="text-xs text-zinc-500">{a.mimeType} | {formatBytes(a.sizeBytes)}</p>
                               </div>
                               <FileAction roomCode={roomCode} attachment={a} />
                             </div>
@@ -1050,13 +1050,13 @@ export default function RoomPage() {
                         color={snap.me.avatarColor}
                         className="h-7 w-7"
                       />
-                      <span className="text-sm font-medium text-slate-200">{snap.me.nickname}</span>
+                      <span className="text-sm font-medium text-zinc-200">{snap.me.nickname}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                    <div className="flex items-center gap-2 text-[11px] text-zinc-500">
                       <time>{fmt(message.createdAt)}</time>
                       {message.status === "sending" ? (
                         <>
-                          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-slate-300" />
+                          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-zinc-300" />
                           <span>{message.progress}%</span>
                         </>
                       ) : (
@@ -1069,7 +1069,7 @@ export default function RoomPage() {
                   </div>
 
                   {message.content ? (
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">
                       {message.content}
                     </p>
                   ) : null}
@@ -1079,10 +1079,10 @@ export default function RoomPage() {
                       {message.attachments.map((attachment) => (
                         <div
                           key={attachment.id}
-                          className="rounded-lg border border-slate-700/80 bg-slate-900 p-2.5"
+                          className="rounded-lg border border-zinc-700/80 bg-zinc-900 p-2.5"
                         >
                           {hasInlinePreview(attachment) ? (
-                            <div className="mb-2 overflow-hidden rounded-md border border-slate-700 bg-black">
+                            <div className="mb-2 overflow-hidden rounded-md border border-zinc-700 bg-black">
                               {attachment.previewType === "IMAGE" ? (
                                 <img
                                   src={attachment.previewUrl ?? ""}
@@ -1105,8 +1105,8 @@ export default function RoomPage() {
                           ) : null}
 
                           <div className="min-w-0">
-                            <p className="truncate text-sm text-slate-200">{attachment.fileName}</p>
-                            <p className="text-xs text-slate-500">
+                            <p className="truncate text-sm text-zinc-200">{attachment.fileName}</p>
+                            <p className="text-xs text-zinc-500">
                               {attachment.mimeType} | {formatBytes(attachment.sizeBytes)}
                             </p>
                           </div>
@@ -1124,20 +1124,20 @@ export default function RoomPage() {
             <div ref={endRef} />
           </div>
 
-          <form onSubmit={send} className="border-t border-slate-800 p-3 sm:p-4">
+          <form onSubmit={send} className="border-t border-zinc-800 p-3 sm:p-4">
             {files.length ? (
               <div className="mb-2 flex flex-wrap gap-2">
                 {files.map((file, index) => (
                   <span
                     key={`${file.name}-${file.size}-${index}`}
-                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-200"
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs text-zinc-200"
                   >
                     <FileText className="h-3 w-3" />
                     <span className="max-w-[220px] truncate">{file.name}</span>
                     <button
                       type="button"
                       onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
-                      className="rounded-full p-0.5 hover:bg-slate-700"
+                      className="rounded-full p-0.5 hover:bg-zinc-700"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1146,17 +1146,17 @@ export default function RoomPage() {
               </div>
             ) : null}
 
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/90 p-2">
+            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/90 p-2">
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onPaste={onPaste}
                 placeholder="粘贴文本/文件后可直接发送..."
-                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
+                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
+                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800">
                     <Plus className="h-3.5 w-3.5" />
                     文件
                     <input
@@ -1174,7 +1174,7 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={readClipboard}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800"
+                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800"
                   >
                     <Copy className="h-3.5 w-3.5" />
                     读取剪贴板
@@ -1189,28 +1189,28 @@ export default function RoomPage() {
                 </button>
               </div>
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-zinc-500">
               输入框支持直接 Ctrl+V 粘贴文本或文件；图片/视频可预览，其它文件仅下载。
             </p>
           </form>
         </section>
 
         {showMembers ? (
-          <aside ref={membersPanelRef} className="order-3 flex min-h-0 max-h-[56vh] flex-col rounded-2xl border border-slate-800 bg-slate-950/90 p-4 xl:order-3 xl:max-h-none">
+          <aside ref={membersPanelRef} className="order-3 flex min-h-0 max-h-[56vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-3 xl:max-h-none">
             <div className="mb-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">成员列表</p>
-              <h2 className="text-lg font-semibold text-slate-100">{snap.members.length} 人</h2>
+              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">成员列表</p>
+              <h2 className="text-lg font-semibold text-zinc-100">{snap.members.length} 人</h2>
             </div>
 
             <div className="space-y-2 overflow-y-auto">
               {snap.members.map((m) => (
-                <div key={m.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2">
+                <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
                       <div className="min-w-0">
-                        <p className="truncate text-sm text-slate-200">{m.user.nickname}</p>
-                        <p className="text-xs text-slate-500">
+                        <p className="truncate text-sm text-zinc-200">{m.user.nickname}</p>
+                        <p className="text-xs text-zinc-500">
                           {m.role === "OWNER" ? "房主" : "成员"} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
                         </p>
                       </div>
@@ -1241,21 +1241,21 @@ export default function RoomPage() {
             </div>
 
             {isOwner ? (
-              <div className="mt-4 border-t border-slate-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-slate-200">再次加入审批</h3>
+              <div className="mt-4 border-t border-zinc-800 pt-3">
+                <h3 className="mb-2 text-sm font-semibold text-zinc-200">再次加入审批</h3>
                 <div className="space-y-2">
                   {snap.pendingRequests.length === 0 ? (
-                    <p className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-500">
+                    <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">
                       暂无待审批
                     </p>
                   ) : (
                     snap.pendingRequests.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                      <div key={r.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                         <div className="mb-2 flex items-center gap-2">
                           <Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" />
                           <div>
-                            <p className="text-sm text-slate-200">{r.user.nickname}</p>
-                            <p className="text-[11px] text-slate-500">{fmt(r.createdAt)}</p>
+                            <p className="text-sm text-zinc-200">{r.user.nickname}</p>
+                            <p className="text-[11px] text-zinc-500">{fmt(r.createdAt)}</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -1284,14 +1284,14 @@ export default function RoomPage() {
             ) : null}
 
             {isOwner ? (
-              <div className="mt-4 border-t border-slate-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-slate-200">修改门禁码</h3>
+              <div className="mt-4 border-t border-zinc-800 pt-3">
+                <h3 className="mb-2 text-sm font-semibold text-zinc-200">修改门禁码</h3>
                 <div className="flex items-center gap-2">
                   <input
                     value={gateCodeInput}
                     onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="6位数字，留空表示不设置"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none"
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
                   />
                   <button
                     type="button"
@@ -1302,18 +1302,18 @@ export default function RoomPage() {
                     {action === "gate-code" ? "保存中..." : "保存"}
                   </button>
                 </div>
-                <p className="mt-2 text-[11px] text-slate-500">
+                <p className="mt-2 text-[11px] text-zinc-500">
                   当前门禁码：{snap.room.gateCode ?? "未设置"}
                 </p>
               </div>
             ) : null}
 
             {isOwner ? (
-              <div className="mt-3 rounded-lg border border-slate-700/80 bg-slate-900/80 p-2.5">
+              <div className="mt-3 rounded-lg border border-zinc-700/80 bg-zinc-900/80 p-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-medium text-slate-200">永不过期</p>
-                    <p className="text-[11px] text-slate-500">开启后房间不会因长时间无活动自动解散</p>
+                    <p className="text-xs font-medium text-zinc-200">永不过期</p>
+                    <p className="text-[11px] text-zinc-500">开启后房间不会因长时间无活动自动解散</p>
                   </div>
                   <button
                     type="button"
@@ -1327,7 +1327,7 @@ export default function RoomPage() {
                       "inline-flex shrink-0 items-center rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60",
                       snap.room.neverExpire
                         ? "border-zinc-500/50 bg-zinc-500/20 text-zinc-100"
-                        : "border-slate-700 text-slate-300 hover:bg-slate-800",
+                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
                     )}
                   >
                     {action === "never-expire"
@@ -1347,38 +1347,38 @@ export default function RoomPage() {
 
       {showQr ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-950 p-5">
+          <section className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-950 p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-100">房间二维码</h3>
+              <h3 className="text-base font-semibold text-zinc-100">房间二维码</h3>
               <button
                 type="button"
                 onClick={() => setShowQr(false)}
-                className="rounded-md border border-slate-700 p-1 text-slate-300"
+                className="rounded-md border border-zinc-700 p-1 text-zinc-300"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-slate-700" />
+              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-zinc-700" />
             ) : (
               <div className="flex h-64 items-center justify-center">
-                <LoaderCircle className="h-5 w-5 animate-spin text-slate-400" />
+                <LoaderCircle className="h-5 w-5 animate-spin text-zinc-400" />
               </div>
             )}
-            <p className="mt-3 break-all text-xs text-slate-400">{joinLink}</p>
+            <p className="mt-3 break-all text-xs text-zinc-400">{joinLink}</p>
           </section>
         </div>
       ) : null}
 
       {showNoticeEditor ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-950 p-5">
+          <section className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-950 p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-100">配置公告</h3>
+              <h3 className="text-base font-semibold text-zinc-100">配置公告</h3>
               <button
                 type="button"
                 onClick={() => setShowNoticeEditor(false)}
-                className="rounded-md border border-slate-700 p-1 text-slate-300"
+                className="rounded-md border border-zinc-700 p-1 text-zinc-300"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1388,11 +1388,11 @@ export default function RoomPage() {
               value={noticeText}
               onChange={(e) => setNoticeText(e.target.value)}
               placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none"
+              className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none"
             />
 
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
-              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 hover:bg-slate-800">
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-300">
+              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1.5 hover:bg-zinc-800">
                 <Plus className="h-3.5 w-3.5" />
                 上传公告图片
                 <input
@@ -1408,7 +1408,7 @@ export default function RoomPage() {
                   }}
                 />
               </label>
-              <label className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5">
+              <label className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1.5">
                 <input
                   type="checkbox"
                   checked={clearNoticeImage}
@@ -1416,11 +1416,11 @@ export default function RoomPage() {
                 />
                 清除当前图片
               </label>
-              {noticeImage ? <span className="text-slate-400">新图片: {noticeImage.name}</span> : null}
+              {noticeImage ? <span className="text-zinc-400">新图片: {noticeImage.name}</span> : null}
             </div>
 
             {noticeEditorImageUrl ? (
-              <div className="mt-3 overflow-hidden rounded-lg border border-slate-700 bg-black">
+              <div className="mt-3 overflow-hidden rounded-lg border border-zinc-700 bg-black">
                 <img
                   src={noticeEditorImageUrl}
                   alt={noticeEditorImageName ?? "announcement-image"}
@@ -1433,14 +1433,14 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={() => setShowNoticeEditor(false)}
-                className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300"
+                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
               >
                 取消
               </button>
               <button
                 type="button"
                 onClick={previewNoticeDraft}
-                className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
+                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-800"
               >
                 预览
               </button>
@@ -1459,16 +1459,16 @@ export default function RoomPage() {
 
       {showNoticePopup ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-zinc-400/50 bg-slate-950 p-5">
+          <section className="w-full max-w-lg rounded-2xl border border-zinc-400/50 bg-zinc-950 p-5">
             <div className="mb-3 flex items-center gap-2 text-zinc-300">
               <Megaphone className="h-5 w-5" />
               <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
             </div>
             {noticePopupContent.text ? (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{noticePopupContent.text}</p>
+              <p className="whitespace-pre-wrap text-sm leading-6 text-zinc-100">{noticePopupContent.text}</p>
             ) : null}
             {noticePopupContent.imageUrl ? (
-              <div className="mt-3 overflow-hidden rounded-lg border border-slate-700 bg-black">
+              <div className="mt-3 overflow-hidden rounded-lg border border-zinc-700 bg-black">
                 <img
                   src={noticePopupContent.imageUrl}
                   alt={noticePopupContent.imageName ?? "announcement"}
@@ -1502,11 +1502,11 @@ export default function RoomPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-xs text-slate-300">{imageViewer.fileName}</p>
+              <p className="truncate text-xs text-zinc-300">{imageViewer.fileName}</p>
               <button
                 type="button"
                 onClick={() => setImageViewer(null)}
-                className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800"
+                className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-800"
               >
                 关闭
               </button>
@@ -1514,7 +1514,7 @@ export default function RoomPage() {
             <img
               src={imageViewer.url}
               alt={imageViewer.fileName}
-              className="max-h-[80vh] w-full rounded-lg border border-slate-700 bg-black object-contain"
+              className="max-h-[80vh] w-full rounded-lg border border-zinc-700 bg-black object-contain"
             />
           </section>
         </div>
@@ -1522,3 +1522,4 @@ export default function RoomPage() {
     </>
   );
 }
+
