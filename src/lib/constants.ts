@@ -4,7 +4,7 @@ export const APP_OPEN_SOURCE = "MIT";
 export const APP_VERSION_PARTS = {
   major: 0,
   minor: 1,
-  patch: 48,
+  patch: 49,
 } as const;
 
 export const APP_VERSION = `${APP_VERSION_PARTS.major}.${APP_VERSION_PARTS.minor}.${APP_VERSION_PARTS.patch}`;

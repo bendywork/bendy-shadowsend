@@ -175,11 +175,6 @@ function RoomLinks({
                     title="当前房间"
                     className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
                   />
-                ) : r.hasUnread ? (
-                  <span
-                    title="有未读消息"
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.55)]"
-                  />
                 ) : null}
                 {r.hasGateCode ? <Shield className="h-3.5 w-3.5 shrink-0 text-zinc-300" /> : null}
               </div>

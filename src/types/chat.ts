@@ -18,7 +18,6 @@ export type RoomTreeItem = {
   roomCode: string;
   name: string;
   ownerId: string;
-  hasUnread: boolean;
   hasGateCode: boolean;
   gateCodeExpiresAt: string | null;
   createdAt: string;
