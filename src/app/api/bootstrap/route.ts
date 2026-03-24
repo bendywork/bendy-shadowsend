@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
 
     let memberships: Array<{
       role: RoomRole;
+      lastSeenAt: Date;
       room: {
         id: string;
         roomCode: string;
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
         gateCode: string | null;
         gateCodeExpiresAt: Date | null;
         createdAt: Date;
+        messages: Array<{
+          createdAt: Date;
+        }>;
       };
     }> = [];
     let totalOnline = 0;
@@ -43,6 +47,7 @@ export async function GET(request: NextRequest) {
           },
           select: {
             role: true,
+            lastSeenAt: true,
             room: {
               select: {
                 id: true,
@@ -52,6 +57,15 @@ export async function GET(request: NextRequest) {
                 gateCode: true,
                 gateCodeExpiresAt: true,
                 createdAt: true,
+                messages: {
+                  select: {
+                    createdAt: true,
+                  },
+                  orderBy: {
+                    createdAt: "desc",
+                  },
+                  take: 1,
+                },
               },
             },
           },
@@ -76,6 +90,9 @@ export async function GET(request: NextRequest) {
     const createdRooms = memberships
       .filter((item) => item.role === RoomRole.OWNER)
       .map((item) => ({
+        hasUnread:
+          item.room.messages[0]?.createdAt != null &&
+          item.room.messages[0].createdAt.getTime() > item.lastSeenAt.getTime(),
         id: item.room.id,
         roomCode: item.room.roomCode,
         name: item.room.name,
@@ -89,6 +106,9 @@ export async function GET(request: NextRequest) {
     const joinedRooms = memberships
       .filter((item) => item.role === RoomRole.MEMBER)
       .map((item) => ({
+        hasUnread:
+          item.room.messages[0]?.createdAt != null &&
+          item.room.messages[0].createdAt.getTime() > item.lastSeenAt.getTime(),
         id: item.room.id,
         roomCode: item.room.roomCode,
         name: item.room.name,

@@ -1,13 +1,13 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, LogOut, Megaphone, MoreHorizontal, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -139,14 +139,83 @@ function mergeIncomingMessages(
   });
 }
 
-function RoomLinks({ rooms, activeCode }: { rooms: RoomTreeItem[]; activeCode: string }) {
+function RoomLinks({
+  rooms,
+  activeCode,
+  openMenuRoomId,
+  roomMenuRef,
+  action,
+  onToggleMenu,
+  onLeaveRoom,
+}: {
+  rooms: RoomTreeItem[];
+  activeCode: string;
+  openMenuRoomId: string | null;
+  roomMenuRef: RefObject<HTMLDivElement | null>;
+  action: string | null;
+  onToggleMenu: (roomId: string) => void;
+  onLeaveRoom: (room: RoomTreeItem) => void;
+}) {
   return (
     <div className="space-y-1">
       {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">暂无</p> : rooms.map((r) => (
-        <Link key={r.id} href={`/room/${r.roomCode}`} className={clsx("block rounded-lg border px-3 py-2 text-sm", activeCode === r.roomCode ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100" : "border-zinc-800 bg-zinc-900/70 text-zinc-300 hover:border-zinc-700") }>
-          <div className="flex items-center justify-between"><span className="truncate">{r.name}</span>{r.hasGateCode ? <Shield className="h-3.5 w-3.5 text-zinc-300" /> : null}</div>
-          <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">{r.roomCode}</p>
-        </Link>
+        <div
+          key={r.id}
+          className={clsx(
+            "rounded-lg border px-3 py-2 text-sm",
+            activeCode === r.roomCode
+              ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100"
+              : "border-zinc-800 bg-zinc-900/70 text-zinc-300 hover:border-zinc-700",
+          )}
+        >
+          <div className="flex items-start gap-2">
+            <Link href={`/room/${r.roomCode}`} className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate">{r.name}</span>
+                {activeCode === r.roomCode ? (
+                  <span
+                    title="当前房间"
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+                  />
+                ) : r.hasUnread ? (
+                  <span
+                    title="有未读消息"
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.55)]"
+                  />
+                ) : null}
+                {r.hasGateCode ? <Shield className="h-3.5 w-3.5 shrink-0 text-zinc-300" /> : null}
+              </div>
+              <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">{r.roomCode}</p>
+            </Link>
+            {r.role === "MEMBER" ? (
+              <div ref={openMenuRoomId === r.id ? roomMenuRef : null} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-label="房间操作"
+                  aria-haspopup="menu"
+                  aria-expanded={openMenuRoomId === r.id}
+                  onClick={() => onToggleMenu(r.id)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+                {openMenuRoomId === r.id ? (
+                  <div role="menu" className="absolute right-0 top-8 z-30 w-24 rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-2xl">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => onLeaveRoom(r)}
+                      disabled={action === `leave-${r.roomCode}`}
+                      className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                    >
+                      退出房间
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -199,6 +268,7 @@ export default function RoomPage() {
   const [showNoticePopup, setShowNoticePopup] = useState(false);
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
+  const [openRoomMenuId, setOpenRoomMenuId] = useState<string | null>(null);
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomsPanelTab, setRoomsPanelTab] = useState<"created" | "joined">("created");
@@ -214,6 +284,7 @@ export default function RoomPage() {
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
+  const roomMenuRef = useRef<HTMLDivElement | null>(null);
   const memberMenuRef = useRef<HTMLDivElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
   const membersPanelRef = useRef<HTMLElement | null>(null);
@@ -285,6 +356,27 @@ export default function RoomPage() {
   }, [imageViewer]);
 
   useEffect(() => {
+    if (!openRoomMenuId) return;
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (roomMenuRef.current?.contains(target)) return;
+      setOpenRoomMenuId(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenRoomMenuId(null);
+      }
+    };
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [openRoomMenuId]);
+
+  useEffect(() => {
     if (!openMemberMenuId) return;
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
@@ -309,6 +401,10 @@ export default function RoomPage() {
     if (isOwner) return;
     setOpenMemberMenuId(null);
   }, [isOwner]);
+
+  useEffect(() => {
+    setOpenRoomMenuId(null);
+  }, [roomsPanelTab]);
 
   useEffect(() => {
     if (!isOwner && memberPanelTab !== "members") {
@@ -890,6 +986,47 @@ export default function RoomPage() {
     }
   }
 
+  async function leaveRoom(target: RoomTreeItem) {
+    if (target.role !== "MEMBER") return;
+    if (!window.confirm(`确认退出房间「${target.name}」吗？`)) return;
+
+    setOpenRoomMenuId(null);
+    setAction(`leave-${target.roomCode}`);
+    setError(null);
+    setHint(null);
+
+    try {
+      await apiFetch<{ success: boolean }>(`/api/rooms/${target.roomCode}/leave`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      const latestBoot = await apiFetch<BootstrapPayload>("/api/bootstrap");
+      setBoot(latestBoot);
+
+      if (target.roomCode === roomCode) {
+        const nextRoomCode =
+          latestBoot.tree.createdRooms[0]?.roomCode ??
+          latestBoot.tree.joinedRooms[0]?.roomCode;
+        if (nextRoomCode) {
+          localStorage.setItem(LAST_ROOM_STORAGE_KEY, nextRoomCode);
+          router.push(`/room/${nextRoomCode}`);
+        } else {
+          localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
+          router.push("/");
+        }
+        return;
+      }
+
+      setHint(`已退出房间「${target.name}」`);
+      window.setTimeout(() => setHint(null), 2200);
+    } catch (leaveError) {
+      setError(leaveError instanceof Error ? leaveError.message : "退出房间失败");
+    } finally {
+      setAction(null);
+    }
+  }
+
   async function copyLink() {
     if (!joinLink) return;
     try { await navigator.clipboard.writeText(joinLink); setHint("当前房间加入链接已复制"); window.setTimeout(() => setHint(null), 2200); }
@@ -1213,7 +1350,7 @@ export default function RoomPage() {
     <>
       <main className={clsx("grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden", showMembers ? "xl:grid-cols-[290px_minmax(0,1fr)_290px]" : "xl:grid-cols-[290px_minmax(0,1fr)]") }>
         <aside ref={roomsPanelRef} className="order-2 flex min-h-0 max-h-[52vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-1 xl:max-h-none">
-          <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="mb-4 flex items-center gap-2">
             <div className="flex items-center gap-2">
               <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/70 p-1">
                 <Image
@@ -1236,9 +1373,6 @@ export default function RoomPage() {
                 <h2 className="text-lg font-semibold text-zinc-100">加入 / 管理</h2>
               </div>
             </div>
-            <Link href="/" className="rounded-lg border border-zinc-700 p-2 text-zinc-300 hover:bg-zinc-800">
-              <LogOut className="h-4 w-4" />
-            </Link>
           </div>
           <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-1">
             <button
@@ -1286,7 +1420,19 @@ export default function RoomPage() {
             {!canAddMoreRooms ? <span className="ml-1">（已达上限）</span> : null}
           </p>
           <div className="overflow-y-auto pb-3">
-            <RoomLinks rooms={activeRooms} activeCode={roomCode} />
+            <RoomLinks
+              rooms={activeRooms}
+              activeCode={roomCode}
+              openMenuRoomId={openRoomMenuId}
+              roomMenuRef={roomMenuRef}
+              action={action}
+              onToggleMenu={(targetRoomId) => {
+                setOpenRoomMenuId((prev) => prev === targetRoomId ? null : targetRoomId);
+              }}
+              onLeaveRoom={(room) => {
+                void leaveRoom(room);
+              }}
+            />
           </div>
           <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
             <p>
