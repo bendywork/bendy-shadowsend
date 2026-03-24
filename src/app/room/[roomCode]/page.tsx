@@ -676,6 +676,9 @@ export default function RoomPage() {
         return mergeIncomingMessages(prev, [result.message]);
       });
       latestMessageAtRef.current = result.message.createdAt;
+      setError(null);
+      // Extra sync after a previously failed send, to keep UI and server state aligned.
+      void pollLatestMessages().catch(() => undefined);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Send failed";
       updatePendingMessage(localId, {
@@ -688,6 +691,7 @@ export default function RoomPage() {
 
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     const content = text.trim();
     const sendingFiles = [...files];
     if (!content && sendingFiles.length === 0) return;
@@ -706,7 +710,7 @@ export default function RoomPage() {
     }));
 
     setPendingMessages((prev) => [
-      ...prev,
+      ...prev.filter((item) => item.status === "sending"),
       {
         localId,
         createdAt: new Date().toISOString(),
