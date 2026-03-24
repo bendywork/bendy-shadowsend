@@ -1648,7 +1648,7 @@ export default function RoomPage() {
                 onPaste={onPaste}
                 onKeyDown={onComposerKeyDown}
                 maxLength={MAX_MESSAGE_TEXT_CHARS}
-                placeholder="粘贴文本/文件后可直接发送..."
+                placeholder="输入框支持 Ctrl+V 粘贴文本或文件；图片/视频可预览，其它文件仅下载。"
                 className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2 px-1 pb-1">
@@ -1691,21 +1691,20 @@ export default function RoomPage() {
                     回车发送内容：{enterToSend ? "开" : "关"}
                   </button>
                 </div>
-                <button
-                  type="submit"
-                  className="ml-auto inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-                >
-                  <SendHorizonal className="h-3.5 w-3.5" />
-                  发送
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="text-[11px] text-zinc-500">
+                    {text.length}/{MAX_MESSAGE_TEXT_CHARS}
+                  </span>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                  >
+                    <SendHorizonal className="h-3.5 w-3.5" />
+                    发送
+                  </button>
+                </div>
               </div>
             </div>
-            <p className="mt-2 text-xs text-zinc-500">
-              输入框支持直接 Ctrl+V 粘贴文本或文件；图片/视频可预览，其它文件仅下载。
-            </p>
-            <p className="mt-1 text-[11px] text-zinc-500">
-              文本长度 {text.length}/{MAX_MESSAGE_TEXT_CHARS}
-            </p>
           </form>
         </section>
 
