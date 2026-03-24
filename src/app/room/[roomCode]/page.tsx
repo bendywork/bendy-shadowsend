@@ -199,6 +199,7 @@ export default function RoomPage() {
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
+  const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -299,6 +300,12 @@ export default function RoomPage() {
     if (isOwner) return;
     setOpenMemberMenuId(null);
   }, [isOwner]);
+
+  useEffect(() => {
+    if (!isOwner && memberPanelTab !== "members") {
+      setMemberPanelTab("members");
+    }
+  }, [isOwner, memberPanelTab]);
 
   useEffect(() => {
     if (!snap || snap.me.role !== "OWNER") return;
@@ -1553,84 +1560,129 @@ export default function RoomPage() {
         {showMembers ? (
           <aside ref={membersPanelRef} className="order-3 flex min-h-0 max-h-[56vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-3 xl:max-h-none">
             <div className="mb-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">成员列表</p>
-              <h2 className="text-lg font-semibold text-zinc-100">{snap.members.length} 人</h2>
+              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">成员管理</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenMemberMenuId(null);
+                    setMemberPanelTab("members");
+                  }}
+                  className={clsx(
+                    "rounded-md border px-2 py-1.5 text-xs",
+                    memberPanelTab === "members"
+                      ? "border-zinc-500/60 bg-zinc-500/15 text-zinc-100"
+                      : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                  )}
+                >
+                  成员
+                </button>
+                {isOwner ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMemberMenuId(null);
+                      setMemberPanelTab("approvals");
+                    }}
+                    className={clsx(
+                      "rounded-md border px-2 py-1.5 text-xs",
+                      memberPanelTab === "approvals"
+                        ? "border-zinc-500/60 bg-zinc-500/15 text-zinc-100"
+                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                    )}
+                  >
+                    审批
+                  </button>
+                ) : null}
+              </div>
             </div>
 
-            <div
-              className={clsx(
-                "space-y-2",
-                snap.members.length > 5
-                  ? "max-h-[20rem] overflow-y-auto pr-1"
-                  : "overflow-visible",
-              )}
-            >
-              {snap.members.map((m) => (
-                <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm text-zinc-200">{m.user.nickname}</p>
-                        <p className="text-xs text-zinc-500">
-                          {m.role === "OWNER" ? "房主" : "成员"} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
-                        </p>
-                      </div>
-                    </div>
-                    {isOwner && m.role !== "OWNER" ? (
-                      <div
-                        ref={openMemberMenuId === m.id ? memberMenuRef : null}
-                        className="relative shrink-0"
-                      >
-                        <button
-                          type="button"
-                          aria-label="成员操作"
-                          aria-haspopup="menu"
-                          aria-expanded={openMemberMenuId === m.id}
-                          onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-500/40 text-zinc-300 hover:bg-zinc-800"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                        {openMemberMenuId === m.id ? (
-                          <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl">
+            {memberPanelTab === "members" || !isOwner ? (
+              <div>
+                <h2 className="mb-2 text-lg font-semibold text-zinc-100">{snap.members.length} 人</h2>
+                <div
+                  className={clsx(
+                    "space-y-2",
+                    snap.members.length > 5
+                      ? "max-h-[20rem] overflow-y-auto pr-1"
+                      : "overflow-visible",
+                  )}
+                >
+                  {snap.members.map((m) => (
+                    <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-zinc-200">{m.user.nickname}</p>
+                            <p className="text-xs text-zinc-500">
+                              {m.role === "OWNER" ? "房主" : "成员"} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
+                            </p>
+                          </div>
+                        </div>
+                        {isOwner && m.role !== "OWNER" ? (
+                          <div
+                            ref={openMemberMenuId === m.id ? memberMenuRef : null}
+                            className="relative shrink-0"
+                          >
                             <button
                               type="button"
-                              role="menuitem"
-                              onClick={() => {
-                                setOpenMemberMenuId(null);
-                                void transferOwner(m);
-                              }}
-                              disabled={action === `transfer-${m.id}`}
-                              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                              aria-label="成员操作"
+                              aria-haspopup="menu"
+                              aria-expanded={openMemberMenuId === m.id}
+                              onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-500/40 text-zinc-300 hover:bg-zinc-800"
                             >
-                              <Crown className="h-3 w-3" /> 房主转让
+                              <MoreHorizontal className="h-4 w-4" />
                             </button>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={() => {
-                                setOpenMemberMenuId(null);
-                                void kick(m);
-                              }}
-                              disabled={action === `kick-${m.id}`}
-                              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
-                            >
-                              <UserMinus className="h-3 w-3" /> 移除房间
-                            </button>
+                            {openMemberMenuId === m.id ? (
+                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl">
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setOpenMemberMenuId(null);
+                                    void transferOwner(m);
+                                  }}
+                                  disabled={action === `transfer-${m.id}`}
+                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                                >
+                                  <Crown className="h-3 w-3" /> 房主转让
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setOpenMemberMenuId(null);
+                                    void kick(m);
+                                  }}
+                                  disabled={action === `kick-${m.id}`}
+                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                                >
+                                  <UserMinus className="h-3 w-3" /> 移除房间
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
-                    ) : null}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ) : null}
 
-            {isOwner ? (
-              <div className="mt-4 border-t border-zinc-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-zinc-200">再次加入审批</h3>
-                <div className="space-y-2">
+            {isOwner && memberPanelTab === "approvals" ? (
+              <div className="space-y-2">
+                <h2 className="mb-2 text-lg font-semibold text-zinc-100">等待审批</h2>
+                <div
+                  className={clsx(
+                    "space-y-2",
+                    snap.pendingRequests.length > 5
+                      ? "max-h-[20rem] overflow-y-auto pr-1"
+                      : "overflow-visible",
+                  )}
+                >
                   {snap.pendingRequests.length === 0 ? (
                     <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">
                       暂无待审批
@@ -1672,57 +1724,59 @@ export default function RoomPage() {
 
             {isOwner ? (
               <div className="mt-4 border-t border-zinc-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-zinc-200">修改门禁码</h3>
-                <div className="flex items-center gap-2">
-                  <input
-                    value={gateCodeInput}
-                    onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="6位数字，留空表示不设置"
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={updateGateCode}
-                    disabled={action === "gate-code"}
-                    className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
-                  >
-                    {action === "gate-code" ? "保存中..." : "保存"}
-                  </button>
-                </div>
-                <p className="mt-2 text-[11px] text-zinc-500">
-                  当前门禁码：{snap.room.gateCode ?? "未设置"}
-                </p>
-              </div>
-            ) : null}
-
-            {isOwner ? (
-              <div className="mt-3 rounded-lg border border-zinc-700/80 bg-zinc-900/80 p-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-medium text-zinc-200">永不过期</p>
-                    <p className="text-[11px] text-zinc-500">开启后房间不会因长时间无活动自动解散</p>
+                <h3 className="mb-2 text-sm font-semibold text-zinc-200">设置</h3>
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                    <p className="text-xs font-medium text-zinc-200">门禁码</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        value={gateCodeInput}
+                        onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="6位数字，留空表示不设置"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={updateGateCode}
+                        disabled={action === "gate-code"}
+                        className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
+                      >
+                        {action === "gate-code" ? "保存中..." : "保存"}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-zinc-500">
+                      当前门禁码：{snap.room.gateCode ?? "未设置"}
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={snap.room.neverExpire}
-                    onClick={() => {
-                      void updateNeverExpire(!snap.room.neverExpire);
-                    }}
-                    disabled={action === "never-expire"}
-                    className={clsx(
-                      "inline-flex shrink-0 items-center rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60",
-                      snap.room.neverExpire
-                        ? "border-zinc-500/50 bg-zinc-500/20 text-zinc-100"
-                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
-                    )}
-                  >
-                    {action === "never-expire"
-                      ? "保存中..."
-                      : snap.room.neverExpire
-                        ? "已开启"
-                        : "已关闭"}
-                  </button>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-zinc-200">过期时间</p>
+                        <p className="text-[11px] text-zinc-500">开启后房间不会因长时间无活动自动解散</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={snap.room.neverExpire}
+                        onClick={() => {
+                          void updateNeverExpire(!snap.room.neverExpire);
+                        }}
+                        disabled={action === "never-expire"}
+                        className={clsx(
+                          "inline-flex shrink-0 items-center rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60",
+                          snap.room.neverExpire
+                            ? "border-zinc-500/50 bg-zinc-500/20 text-zinc-100"
+                            : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                        )}
+                      >
+                        {action === "never-expire"
+                          ? "保存中..."
+                          : snap.room.neverExpire
+                            ? "已开启"
+                            : "已关闭"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}
