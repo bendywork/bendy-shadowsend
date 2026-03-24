@@ -185,6 +185,7 @@ export default function RoomPage() {
   const [enterToSend, setEnterToSend] = useState(true);
   const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
   const [expandedPendingMessageIds, setExpandedPendingMessageIds] = useState<Record<string, boolean>>({});
+  const [copiedTextKeys, setCopiedTextKeys] = useState<Record<string, boolean>>({});
 
   const [showManage, setShowManage] = useState(true);
   const [showQr, setShowQr] = useState(false);
@@ -198,6 +199,7 @@ export default function RoomPage() {
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -280,11 +282,15 @@ export default function RoomPage() {
   }, [noticeImages]);
 
   useEffect(() => {
+    const copyTimerMapRef = copyTextTimerRef;
     return () => {
       noticeImagesRef.current.forEach((item) => {
         if (item.kind === "new" && item.imageUrl.startsWith("blob:")) {
           URL.revokeObjectURL(item.imageUrl);
         }
+      });
+      Object.values(copyTimerMapRef.current).forEach((timer) => {
+        window.clearTimeout(timer);
       });
     };
   }, []);
@@ -765,12 +771,32 @@ export default function RoomPage() {
     catch { setError("复制失败，请检查浏览器权限"); }
   }
 
-  async function copyMessageText(content: string) {
+  function markTextCopied(feedbackKey: string) {
+    setCopiedTextKeys((prev) => ({
+      ...prev,
+      [feedbackKey]: true,
+    }));
+
+    const existingTimer = copyTextTimerRef.current[feedbackKey];
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+    }
+
+    copyTextTimerRef.current[feedbackKey] = window.setTimeout(() => {
+      setCopiedTextKeys((prev) => {
+        const next = { ...prev };
+        delete next[feedbackKey];
+        return next;
+      });
+      delete copyTextTimerRef.current[feedbackKey];
+    }, 1400);
+  }
+
+  async function copyMessageText(content: string, feedbackKey: string) {
     if (!content) return;
     try {
       await navigator.clipboard.writeText(content);
-      setHint("文本已复制");
-      window.setTimeout(() => setHint(null), 2200);
+      markTextCopied(feedbackKey);
     } catch {
       setError("复制失败，请检查浏览器权限");
     }
@@ -1189,14 +1215,25 @@ export default function RoomPage() {
                             <>
                               <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">{visibleContent}</p>
                               <div className="flex flex-wrap items-center gap-2">
+                                {(() => {
+                                  const copyFeedbackKey = `message-${m.id}`;
+                                  const copied = Boolean(copiedTextKeys[copyFeedbackKey]);
+                                  return (
                                 <button
                                   type="button"
-                                  onClick={() => void copyMessageText(m.content)}
-                                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                                  onClick={() => void copyMessageText(m.content, copyFeedbackKey)}
+                                  className={clsx(
+                                    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition",
+                                    copied
+                                      ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
+                                      : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                                  )}
                                 >
                                   <Copy className="h-3 w-3" />
-                                  复制文本
+                                  {copied ? "已复制✅" : "复制文本"}
                                 </button>
+                                  );
+                                })()}
                                 {m.content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
                                   <button
                                     type="button"
@@ -1305,14 +1342,25 @@ export default function RoomPage() {
                               {visibleContent}
                             </p>
                             <div className="flex flex-wrap items-center gap-2">
+                              {(() => {
+                                const copyFeedbackKey = `pending-${message.localId}`;
+                                const copied = Boolean(copiedTextKeys[copyFeedbackKey]);
+                                return (
                               <button
                                 type="button"
-                                onClick={() => void copyMessageText(message.content)}
-                                className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                                onClick={() => void copyMessageText(message.content, copyFeedbackKey)}
+                                className={clsx(
+                                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition",
+                                  copied
+                                    ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
+                                    : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                                )}
                               >
                                 <Copy className="h-3 w-3" />
-                                复制文本
+                                {copied ? "已复制✅" : "复制文本"}
                               </button>
+                                );
+                              })()}
                               {message.content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
                                 <button
                                   type="button"
