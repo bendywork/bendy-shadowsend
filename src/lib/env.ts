@@ -1,7 +1,8 @@
 ﻿import { z } from "zod";
 
+import { APP_VERSION } from "@/lib/constants";
+
 const baseSchema = z.object({
-  NEXT_PUBLIC_APP_VERSION: z.string().optional(),
   CHAT_ENCRYPTION_KEY: z
     .string()
     .min(32, "CHAT_ENCRYPTION_KEY 至少 32 字符")
@@ -33,7 +34,7 @@ if (!parsed.success) {
 const devFallbackKey = "0123456789abcdef0123456789abcdef";
 
 export const env = {
-  appVersion: parsed.data.NEXT_PUBLIC_APP_VERSION ?? "0.1.0",
+  appVersion: APP_VERSION,
   encryptionKey:
     parsed.data.CHAT_ENCRYPTION_KEY ??
     (process.env.NODE_ENV === "production" ? undefined : devFallbackKey),

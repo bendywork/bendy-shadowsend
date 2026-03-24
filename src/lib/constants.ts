@@ -1,6 +1,14 @@
 ﻿export const APP_NAME = "临时笨迪";
 export const APP_OPEN_SOURCE = "MIT";
 
+export const APP_VERSION_PARTS = {
+  major: 0,
+  minor: 1,
+  patch: 45,
+} as const;
+
+export const APP_VERSION = `${APP_VERSION_PARTS.major}.${APP_VERSION_PARTS.minor}.${APP_VERSION_PARTS.patch}`;
+
 export const MAX_USER_ROOMS = 10;
 export const MAX_ROOM_MEMBERS = 20;
 export const GATE_CODE_RECYCLE_WINDOW_MS = 60_000;
