@@ -1712,24 +1712,26 @@ export default function RoomPage() {
         {showMembers ? (
           <aside ref={membersPanelRef} className="order-3 flex min-h-0 max-h-[56vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-3 xl:max-h-none">
             <div className="mb-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">成员管理</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenMemberMenuId(null);
-                    setMemberPanelTab("members");
-                  }}
-                  className={clsx(
-                    "rounded-md border px-2 py-1.5 text-xs",
-                    memberPanelTab === "members"
-                      ? "border-zinc-500/60 bg-zinc-500/15 text-zinc-100"
-                      : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
-                  )}
-                >
-                  成员
-                </button>
-                {isOwner ? (
+              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                {isOwner ? "成员管理" : "成员列表"}
+              </p>
+              {isOwner ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMemberMenuId(null);
+                      setMemberPanelTab("members");
+                    }}
+                    className={clsx(
+                      "rounded-md border px-2 py-1.5 text-xs",
+                      memberPanelTab === "members"
+                        ? "border-zinc-500/60 bg-zinc-500/15 text-zinc-100"
+                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                    )}
+                  >
+                    成员
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -1745,8 +1747,8 @@ export default function RoomPage() {
                   >
                     审批
                   </button>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </div>
 
             {memberPanelTab === "members" || !isOwner ? (
