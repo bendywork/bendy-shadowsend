@@ -1557,7 +1557,14 @@ export default function RoomPage() {
               <h2 className="text-lg font-semibold text-zinc-100">{snap.members.length} 人</h2>
             </div>
 
-            <div className="space-y-2 overflow-y-auto">
+            <div
+              className={clsx(
+                "space-y-2",
+                snap.members.length > 5
+                  ? "max-h-[20rem] overflow-y-auto pr-1"
+                  : "overflow-visible",
+              )}
+            >
               {snap.members.map((m) => (
                 <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
                   <div className="flex items-start justify-between gap-2">
