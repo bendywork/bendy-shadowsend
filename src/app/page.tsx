@@ -214,7 +214,7 @@ export default function HomePage() {
         <div className="flex min-h-0 items-center px-1 sm:px-4 lg:min-h-[620px]">
           <div className="w-full max-w-xl space-y-6 sm:space-y-8">
             <Image
-              src="/new.png"
+              src="/2.png"
               width={500}
               height={155}
               alt="临时笨迪 Logo"
@@ -388,4 +388,5 @@ export default function HomePage() {
     </main>
   );
 }
+
 
