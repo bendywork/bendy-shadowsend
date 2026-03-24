@@ -295,12 +295,74 @@ export default function RoomPage() {
     try {
       if (navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
-        for (const it of items) for (const tp of it.types) {
-          const blob = await it.getType(tp);
-          if (blob.type.startsWith("text/")) {
-            const t = await blob.text();
-            if (t.trim()) setText((p) => p ? `${p}\n${t}` : t);
-          } else addFiles([new File([blob], `clipboard-${Date.now()}`, { type: blob.type })]);
+        const clipboardFiles: File[] = [];
+        const textChunks: string[] = [];
+        let fileCounter = 0;
+
+        for (const item of items) {
+          const fileLikeTypes = item.types.filter((type) => !type.startsWith("text/"));
+
+          if (fileLikeTypes.length > 0) {
+            let preferredName: string | null = null;
+            if (item.types.includes("text/plain")) {
+              try {
+                const nameBlob = await item.getType("text/plain");
+                const nameText = (await nameBlob.text()).trim();
+                if (nameText && !nameText.includes("\n")) {
+                  preferredName = nameText.split(/[\\/]/).pop() ?? nameText;
+                }
+              } catch {
+                preferredName = null;
+              }
+            }
+
+            for (const type of fileLikeTypes) {
+              try {
+                const blob = await item.getType(type);
+                const safeType =
+                  blob.type || (type.includes("/") ? type : "application/octet-stream");
+                const defaultName = `clipboard-file-${Date.now()}-${fileCounter + 1}`;
+                const rawName = preferredName ?? defaultName;
+                const safeName = rawName.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+                const ext = safeType.includes("/")
+                  ? safeType.split("/")[1]?.split(";")[0] ?? ""
+                  : "";
+                const finalName =
+                  safeName.includes(".") || !ext ? safeName : `${safeName}.${ext}`;
+
+                clipboardFiles.push(new File([blob], finalName, { type: safeType }));
+                fileCounter += 1;
+              } catch {
+                // Ignore unsupported clipboard entry types.
+              }
+            }
+
+            // If current clipboard item already contains file data, ignore its text payload.
+            continue;
+          }
+
+          for (const type of item.types) {
+            if (!type.startsWith("text/")) continue;
+            try {
+              const blob = await item.getType(type);
+              const text = (await blob.text()).trim();
+              if (text) textChunks.push(text);
+            } catch {
+              // Ignore unavailable text entry types.
+            }
+          }
+        }
+
+        if (clipboardFiles.length > 0) {
+          addFiles(clipboardFiles);
+          return;
+        }
+
+        if (textChunks.length > 0) {
+          const mergedText = Array.from(new Set(textChunks)).join("\n");
+          if (mergedText.trim()) {
+            setText((p) => (p ? `${p}\n${mergedText}` : mergedText));
+          }
         }
       } else {
         const t = await navigator.clipboard.readText();
