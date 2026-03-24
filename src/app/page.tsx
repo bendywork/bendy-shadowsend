@@ -8,6 +8,7 @@ import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 type JoinResult = {
   joined: boolean;
@@ -255,19 +256,22 @@ export default function HomePage() {
                 <h1 className="mt-2 text-3xl font-semibold text-zinc-100">临时笨迪</h1>
                 <p className="mt-2 text-sm text-zinc-400">加入或创建房间，消息仅在活跃期内保留。</p>
               </div>
-              {displayMe ? (
-                <div className="flex w-full items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2 sm:w-auto">
-                  <Avatar
-                    initial={displayMe.avatarInitial}
-                    color={displayMe.avatarColor}
-                    className="h-10 w-10 text-sm"
-                  />
-                  <div>
-                    <p className="text-xs text-zinc-500">当前身份</p>
-                    <p className="text-sm font-medium text-zinc-100">{displayMe.nickname}</p>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+                <ThemeToggle />
+                {displayMe ? (
+                  <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2">
+                    <Avatar
+                      initial={displayMe.avatarInitial}
+                      color={displayMe.avatarColor}
+                      className="h-10 w-10 text-sm"
+                    />
+                    <div>
+                      <p className="text-xs text-zinc-500">当前身份</p>
+                      <p className="text-sm font-medium text-zinc-100">{displayMe.nickname}</p>
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
 
             <div className="mb-5 inline-flex w-full rounded-xl border border-zinc-800 bg-zinc-950 p-1 sm:w-auto">

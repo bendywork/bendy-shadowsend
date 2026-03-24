@@ -11,6 +11,7 @@ import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircl
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -1926,6 +1927,15 @@ export default function RoomPage() {
                             ? "已开启"
                             : "已关闭"}
                       </button>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-zinc-200">主题</p>
+                        <p className="text-[11px] text-zinc-500">切换日间/夜间配色</p>
+                      </div>
+                      <ThemeToggle />
                     </div>
                   </div>
                 </div>

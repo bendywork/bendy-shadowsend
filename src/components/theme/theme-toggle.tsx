@@ -1,5 +1,6 @@
 "use client";
 
+import clsx from "clsx";
 import { MoonStar, SunMedium } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -12,7 +13,7 @@ function applyTheme(mode: ThemeMode) {
   window.dispatchEvent(new CustomEvent("tb-theme-change", { detail: mode }));
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ className }: { className?: string }) {
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "dark";
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
@@ -27,7 +28,6 @@ export function ThemeToggle() {
     const nextTheme: ThemeMode = theme === "dark" ? "light" : "dark";
     setTheme(nextTheme);
     localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-    applyTheme(nextTheme);
   }
 
   return (
@@ -35,7 +35,10 @@ export function ThemeToggle() {
       type="button"
       aria-label="切换主题"
       onClick={toggleTheme}
-      className="fixed right-3 top-3 z-[80] inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-950/90 px-3 py-1.5 text-xs text-zinc-200 shadow-lg backdrop-blur-xl transition hover:bg-zinc-900 sm:right-4 sm:top-4"
+      className={clsx(
+        "inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900/80 px-3 py-1.5 text-xs text-zinc-200 transition hover:bg-zinc-800",
+        className,
+      )}
     >
       {theme === "dark" ? (
         <SunMedium className="h-3.5 w-3.5" />
