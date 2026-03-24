@@ -213,14 +213,24 @@ export default function HomePage() {
       <section className="relative mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
         <div className="flex min-h-0 items-center px-1 sm:px-4 lg:min-h-[620px]">
           <div className="w-full max-w-xl space-y-6 sm:space-y-8">
-            <Image
-              src="/2.png"
-              width={500}
-              height={155}
-              alt="临时笨迪 Logo"
-              className="h-auto w-full max-w-[560px]"
-              priority
-            />
+            <div className="w-full max-w-[560px]">
+              <Image
+                src="/2.png"
+                width={500}
+                height={155}
+                alt="临时笨迪 Logo"
+                className="theme-dark-only h-auto w-full"
+                priority
+              />
+              <Image
+                src="/2-light.png"
+                width={500}
+                height={155}
+                alt="临时笨迪 Logo（日间）"
+                className="theme-light-only h-auto w-full"
+                priority
+              />
+            </div>
 
             <h2 className="text-3xl font-semibold leading-tight text-zinc-100 sm:text-5xl">
               临时信息传递空间

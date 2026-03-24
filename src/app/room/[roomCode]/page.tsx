@@ -4,10 +4,11 @@
 import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, LogOut, Megaphone, MoreHorizontal, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
@@ -27,6 +28,8 @@ type DirectUploadPreparePayload = {
 type DownloadPayload = { url: string };
 type MessageListPayload = { messages: MessageItem[] };
 type ImageViewerState = { url: string; fileName: string };
+type JoinResult = { joined: boolean; waitingApproval?: boolean; roomCode?: string };
+type CreateResult = { room: { roomCode: string } };
 type PendingAttachment = {
   id: string;
   fileName: string;
@@ -135,18 +138,15 @@ function mergeIncomingMessages(
   });
 }
 
-function Tree({ title, rooms, activeCode }: { title: string; rooms: RoomTreeItem[]; activeCode: string }) {
+function RoomLinks({ rooms, activeCode }: { rooms: RoomTreeItem[]; activeCode: string }) {
   return (
-    <div className="space-y-2">
-      <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">{title}</p>
-      <div className="space-y-1">
-        {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">暂无</p> : rooms.map((r) => (
-          <Link key={r.id} href={`/room/${r.roomCode}`} className={clsx("block rounded-lg border px-3 py-2 text-sm", activeCode === r.roomCode ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100" : "border-zinc-800 bg-zinc-900/70 text-zinc-300 hover:border-zinc-700") }>
-            <div className="flex items-center justify-between"><span className="truncate">{r.name}</span>{r.hasGateCode ? <Shield className="h-3.5 w-3.5 text-zinc-300" /> : null}</div>
-            <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">{r.roomCode}</p>
-          </Link>
-        ))}
-      </div>
+    <div className="space-y-1">
+      {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">暂无</p> : rooms.map((r) => (
+        <Link key={r.id} href={`/room/${r.roomCode}`} className={clsx("block rounded-lg border px-3 py-2 text-sm", activeCode === r.roomCode ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100" : "border-zinc-800 bg-zinc-900/70 text-zinc-300 hover:border-zinc-700") }>
+          <div className="flex items-center justify-between"><span className="truncate">{r.name}</span>{r.hasGateCode ? <Shield className="h-3.5 w-3.5 text-zinc-300" /> : null}</div>
+          <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">{r.roomCode}</p>
+        </Link>
+      ))}
     </div>
   );
 }
@@ -200,6 +200,14 @@ export default function RoomPage() {
   const [gateCodeInput, setGateCodeInput] = useState("");
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
+  const [roomsPanelTab, setRoomsPanelTab] = useState<"created" | "joined">("created");
+  const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
+  const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createGateCode, setCreateGateCode] = useState("");
+  const [joinRoomCode, setJoinRoomCode] = useState("");
+  const [joinGateCode, setJoinGateCode] = useState("");
+  const [joinInviteToken, setJoinInviteToken] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -331,6 +339,9 @@ export default function RoomPage() {
   }, []);
 
   const rooms = useMemo(() => ({ created: boot?.tree.createdRooms ?? [], joined: boot?.tree.joinedRooms ?? [] }), [boot]);
+  const roomCount = rooms.created.length + rooms.joined.length;
+  const canAddMoreRooms = roomCount < MAX_USER_ROOMS;
+  const activeRooms = roomsPanelTab === "created" ? rooms.created : rooms.joined;
   const clampMessageText = useCallback((value: string) => value.slice(0, MAX_MESSAGE_TEXT_CHARS), []);
 
   const appendMessageText = useCallback((incoming: string) => {
@@ -800,6 +811,84 @@ export default function RoomPage() {
     finally { setAction(null); }
   }
 
+  function openRoomEntry(mode: "create" | "join") {
+    if (!canAddMoreRooms) {
+      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      return;
+    }
+    setError(null);
+    setHint(null);
+    setRoomEntryMode(mode);
+  }
+
+  async function quickCreateRoom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canAddMoreRooms) {
+      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      return;
+    }
+    setRoomEntrySubmitting(true);
+    setError(null);
+    setHint(null);
+
+    try {
+      const payload = await apiFetch<CreateResult>("/api/rooms", {
+        method: "POST",
+        body: JSON.stringify({
+          name: createName,
+          gateCode: createGateCode || undefined,
+        }),
+      });
+
+      setRoomEntryMode(null);
+      localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
+      router.push(`/room/${payload.room.roomCode}`);
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "创建房间失败");
+    } finally {
+      setRoomEntrySubmitting(false);
+    }
+  }
+
+  async function quickJoinRoom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canAddMoreRooms) {
+      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      return;
+    }
+    setRoomEntrySubmitting(true);
+    setError(null);
+    setHint(null);
+
+    try {
+      const targetRoomCode = joinRoomCode.trim();
+      const payload = await apiFetch<JoinResult>(`/api/rooms/${targetRoomCode}/join`, {
+        method: "POST",
+        body: JSON.stringify({
+          gateCode: joinGateCode || undefined,
+          inviteToken: joinInviteToken || undefined,
+        }),
+      });
+
+      if (payload.waitingApproval) {
+        setHint("已提交加入申请，等待房主审批。");
+        setRoomEntryMode(null);
+        window.setTimeout(() => setHint(null), 2200);
+        return;
+      }
+
+      if (payload.joined && payload.roomCode) {
+        setRoomEntryMode(null);
+        localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.roomCode);
+        router.push(`/room/${payload.roomCode}`);
+      }
+    } catch (joinError) {
+      setError(joinError instanceof Error ? joinError.message : "加入房间失败");
+    } finally {
+      setRoomEntrySubmitting(false);
+    }
+  }
+
   async function copyLink() {
     if (!joinLink) return;
     try { await navigator.clipboard.writeText(joinLink); setHint("当前房间加入链接已复制"); window.setTimeout(() => setHint(null), 2200); }
@@ -1123,18 +1212,80 @@ export default function RoomPage() {
     <>
       <main className={clsx("grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden", showMembers ? "xl:grid-cols-[290px_minmax(0,1fr)_290px]" : "xl:grid-cols-[290px_minmax(0,1fr)]") }>
         <aside ref={roomsPanelRef} className="order-2 flex min-h-0 max-h-[52vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-1 xl:max-h-none">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">房间导航</p>
-              <h2 className="text-lg font-semibold text-zinc-100">已创建 / 已加入</h2>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/70 p-1">
+                <Image
+                  src="/1.png"
+                  alt="Temp Bendy"
+                  fill
+                  sizes="36px"
+                  className="theme-dark-only object-contain p-1"
+                />
+                <Image
+                  src="/1-light.png"
+                  alt="Temp Bendy（日间）"
+                  fill
+                  sizes="36px"
+                  className="theme-light-only object-contain p-1"
+                />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">房间导航</p>
+                <h2 className="text-lg font-semibold text-zinc-100">加入 / 管理</h2>
+              </div>
             </div>
             <Link href="/" className="rounded-lg border border-zinc-700 p-2 text-zinc-300 hover:bg-zinc-800">
               <LogOut className="h-4 w-4" />
             </Link>
           </div>
-          <div className="space-y-4 overflow-y-auto pb-3">
-            <Tree title="创建的房间" rooms={rooms.created} activeCode={roomCode} />
-            <Tree title="加入的房间" rooms={rooms.joined} activeCode={roomCode} />
+          <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-1">
+            <button
+              type="button"
+              onClick={() => setRoomsPanelTab("created")}
+              className={clsx(
+                "rounded-lg px-2 py-1.5 text-xs",
+                roomsPanelTab === "created"
+                  ? "bg-zinc-700 text-zinc-100"
+                  : "text-zinc-300 hover:bg-zinc-800",
+              )}
+            >
+              管理
+            </button>
+            <button
+              type="button"
+              onClick={() => setRoomsPanelTab("joined")}
+              className={clsx(
+                "rounded-lg px-2 py-1.5 text-xs",
+                roomsPanelTab === "joined"
+                  ? "bg-zinc-700 text-zinc-100"
+                  : "text-zinc-300 hover:bg-zinc-800",
+              )}
+            >
+              加入
+            </button>
+          </div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+              {roomsPanelTab === "created" ? "管理的房间" : "加入的房间"}
+            </p>
+            <button
+              type="button"
+              aria-label={roomsPanelTab === "created" ? "创建房间" : "加入房间"}
+              onClick={() => openRoomEntry(roomsPanelTab === "created" ? "create" : "join")}
+              disabled={!canAddMoreRooms || roomEntrySubmitting}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <p className="mb-3 text-[11px] text-zinc-500">
+            当前已加入/创建房间数：
+            <span className="ml-1 font-semibold text-zinc-300">{roomCount}/{MAX_USER_ROOMS}</span>
+            {!canAddMoreRooms ? <span className="ml-1">（已达上限）</span> : null}
+          </p>
+          <div className="overflow-y-auto pb-3">
+            <RoomLinks rooms={activeRooms} activeCode={roomCode} />
           </div>
           <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
             <p>
@@ -1785,6 +1936,103 @@ export default function RoomPage() {
           </aside>
         ) : null}
       </main>
+
+      {roomEntryMode ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <section className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-zinc-100">
+                  {roomEntryMode === "create" ? "创建房间" : "加入房间"}
+                </h3>
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRoomEntryMode(null)}
+                className="rounded-md border border-zinc-700 p-1 text-zinc-300 hover:bg-zinc-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {roomEntryMode === "create" ? (
+              <form className="space-y-3" onSubmit={quickCreateRoom}>
+                <label className="block space-y-1">
+                  <span className="text-xs text-zinc-400">房间名称</span>
+                  <input
+                    required
+                    value={createName}
+                    onChange={(event) => setCreateName(event.target.value)}
+                    placeholder="输入房间名"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-zinc-400">门禁码（可选，6位数字）</span>
+                  <input
+                    value={createGateCode}
+                    onChange={(event) =>
+                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    placeholder="不填则加入无需门禁码"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={roomEntrySubmitting || !canAddMoreRooms}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  创建并进入
+                </button>
+              </form>
+            ) : (
+              <form className="space-y-3" onSubmit={quickJoinRoom}>
+                <label className="block space-y-1">
+                  <span className="text-xs text-zinc-400">房间号（URL 随机码）</span>
+                  <input
+                    required
+                    value={joinRoomCode}
+                    onChange={(event) => setJoinRoomCode(event.target.value.trim())}
+                    placeholder="例如：8DK1A2M7QX"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-zinc-400">门禁码（可选，6位数字）</span>
+                  <input
+                    value={joinGateCode}
+                    onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="如果房间设置了门禁码则必填"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-zinc-400">邀请 Token（可选）</span>
+                  <input
+                    value={joinInviteToken}
+                    onChange={(event) => setJoinInviteToken(event.target.value.trim())}
+                    placeholder="有邀请链接时填入"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={roomEntrySubmitting || !canAddMoreRooms}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  加入房间
+                </button>
+              </form>
+            )}
+          </section>
+        </div>
+      ) : null}
 
       {showQr ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
