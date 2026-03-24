@@ -1,7 +1,7 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -182,6 +182,7 @@ export default function RoomPage() {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+  const [enterToSend, setEnterToSend] = useState(true);
   const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
   const [expandedPendingMessageIds, setExpandedPendingMessageIds] = useState<Record<string, boolean>>({});
 
@@ -196,6 +197,7 @@ export default function RoomPage() {
   const [showNoticePopup, setShowNoticePopup] = useState(false);
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
+  const composerFormRef = useRef<HTMLFormElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -400,6 +402,16 @@ export default function RoomPage() {
     const fs: File[] = [];
     for (const it of e.clipboardData.items) if (it.kind === "file") { const f = it.getAsFile(); if (f) fs.push(f); }
     if (fs.length) { addFiles(fs); e.preventDefault(); }
+  }
+
+  function onComposerKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (!enterToSend) return;
+    if (event.key !== "Enter") return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.nativeEvent.isComposing) return;
+
+    event.preventDefault();
+    composerFormRef.current?.requestSubmit();
   }
 
   async function uploadByProxy(file: File, onProgress?: (percent: number) => void) {
@@ -1368,7 +1380,7 @@ export default function RoomPage() {
             <div ref={endRef} />
           </div>
 
-          <form onSubmit={send} className="border-t border-zinc-800 p-3 sm:p-4">
+          <form ref={composerFormRef} onSubmit={send} className="border-t border-zinc-800 p-3 sm:p-4">
             {files.length ? (
               <div className="mb-2 flex flex-wrap gap-2">
                 {files.map((file, index) => (
@@ -1395,13 +1407,14 @@ export default function RoomPage() {
                 value={text}
                 onChange={(e) => setText(clampMessageText(e.target.value))}
                 onPaste={onPaste}
+                onKeyDown={onComposerKeyDown}
                 maxLength={MAX_MESSAGE_TEXT_CHARS}
                 placeholder="粘贴文本/文件后可直接发送..."
                 className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800">
+                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 hover:bg-zinc-800">
                     <Plus className="h-3.5 w-3.5" />
                     文件
                     <input
@@ -1419,10 +1432,24 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={readClipboard}
-                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800"
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 hover:bg-zinc-800"
                   >
                     <Copy className="h-3.5 w-3.5" />
                     读取剪贴板
+                  </button>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={enterToSend}
+                    onClick={() => setEnterToSend((prev) => !prev)}
+                    className={clsx(
+                      "inline-flex h-8 items-center rounded-lg border px-2.5 text-xs",
+                      enterToSend
+                        ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
+                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                    )}
+                  >
+                    回车发送内容：{enterToSend ? "开" : "关"}
                   </button>
                 </div>
                 <button
