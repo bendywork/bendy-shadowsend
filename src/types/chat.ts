@@ -102,6 +102,10 @@ export type RoomSnapshot = {
     text: string | null;
     imageUrl: string | null;
     imageName: string | null;
+    images: Array<{
+      imageUrl: string;
+      imageName: string | null;
+    }>;
     updatedAt: string | null;
     showToMe: boolean;
   };

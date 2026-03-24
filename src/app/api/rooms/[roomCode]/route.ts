@@ -1,5 +1,9 @@
 import { MemberStatus, RoomRole, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
+import {
+  buildAnnouncementImageViews,
+  parseAnnouncementImages,
+} from "@/lib/announcement";
 import { APP_NAME, APP_OPEN_SOURCE, MESSAGE_PAGE_SIZE } from "@/lib/constants";
 import { env } from "@/lib/env";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
@@ -131,12 +135,13 @@ export async function GET(
         : Promise.resolve([]),
     ]);
 
-    const announcementImageUrl = room.announcementImageKey
-      ? `/api/rooms/${encodeURIComponent(roomCode)}/announcement/image`
-      : null;
+    const announcementImages = buildAnnouncementImageViews(
+      roomCode,
+      parseAnnouncementImages(room),
+    );
 
     const showAnnouncementToMe = Boolean(
-      (room.announcementText || room.announcementImageKey) &&
+      (room.announcementText || announcementImages.length > 0) &&
         room.announcementUpdatedAt &&
         membership.joinedAt &&
         membership.joinedAt.getTime() > room.announcementUpdatedAt.getTime() &&
@@ -172,8 +177,9 @@ export async function GET(
       },
       announcement: {
         text: room.announcementText,
-        imageUrl: announcementImageUrl,
-        imageName: room.announcementImageName,
+        imageUrl: announcementImages[0]?.imageUrl ?? null,
+        imageName: announcementImages[0]?.imageName ?? null,
+        images: announcementImages,
         updatedAt: room.announcementUpdatedAt?.toISOString() ?? null,
         showToMe: showAnnouncementToMe,
       },

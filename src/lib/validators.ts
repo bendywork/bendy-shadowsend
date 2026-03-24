@@ -1,22 +1,27 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 import {
+  MAX_ANNOUNCEMENT_IMAGES,
   MAX_ANNOUNCEMENT_IMAGE_BYTES,
   MAX_ATTACHMENT_SIZE_BYTES,
 } from "@/lib/constants";
 
 export const gateCodeSchema = z
   .string()
-  .regex(/^\d{6}$/, "门禁码必须是 6 位数字");
+  .regex(/^\d{6}$/, "Gate code must be 6 digits");
 
 export const createRoomSchema = z.object({
-  name: z.string().trim().min(1, "房间名不能为空").max(48, "房间名最多 48 字"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Room name is required")
+    .max(48, "Room name must be <= 48 chars"),
   gateCode: z
     .string()
     .trim()
     .optional()
     .transform((value) => (value ? value : undefined))
     .refine((value) => !value || /^\d{6}$/.test(value), {
-      message: "门禁码必须是 6 位数字",
+      message: "Gate code must be 6 digits",
     }),
 });
 
@@ -41,7 +46,7 @@ export const sendMessageSchema = z.object({
   content: z
     .string()
     .trim()
-    .max(5000, "文本消息最多 5000 字")
+    .max(5000, "Message text must be <= 5000 chars")
     .optional()
     .transform((value) => (value ? value : undefined)),
   attachments: z
@@ -53,7 +58,7 @@ export const sendMessageSchema = z.object({
           .number()
           .int()
           .positive()
-          .max(MAX_ATTACHMENT_SIZE_BYTES, "单个文件不能超过 10GB"),
+          .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
         s3Key: z.string().trim().min(1).max(512),
         storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
       }),
@@ -69,7 +74,7 @@ export const uploadPrepareSchema = z.object({
     .number()
     .int()
     .positive()
-    .max(MAX_ATTACHMENT_SIZE_BYTES, "单个文件不能超过 10GB"),
+    .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
 });
 
 export const reviewRequestSchema = z.object({
@@ -85,7 +90,7 @@ export const updateRoomGateCodeSchema = z.object({
     .optional()
     .transform((value) => (value ? value : undefined))
     .refine((value) => !value || /^\d{6}$/.test(value), {
-      message: "门禁码必须是 6 位数字",
+      message: "Gate code must be 6 digits",
     }),
 });
 
@@ -93,25 +98,34 @@ export const updateRoomNeverExpireSchema = z.object({
   neverExpire: z.boolean(),
 });
 
+const announcementImagePayloadSchema = z.object({
+  s3Key: z.string().trim().min(1).max(512),
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(120),
+  sizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
+  storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
+});
+
 export const roomAnnouncementSchema = z.object({
   text: z
     .string()
     .trim()
-    .max(1200, "公告文本最多 1200 字")
+    .max(1200, "Announcement text must be <= 1200 chars")
     .optional()
     .transform((value) => (value ? value : undefined)),
-  clearImage: z.boolean().optional().default(false),
-  image: z
-    .object({
-      s3Key: z.string().trim().min(1).max(512),
-      fileName: z.string().trim().min(1).max(255),
-      mimeType: z.string().trim().min(1).max(120),
-      sizeBytes: z
-        .number()
-        .int()
-        .positive()
-        .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "公告图片不能超过 200MB"),
-      storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
-    })
+  keepImageIndexes: z
+    .array(z.number().int().min(0))
+    .max(MAX_ANNOUNCEMENT_IMAGES)
     .optional(),
+  newImages: z
+    .array(announcementImagePayloadSchema)
+    .max(MAX_ANNOUNCEMENT_IMAGES)
+    .optional(),
+  clearImage: z.boolean().optional().default(false),
+  // Backward compatibility for old clients.
+  image: announcementImagePayloadSchema.optional(),
 });

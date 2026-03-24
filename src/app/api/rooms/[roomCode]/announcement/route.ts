@@ -1,10 +1,16 @@
-import {
+﻿import {
   MemberStatus,
   RoomRole,
   RoomStatus,
 } from "@prisma/client";
 import { NextRequest } from "next/server";
+import {
+  buildAnnouncementImageViews,
+  parseAnnouncementImages,
+  serializeAnnouncementImages,
+} from "@/lib/announcement";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { MAX_ANNOUNCEMENT_IMAGES } from "@/lib/constants";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { parseJsonBody } from "@/lib/route";
@@ -32,6 +38,7 @@ export async function POST(
         id: true,
         status: true,
         announcementImageKey: true,
+        announcementImageName: true,
         announcementImageStorage: true,
       },
     });
@@ -53,30 +60,59 @@ export async function POST(
       throw new ApiError(403, "仅房主可以配置公告", "FORBIDDEN_ANNOUNCEMENT");
     }
 
-    if (payload.image && !payload.image.mimeType.startsWith("image/")) {
-      throw new ApiError(400, "公告图片必须是图片格式", "ANNOUNCEMENT_IMAGE_INVALID");
+    const currentImages = parseAnnouncementImages(room);
+    const keepIndexes = payload.keepImageIndexes;
+
+    if (
+      keepIndexes &&
+      keepIndexes.some((index) => index < 0 || index >= currentImages.length)
+    ) {
+      throw new ApiError(400, "公告图片索引无效", "ANNOUNCEMENT_IMAGE_INDEX_INVALID");
     }
 
-    const nextImageKey = payload.clearImage
-      ? null
-      : payload.image?.s3Key ?? room.announcementImageKey;
-    const nextImageStorage = payload.clearImage
-      ? null
-      : payload.image?.storage ?? room.announcementImageStorage;
-    const nextImageName = payload.clearImage ? null : payload.image?.fileName ?? null;
+    const keptImages = payload.clearImage
+      ? []
+      : keepIndexes
+        ? Array.from(new Set(keepIndexes)).map((index) => currentImages[index])
+        : currentImages;
+
+    const incomingImages = payload.newImages ?? (payload.image ? [payload.image] : []);
+
+    if (incomingImages.some((image) => !image.mimeType.startsWith("image/"))) {
+      throw new ApiError(
+        400,
+        "公告图片必须是 image/* 类型",
+        "ANNOUNCEMENT_IMAGE_INVALID",
+      );
+    }
+
+    const nextImages = [...keptImages, ...incomingImages];
+
+    if (nextImages.length > MAX_ANNOUNCEMENT_IMAGES) {
+      throw new ApiError(
+        400,
+        `公告最多允许 ${MAX_ANNOUNCEMENT_IMAGES} 张图片`,
+        "ANNOUNCEMENT_IMAGE_LIMIT",
+      );
+    }
+
     const nextText = payload.text ?? null;
 
-    if (!nextText && !nextImageKey) {
-      throw new ApiError(400, "公告内容与图片不能同时为空", "ANNOUNCEMENT_EMPTY");
+    if (!nextText && nextImages.length === 0) {
+      throw new ApiError(
+        400,
+        "公告内容与图片不能同时为空",
+        "ANNOUNCEMENT_EMPTY",
+      );
     }
+
+    const serialized = serializeAnnouncementImages(nextImages);
 
     const updated = await prisma.room.update({
       where: { id: room.id },
       data: {
         announcementText: nextText,
-        announcementImageKey: nextImageKey,
-        announcementImageName: nextImageName,
-        announcementImageStorage: nextImageStorage,
+        ...serialized,
         announcementUpdatedAt: new Date(),
       },
       select: {
@@ -90,15 +126,17 @@ export async function POST(
 
     await touchRoom(room.id);
 
-    const imageUrl = updated.announcementImageKey
-      ? `/api/rooms/${encodeURIComponent(roomCode)}/announcement/image`
-      : null;
+    const updatedImages = buildAnnouncementImageViews(
+      roomCode,
+      parseAnnouncementImages(updated),
+    );
 
     const response = jsonOk({
       announcement: {
         text: updated.announcementText,
-        imageUrl,
-        imageName: updated.announcementImageName,
+        imageUrl: updatedImages[0]?.imageUrl ?? null,
+        imageName: updatedImages[0]?.imageName ?? null,
+        images: updatedImages,
         updatedAt: updated.announcementUpdatedAt?.toISOString() ?? null,
       },
     });

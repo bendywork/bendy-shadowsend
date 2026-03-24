@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
@@ -46,8 +46,18 @@ type PendingMessage = {
 };
 type NoticePreviewState = {
   text: string | null;
-  imageUrl: string | null;
-  imageName: string | null;
+  images: Array<{
+    imageUrl: string;
+    imageName: string | null;
+  }>;
+};
+type NoticeEditorImage = {
+  id: string;
+  kind: "existing" | "new";
+  imageUrl: string;
+  imageName: string;
+  existingIndex?: number;
+  file?: File;
 };
 
 const isPreviewable = (a: { previewType: AttachmentItem["previewType"] }) =>
@@ -176,14 +186,14 @@ export default function RoomPage() {
 
   const [showNoticeEditor, setShowNoticeEditor] = useState(false);
   const [noticeText, setNoticeText] = useState("");
-  const [noticeImage, setNoticeImage] = useState<File | null>(null);
-  const [noticeImagePreviewUrl, setNoticeImagePreviewUrl] = useState<string | null>(null);
-  const [clearNoticeImage, setClearNoticeImage] = useState(false);
+  const [noticeImages, setNoticeImages] = useState<NoticeEditorImage[]>([]);
 
   const [showNoticePopup, setShowNoticePopup] = useState(false);
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
+  const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
+  const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
   const membersPanelRef = useRef<HTMLElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
@@ -259,17 +269,18 @@ export default function RoomPage() {
   }, [snap]);
 
   useEffect(() => {
-    if (!noticeImage) {
-      setNoticeImagePreviewUrl(null);
-      return;
-    }
+    noticeImagesRef.current = noticeImages;
+  }, [noticeImages]);
 
-    const objectUrl = URL.createObjectURL(noticeImage);
-    setNoticeImagePreviewUrl(objectUrl);
+  useEffect(() => {
     return () => {
-      URL.revokeObjectURL(objectUrl);
+      noticeImagesRef.current.forEach((item) => {
+        if (item.kind === "new" && item.imageUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(item.imageUrl);
+        }
+      });
     };
-  }, [noticeImage]);
+  }, []);
 
   const rooms = useMemo(() => ({ created: boot?.tree.createdRooms ?? [], joined: boot?.tree.joinedRooms ?? [] }), [boot]);
 
@@ -661,20 +672,89 @@ export default function RoomPage() {
       setError("复制失败，请检查浏览器权限");
     }
   }
+  function releaseNoticeEditorImages(items: NoticeEditorImage[]) {
+    items.forEach((item) => {
+      if (item.kind === "new" && item.imageUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(item.imageUrl);
+      }
+    });
+  }
+
+  function closeNoticeEditor() {
+    setShowNoticeEditor(false);
+    setNoticePreview(null);
+    setNoticeText("");
+    setNoticeImages((prev) => {
+      releaseNoticeEditorImages(prev);
+      return [];
+    });
+  }
+
+  function removeNoticeImage(id: string) {
+    setNoticeImages((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (target?.kind === "new" && target.imageUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(target.imageUrl);
+      }
+      return prev.filter((item) => item.id !== id);
+    });
+  }
+
+  function addNoticeImages(fileList: FileList | null) {
+    if (!fileList) return;
+
+    const selected = Array.from(fileList).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (selected.length === 0) return;
+
+    const remaining = MAX_ANNOUNCEMENT_IMAGES - noticeImages.length;
+    if (remaining <= 0) {
+      setHint(`公告最多上传 ${MAX_ANNOUNCEMENT_IMAGES} 张图片`);
+      window.setTimeout(() => setHint(null), 2200);
+      return;
+    }
+
+    const accepted = selected.slice(0, remaining);
+    if (accepted.length < selected.length) {
+      setHint(`最多上传 ${MAX_ANNOUNCEMENT_IMAGES} 张，超出部分已忽略`);
+      window.setTimeout(() => setHint(null), 2200);
+    }
+
+    const addedItems = accepted.map((file, index) => ({
+      id: `notice-new-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
+      kind: "new" as const,
+      imageUrl: URL.createObjectURL(file),
+      imageName: file.name,
+      file,
+    }));
+
+    setNoticeImages((prev) => [...prev, ...addedItems]);
+  }
 
   function openNoticeEditor() {
     if (!snap) return;
     setNoticeText(snap.announcement.text ?? "");
-    setNoticeImage(null);
-    setClearNoticeImage(false);
     setNoticePreview(null);
     setShowNoticePopup(false);
+    setNoticeImages((prev) => {
+      releaseNoticeEditorImages(prev);
+      return (snap.announcement.images ?? []).map((item, index) => ({
+        id: `notice-existing-${index}`,
+        kind: "existing",
+        imageUrl: item.imageUrl,
+        imageName: item.imageName ?? `announcement-${index + 1}`,
+        existingIndex: index,
+      }));
+    });
     setShowNoticeEditor(true);
   }
 
   function openNoticeViewer() {
     if (!snap) return;
-    const hasNoticeContent = Boolean(snap.announcement.text || snap.announcement.imageUrl);
+    const hasNoticeContent = Boolean(
+      snap.announcement.text || snap.announcement.images.length > 0,
+    );
     if (!hasNoticeContent) {
       setHint("当前暂无公告");
       window.setTimeout(() => setHint(null), 2200);
@@ -687,22 +767,19 @@ export default function RoomPage() {
   function previewNoticeDraft() {
     if (!snap) return;
     const draftText = noticeText.trim() || null;
-    const draftImageUrl = clearNoticeImage
-      ? null
-      : noticeImagePreviewUrl ?? snap.announcement.imageUrl ?? null;
-    const draftImageName = clearNoticeImage
-      ? null
-      : noticeImage?.name ?? snap.announcement.imageName ?? null;
+    const draftImages = noticeImages.map((image) => ({
+      imageUrl: image.imageUrl,
+      imageName: image.imageName,
+    }));
 
-    if (!draftText && !draftImageUrl) {
+    if (!draftText && draftImages.length === 0) {
       setError("公告内容与图片不能同时为空");
       return;
     }
 
     setNoticePreview({
       text: draftText,
-      imageUrl: draftImageUrl,
-      imageName: draftImageName,
+      images: draftImages,
     });
     setShowNoticePopup(true);
   }
@@ -710,11 +787,32 @@ export default function RoomPage() {
   async function saveNotice() {
     setAction("notice");
     try {
-      let image: { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"] } | undefined;
-      if (noticeImage) image = await upload(noticeImage);
-      await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, { method: "POST", body: JSON.stringify({ text: noticeText || undefined, image, clearImage: clearNoticeImage }) });
-      setShowNoticeEditor(false);
-      setNoticePreview(null);
+      const keepImageIndexes = noticeImages
+        .filter((image) => image.kind === "existing")
+        .map((image) => image.existingIndex)
+        .filter((index): index is number => typeof index === "number");
+
+      const newNoticeFiles = noticeImages
+        .filter((image) => image.kind === "new" && image.file)
+        .map((image) => image.file as File);
+
+      const uploadedNewImages = await Promise.all(newNoticeFiles.map((file) => upload(file)));
+
+      await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, {
+        method: "POST",
+        body: JSON.stringify({
+          text: noticeText || undefined,
+          keepImageIndexes,
+          newImages: uploadedNewImages.map((image) => ({
+            s3Key: image.s3Key,
+            fileName: image.fileName,
+            mimeType: image.mimeType,
+            sizeBytes: image.sizeBytes,
+            storage: image.storage,
+          })),
+        }),
+      });
+      closeNoticeEditor();
       await refresh();
       setHint("公告已更新");
       window.setTimeout(() => setHint(null), 2200);
@@ -851,16 +949,9 @@ export default function RoomPage() {
     );
   }
 
-  const noticeEditorImageUrl = clearNoticeImage
-    ? null
-    : noticeImagePreviewUrl ?? snap.announcement.imageUrl ?? null;
-  const noticeEditorImageName = clearNoticeImage
-    ? null
-    : noticeImage?.name ?? snap.announcement.imageName ?? null;
   const noticePopupContent = noticePreview ?? {
     text: snap.announcement.text,
-    imageUrl: snap.announcement.imageUrl,
-    imageName: snap.announcement.imageName,
+    images: snap.announcement.images ?? [],
   };
   const isPreviewingNoticeDraft = Boolean(noticePreview);
 
@@ -1377,7 +1468,7 @@ export default function RoomPage() {
               <h3 className="text-base font-semibold text-zinc-100">配置公告</h3>
               <button
                 type="button"
-                onClick={() => setShowNoticeEditor(false)}
+                onClick={closeNoticeEditor}
                 className="rounded-md border border-zinc-700 p-1 text-zinc-300"
               >
                 <X className="h-4 w-4" />
@@ -1391,48 +1482,68 @@ export default function RoomPage() {
               className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none"
             />
 
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-300">
-              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1.5 hover:bg-zinc-800">
-                <Plus className="h-3.5 w-3.5" />
-                上传公告图片
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setNoticeImage(file);
-                      setClearNoticeImage(false);
-                    }
-                  }}
-                />
-              </label>
-              <label className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1.5">
-                <input
-                  type="checkbox"
-                  checked={clearNoticeImage}
-                  onChange={(e) => setClearNoticeImage(e.target.checked)}
-                />
-                清除当前图片
-              </label>
-              {noticeImage ? <span className="text-zinc-400">新图片: {noticeImage.name}</span> : null}
+            <input
+              ref={noticeImageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              multiple
+              onChange={(e) => {
+                addNoticeImages(e.target.files);
+                e.target.value = "";
+              }}
+            />
+
+            <div className="mt-3">
+              <div className="flex flex-wrap items-start gap-3">
+                {noticeImages.map((image) => (
+                  <div
+                    key={image.id}
+                    className="group relative h-24 w-24 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900"
+                  >
+                    <button
+                      type="button"
+                      className="h-full w-full"
+                      onClick={() => openImageViewer(image.imageUrl, image.imageName)}
+                      title="预览原图"
+                    >
+                      <img
+                        src={image.imageUrl}
+                        alt={image.imageName}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeNoticeImage(image.id)}
+                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 bg-black/80 text-zinc-200 opacity-100 transition hover:bg-zinc-800 group-hover:opacity-100"
+                      title="删除图片"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {noticeImages.length < MAX_ANNOUNCEMENT_IMAGES ? (
+                  <button
+                    type="button"
+                    onClick={() => noticeImageInputRef.current?.click()}
+                    className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-600 bg-zinc-900/70 px-2 text-center text-[11px] text-zinc-300 hover:bg-zinc-800"
+                  >
+                    <Plus className="mb-1 h-4 w-4" />
+                    上传公告图片
+                  </button>
+                ) : null}
+              </div>
+              <p className="mt-2 text-[11px] text-zinc-500">
+                最多上传 {MAX_ANNOUNCEMENT_IMAGES} 张图片
+              </p>
             </div>
 
-            {noticeEditorImageUrl ? (
-              <div className="mt-3 overflow-hidden rounded-lg border border-zinc-700 bg-black">
-                <img
-                  src={noticeEditorImageUrl}
-                  alt={noticeEditorImageName ?? "announcement-image"}
-                  className="max-h-60 w-full object-contain"
-                />
-              </div>
-            ) : null}
-
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowNoticeEditor(false)}
+                onClick={closeNoticeEditor}
                 className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
               >
                 取消
@@ -1453,6 +1564,7 @@ export default function RoomPage() {
                 {action === "notice" ? "保存中..." : "保存公告"}
               </button>
             </div>
+
           </section>
         </div>
       ) : null}
@@ -1467,16 +1579,27 @@ export default function RoomPage() {
             {noticePopupContent.text ? (
               <p className="whitespace-pre-wrap text-sm leading-6 text-zinc-100">{noticePopupContent.text}</p>
             ) : null}
-            {noticePopupContent.imageUrl ? (
-              <div className="mt-3 overflow-hidden rounded-lg border border-zinc-700 bg-black">
-                <img
-                  src={noticePopupContent.imageUrl}
-                  alt={noticePopupContent.imageName ?? "announcement"}
-                  className="max-h-[60vh] w-full cursor-zoom-in object-contain"
-                  onDoubleClick={() =>
-                    openImageViewer(noticePopupContent.imageUrl, noticePopupContent.imageName ?? "announcement")
-                  }
-                />
+            {noticePopupContent.images.length > 0 ? (
+              <div
+                className={clsx(
+                  "mt-3 grid gap-3",
+                  noticePopupContent.images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2",
+                )}
+              >
+                {noticePopupContent.images.map((image, index) => (
+                  <button
+                    key={`${image.imageUrl}-${index}`}
+                    type="button"
+                    onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
+                    className="overflow-hidden rounded-lg border border-zinc-700 bg-black"
+                  >
+                    <img
+                      src={image.imageUrl}
+                      alt={image.imageName ?? "announcement"}
+                      className="max-h-[42vh] w-full object-contain"
+                    />
+                  </button>
+                ))}
               </div>
             ) : null}
             <div className="mt-4 flex justify-end">

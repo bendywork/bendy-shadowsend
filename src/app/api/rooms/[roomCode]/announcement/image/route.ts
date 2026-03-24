@@ -1,5 +1,6 @@
-import { AttachmentStorage, RoomStatus } from "@prisma/client";
+﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
+import { parseAnnouncementImages } from "@/lib/announcement";
 import { ApiError, jsonError } from "@/lib/api";
 import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
@@ -36,16 +37,29 @@ export async function GET(
       where: { id: room.id },
       select: {
         announcementImageKey: true,
+        announcementImageName: true,
         announcementImageStorage: true,
       },
     });
 
-    if (!announcement?.announcementImageKey || !announcement.announcementImageStorage) {
+    const indexParam = request.nextUrl.searchParams.get("index");
+    const parsedIndex = Number.parseInt(indexParam ?? "0", 10);
+    const index = Number.isFinite(parsedIndex) && parsedIndex >= 0 ? parsedIndex : 0;
+
+    const images = parseAnnouncementImages({
+      announcementImageKey: announcement?.announcementImageKey ?? null,
+      announcementImageName: announcement?.announcementImageName ?? null,
+      announcementImageStorage: announcement?.announcementImageStorage ?? null,
+    });
+
+    const image = images[index];
+
+    if (!image) {
       throw new ApiError(404, "公告图片不存在", "ANNOUNCEMENT_IMAGE_NOT_FOUND");
     }
 
-    if (announcement.announcementImageStorage === AttachmentStorage.DUFS) {
-      const upstream = await fetchDufsFile(announcement.announcementImageKey);
+    if (image.storage === AttachmentStorage.DUFS) {
+      const upstream = await fetchDufsFile(image.s3Key);
       const response = new NextResponse(upstream.body, {
         status: 200,
         headers: {
@@ -58,7 +72,7 @@ export async function GET(
     }
 
     const previewUrl = await createInlineReadUrl({
-      key: announcement.announcementImageKey,
+      key: image.s3Key,
       expiresInSeconds: 120,
     });
 

@@ -16,3 +16,14 @@ export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
 export const MAX_ANNOUNCEMENT_IMAGE_BYTES = 200 * 1024 * 1024;
 export const MAX_PROXY_UPLOAD_BYTES = 200 * 1024 * 1024;
 
+const DEFAULT_MAX_ANNOUNCEMENT_IMAGES = 3;
+const announcementImageLimit = Number.parseInt(
+  process.env.NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES ?? "",
+  10,
+);
+
+export const MAX_ANNOUNCEMENT_IMAGES =
+  Number.isFinite(announcementImageLimit) && announcementImageLimit > 0
+    ? Math.min(announcementImageLimit, 9)
+    : DEFAULT_MAX_ANNOUNCEMENT_IMAGES;
+
