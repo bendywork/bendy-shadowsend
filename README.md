@@ -192,6 +192,8 @@ npm run dev
 | `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |
 | `OSS_PREVIEW_COOKIE` | 可选 | 外部预览接口鉴权 Cookie |
 | `NEXT_PUBLIC_APP_VERSION` | 可选 | 前端展示版本号 |
+| `NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS` | 可选 | 单条文本消息最大长度（默认 `200000`，前后端共用） |
+| `NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES` | 可选 | 公告最多可上传图片数（默认 `3`） |
 | `FORCE_DB_MIGRATE` | 可选 | `true` 时强制执行迁移（默认不强制） |
 | `PRISMA_MIGRATE_RETRIES` | 可选 | 迁移锁冲突重试次数（默认 `3`） |
 | `PRISMA_MIGRATE_RETRY_DELAY_MS` | 可选 | 每次重试间隔毫秒（默认 `4000`） |
@@ -199,6 +201,8 @@ npm run dev
 > 说明：项目运行时会优先读取 `DATABASE_URL`，若缺失会回退 `POSTGRES_PRISMA_URL` 或 `POSTGRES_URL`。生产环境仍建议显式配置 `DATABASE_URL`。
 > 
 > 默认部署策略是“无待执行迁移就跳过迁移”，仅在有新 migration 或你手动设置 `FORCE_DB_MIGRATE=true` 时修改数据库结构。
+>
+> 若未配置 `NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS`，默认 `200000`；若未配置 `NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES`，默认 `3`。
 
 ### 3. 部署步骤
 
