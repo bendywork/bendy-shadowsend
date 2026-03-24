@@ -6,7 +6,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, LogOut, Megaphone, MoreHorizontal, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -198,11 +198,13 @@ export default function RoomPage() {
   const [showNoticePopup, setShowNoticePopup] = useState(false);
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
+  const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
+  const memberMenuRef = useRef<HTMLDivElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
   const membersPanelRef = useRef<HTMLElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
@@ -271,6 +273,32 @@ export default function RoomPage() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [imageViewer]);
+
+  useEffect(() => {
+    if (!openMemberMenuId) return;
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (memberMenuRef.current?.contains(target)) return;
+      setOpenMemberMenuId(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenMemberMenuId(null);
+      }
+    };
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [openMemberMenuId]);
+
+  useEffect(() => {
+    if (isOwner) return;
+    setOpenMemberMenuId(null);
+  }, [isOwner]);
 
   useEffect(() => {
     if (!snap || snap.me.role !== "OWNER") return;
@@ -1543,23 +1571,48 @@ export default function RoomPage() {
                       </div>
                     </div>
                     {isOwner && m.role !== "OWNER" ? (
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div
+                        ref={openMemberMenuId === m.id ? memberMenuRef : null}
+                        className="relative shrink-0"
+                      >
                         <button
                           type="button"
-                          onClick={() => transferOwner(m)}
-                          disabled={action === `transfer-${m.id}`}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                          aria-label="成员操作"
+                          aria-haspopup="menu"
+                          aria-expanded={openMemberMenuId === m.id}
+                          onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-500/40 text-zinc-300 hover:bg-zinc-800"
                         >
-                          <Crown className="h-3 w-3" /> 转让
+                          <MoreHorizontal className="h-4 w-4" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => kick(m)}
-                          disabled={action === `kick-${m.id}`}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
-                        >
-                          <UserMinus className="h-3 w-3" /> 移出
-                        </button>
+                        {openMemberMenuId === m.id ? (
+                          <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenMemberMenuId(null);
+                                void transferOwner(m);
+                              }}
+                              disabled={action === `transfer-${m.id}`}
+                              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                            >
+                              <Crown className="h-3 w-3" /> 房主转让
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenMemberMenuId(null);
+                                void kick(m);
+                              }}
+                              disabled={action === `kick-${m.id}`}
+                              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                            >
+                              <UserMinus className="h-3 w-3" /> 移除房间
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
