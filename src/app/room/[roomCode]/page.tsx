@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, LogOut, Megaphone, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
@@ -75,6 +75,9 @@ const guessPreviewType = (mimeType: string): AttachmentItem["previewType"] => {
 const FAST_POLL_INTERVAL_MS = 1200;
 const SNAPSHOT_SYNC_INTERVAL_MS = 15_000;
 const MAX_MESSAGES_IN_MEMORY = 220;
+const MESSAGE_COLLAPSE_CHAR_THRESHOLD = 1200;
+const MESSAGE_COLLAPSE_PREVIEW_MAX = 1600;
+const MESSAGE_COLLAPSE_PREVIEW_MIN = 360;
 
 function withStableAttachmentPreviewUrls(
   prev: RoomSnapshot | null,
@@ -179,6 +182,8 @@ export default function RoomPage() {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+  const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
+  const [expandedPendingMessageIds, setExpandedPendingMessageIds] = useState<Record<string, boolean>>({});
 
   const [showManage, setShowManage] = useState(true);
   const [showQr, setShowQr] = useState(false);
@@ -283,6 +288,26 @@ export default function RoomPage() {
   }, []);
 
   const rooms = useMemo(() => ({ created: boot?.tree.createdRooms ?? [], joined: boot?.tree.joinedRooms ?? [] }), [boot]);
+  const clampMessageText = useCallback((value: string) => value.slice(0, MAX_MESSAGE_TEXT_CHARS), []);
+
+  const appendMessageText = useCallback((incoming: string) => {
+    const normalized = incoming.trim();
+    if (!normalized) return;
+    setText((prev) => clampMessageText(prev ? `${prev}\n${normalized}` : normalized));
+  }, [clampMessageText]);
+
+  function getCollapsedPreviewText(content: string) {
+    const halfLength = Math.floor(content.length / 2);
+    const previewLength = Math.max(
+      MESSAGE_COLLAPSE_PREVIEW_MIN,
+      Math.min(MESSAGE_COLLAPSE_PREVIEW_MAX, halfLength),
+    );
+    return content.slice(0, previewLength);
+  }
+
+  function isMessageCollapsed(content: string, expanded: boolean) {
+    return content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD && !expanded;
+  }
 
   function addFiles(input: FileList | File[]) {
     const incoming = Array.from(input);
@@ -361,12 +386,12 @@ export default function RoomPage() {
         if (textChunks.length > 0) {
           const mergedText = Array.from(new Set(textChunks)).join("\n");
           if (mergedText.trim()) {
-            setText((p) => (p ? `${p}\n${mergedText}` : mergedText));
+            appendMessageText(mergedText);
           }
         }
       } else {
         const t = await navigator.clipboard.readText();
-        if (t.trim()) setText((p) => p ? `${p}\n${t}` : t);
+        appendMessageText(t);
       }
     } catch {}
   }
@@ -1137,15 +1162,43 @@ export default function RoomPage() {
 
                     {m.content ? (
                       <div className="space-y-2">
-                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">{m.content}</p>
-                        <button
-                          type="button"
-                          onClick={() => void copyMessageText(m.content)}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                        >
-                          <Copy className="h-3 w-3" />
-                          复制文本
-                        </button>
+                        {(() => {
+                          const expanded = Boolean(expandedMessageIds[m.id]);
+                          const collapsed = isMessageCollapsed(m.content, expanded);
+                          const visibleContent = collapsed
+                            ? `${getCollapsedPreviewText(m.content)}...`
+                            : m.content;
+
+                          return (
+                            <>
+                              <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">{visibleContent}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void copyMessageText(m.content)}
+                                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                  复制文本
+                                </button>
+                                {m.content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedMessageIds((prev) => ({
+                                        ...prev,
+                                        [m.id]: !expanded,
+                                      }))
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                                  >
+                                    {collapsed ? "展开全文" : "收起"}
+                                  </button>
+                                ) : null}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     ) : null}
 
@@ -1222,9 +1275,47 @@ export default function RoomPage() {
                   </div>
 
                   {message.content ? (
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">
-                      {message.content}
-                    </p>
+                    <div className="space-y-2">
+                      {(() => {
+                        const expanded = Boolean(expandedPendingMessageIds[message.localId]);
+                        const collapsed = isMessageCollapsed(message.content, expanded);
+                        const visibleContent = collapsed
+                          ? `${getCollapsedPreviewText(message.content)}...`
+                          : message.content;
+
+                        return (
+                          <>
+                            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">
+                              {visibleContent}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void copyMessageText(message.content)}
+                                className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                              >
+                                <Copy className="h-3 w-3" />
+                                复制文本
+                              </button>
+                              {message.content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedPendingMessageIds((prev) => ({
+                                      ...prev,
+                                      [message.localId]: !expanded,
+                                    }))
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                                >
+                                  {collapsed ? "展开全文" : "收起"}
+                                </button>
+                              ) : null}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                   ) : null}
 
                   {message.attachments.length ? (
@@ -1302,8 +1393,9 @@ export default function RoomPage() {
             <div className="rounded-2xl border border-zinc-700 bg-zinc-900/90 p-2">
               <textarea
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => setText(clampMessageText(e.target.value))}
                 onPaste={onPaste}
+                maxLength={MAX_MESSAGE_TEXT_CHARS}
                 placeholder="粘贴文本/文件后可直接发送..."
                 className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
               />
@@ -1344,6 +1436,9 @@ export default function RoomPage() {
             </div>
             <p className="mt-2 text-xs text-zinc-500">
               输入框支持直接 Ctrl+V 粘贴文本或文件；图片/视频可预览，其它文件仅下载。
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-500">
+              文本长度 {text.length}/{MAX_MESSAGE_TEXT_CHARS}
             </p>
           </form>
         </section>

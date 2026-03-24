@@ -16,6 +16,17 @@ export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
 export const MAX_ANNOUNCEMENT_IMAGE_BYTES = 200 * 1024 * 1024;
 export const MAX_PROXY_UPLOAD_BYTES = 200 * 1024 * 1024;
 
+const DEFAULT_MAX_MESSAGE_TEXT_CHARS = 200_000;
+const parsedMaxMessageTextChars = Number.parseInt(
+  process.env.NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS ?? "",
+  10,
+);
+
+export const MAX_MESSAGE_TEXT_CHARS =
+  Number.isFinite(parsedMaxMessageTextChars) && parsedMaxMessageTextChars > 0
+    ? Math.min(parsedMaxMessageTextChars, 1_000_000)
+    : DEFAULT_MAX_MESSAGE_TEXT_CHARS;
+
 const DEFAULT_MAX_ANNOUNCEMENT_IMAGES = 3;
 const announcementImageLimit = Number.parseInt(
   process.env.NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES ?? "",

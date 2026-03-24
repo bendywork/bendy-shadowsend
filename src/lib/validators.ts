@@ -3,6 +3,7 @@ import {
   MAX_ANNOUNCEMENT_IMAGES,
   MAX_ANNOUNCEMENT_IMAGE_BYTES,
   MAX_ATTACHMENT_SIZE_BYTES,
+  MAX_MESSAGE_TEXT_CHARS,
 } from "@/lib/constants";
 
 export const gateCodeSchema = z
@@ -46,7 +47,7 @@ export const sendMessageSchema = z.object({
   content: z
     .string()
     .trim()
-    .max(5000, "Message text must be <= 5000 chars")
+    .max(MAX_MESSAGE_TEXT_CHARS, `Message text must be <= ${MAX_MESSAGE_TEXT_CHARS} chars`)
     .optional()
     .transform((value) => (value ? value : undefined)),
   attachments: z
@@ -129,3 +130,4 @@ export const roomAnnouncementSchema = z.object({
   // Backward compatibility for old clients.
   image: announcementImagePayloadSchema.optional(),
 });
+
