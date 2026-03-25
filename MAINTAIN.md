@@ -3,6 +3,27 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-03-25: v0.1.53 Dissolve Redirect Fix
+
+### Scope
+- Fix room dissolve navigation behavior when user has multiple active rooms.
+
+### Bug Fix
+- Before: dissolving current room always redirected to homepage.
+- After: dissolving current room now redirects to the next available room in sorted room list.
+- Fallback: if no active room remains, redirect to homepage.
+
+### Frontend Changes
+- Updated `dissolve()` logic in room page:
+  - compute sorted rooms before dissolve
+  - refresh bootstrap after dissolve
+  - navigate to next room code if exists
+  - otherwise clear last-room cache and go `/`
+
+### Versioning / History
+- Updated runtime/package version to `0.1.53`.
+- Added this iteration entry to `MAINTAIN.md`.
+
 ## 2026-03-25: v0.1.52 Hide Empty Ad Bar
 
 ### Scope

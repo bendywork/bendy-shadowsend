@@ -558,6 +558,14 @@ export default function RoomPage() {
   const activeRooms = roomsPanelTab === "created" ? rooms.created : rooms.joined;
   const clampMessageText = useCallback((value: string) => value.slice(0, MAX_MESSAGE_TEXT_CHARS), []);
 
+  function sortRooms(items: RoomTreeItem[]) {
+    return [...items].sort((a, b) => {
+      const timeDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return a.roomCode.localeCompare(b.roomCode);
+    });
+  }
+
   const appendMessageText = useCallback((incoming: string) => {
     const normalized = incoming.trim();
     if (!normalized) return;
@@ -1350,8 +1358,44 @@ export default function RoomPage() {
   async function dissolve() {
     if (!window.confirm("确认解散当前房间？解散后成员将全部退出。")) return;
     setAction("dissolve");
-    try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/dissolve`, { method: "POST", body: JSON.stringify({}) }); router.push("/"); }
-    catch (err) { setError(err instanceof Error ? err.message : "瑙ｆ暎澶辫触"); }
+    try {
+      const beforeSortedRooms = sortRooms([...rooms.created, ...rooms.joined]);
+      const currentIndex = beforeSortedRooms.findIndex((item) => item.roomCode === roomCode);
+
+      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/dissolve`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      const latestBoot = await apiFetch<BootstrapPayload>("/api/bootstrap");
+      setBoot(latestBoot);
+
+      const remainingRooms = sortRooms([
+        ...latestBoot.tree.createdRooms,
+        ...latestBoot.tree.joinedRooms,
+      ]);
+
+      if (remainingRooms.length === 0) {
+        localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
+        router.push("/");
+        return;
+      }
+
+      const nextIndex =
+        currentIndex >= 0
+          ? Math.min(currentIndex, remainingRooms.length - 1)
+          : 0;
+      const nextRoomCode = remainingRooms[nextIndex]?.roomCode ?? remainingRooms[0]?.roomCode;
+
+      if (nextRoomCode) {
+        localStorage.setItem(LAST_ROOM_STORAGE_KEY, nextRoomCode);
+        router.push(`/room/${nextRoomCode}`);
+      } else {
+        localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
+        router.push("/");
+      }
+    }
+    catch (err) { setError(err instanceof Error ? err.message : "解散失败"); }
     finally { setAction(null); }
   }
 
