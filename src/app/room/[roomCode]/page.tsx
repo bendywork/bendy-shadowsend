@@ -215,6 +215,41 @@ function FileAction({ roomCode, attachment }: { roomCode: string; attachment: At
 function Btn({ icon, label, onClick, danger, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
   return <button type="button" onClick={onClick} disabled={disabled} className={clsx("inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", danger ? "border-zinc-500/40 text-zinc-200 hover:bg-zinc-600/10" : "border-zinc-700 text-zinc-200 hover:bg-zinc-800")}>{icon}{label}</button>;
 }
+function SwitchBtn({
+  checked,
+  disabled,
+  onToggle,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onToggle}
+      className={clsx(
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200",
+        checked
+          ? "border-rose-300/30 bg-rose-300/35"
+          : "border-zinc-600 bg-zinc-700",
+        disabled
+          ? "cursor-not-allowed opacity-60"
+          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/50",
+      )}
+    >
+      <span
+        className={clsx(
+          "inline-block h-5 w-5 rounded-full shadow-[0_1px_6px_rgba(0,0,0,0.4)] transition-transform duration-200",
+          checked ? "translate-x-5 bg-rose-300" : "translate-x-0.5 bg-zinc-200",
+        )}
+      />
+    </button>
+  );
+}
 
 export default function RoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -2160,27 +2195,18 @@ export default function RoomPage() {
                         <p className="text-xs font-medium text-zinc-200">允许申请加入</p>
                         <p className="text-[11px] text-zinc-500">开启后可通过房间码加入，若设置门禁码则需同时输入</p>
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={snap.room.allowJoinRequest}
-                        onClick={() => {
-                          void updateJoinPolicy(!snap.room.allowJoinRequest);
-                        }}
-                        disabled={action === "join-policy"}
-                        className={clsx(
-                          "inline-flex shrink-0 items-center rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60",
-                          snap.room.allowJoinRequest
-                            ? "border-zinc-500/50 bg-zinc-500/20 text-zinc-100"
-                            : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
-                        )}
-                      >
-                        {action === "join-policy"
-                          ? "保存中..."
-                          : snap.room.allowJoinRequest
-                            ? "允许"
-                            : "拒绝"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-zinc-400">
+                          {snap.room.allowJoinRequest ? "允许" : "拒绝"}
+                        </span>
+                        <SwitchBtn
+                          checked={snap.room.allowJoinRequest}
+                          disabled={action === "join-policy"}
+                          onToggle={() => {
+                            void updateJoinPolicy(!snap.room.allowJoinRequest);
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
@@ -2189,27 +2215,18 @@ export default function RoomPage() {
                         <p className="text-xs font-medium text-zinc-200">过期时间</p>
                         <p className="text-[11px] text-zinc-500">开启后房间不会因长时间无活动自动解散</p>
                       </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={snap.room.neverExpire}
-                        onClick={() => {
-                          void updateNeverExpire(!snap.room.neverExpire);
-                        }}
-                        disabled={action === "never-expire"}
-                        className={clsx(
-                          "inline-flex shrink-0 items-center rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60",
-                          snap.room.neverExpire
-                            ? "border-zinc-500/50 bg-zinc-500/20 text-zinc-100"
-                            : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
-                        )}
-                      >
-                        {action === "never-expire"
-                          ? "保存中..."
-                          : snap.room.neverExpire
-                            ? "已开启"
-                            : "已关闭"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-zinc-400">
+                          {snap.room.neverExpire ? "已开启" : "已关闭"}
+                        </span>
+                        <SwitchBtn
+                          checked={snap.room.neverExpire}
+                          disabled={action === "never-expire"}
+                          onToggle={() => {
+                            void updateNeverExpire(!snap.room.neverExpire);
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
