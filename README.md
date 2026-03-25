@@ -367,6 +367,7 @@ npm run db:reinit:prefixed
 
 ### 2026-03-25
 
+- `0.1.52` 无广告内容时，房间头部广告区域自动隐藏（不再显示占位条）。
 - `0.1.51` 设置区开关统一为黑白灰配色（允许申请加入、永不过期）。
 - `0.1.51` 房间头部新增广告文本上下滚动轮播，数据来源 `bendy_shadowsend_advertisement`。
 - `0.1.51` 新增系统接口：`/getInfo`、`/offline`、`/changeAuth`。

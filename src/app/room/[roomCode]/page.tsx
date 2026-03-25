@@ -317,13 +317,7 @@ function AdCarousel({ items }: { items: AdBoardItem[] }) {
   }, [animating, items.length]);
 
   if (items.length === 0) {
-    return (
-      <div className="relative h-9 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900/70 px-3">
-        <div className="absolute inset-0 flex items-center text-sm text-zinc-500">
-          暂无广告内容
-        </div>
-      </div>
-    );
+    return null;
   }
 
   const safeIndex = index % items.length;

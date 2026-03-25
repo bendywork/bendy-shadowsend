@@ -3,6 +3,19 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-03-25: v0.1.52 Hide Empty Ad Bar
+
+### Scope
+- Hide room header ad carousel area when there are no active ad items.
+- Bump app version to `0.1.52`.
+
+### Frontend Changes
+- `AdCarousel` now returns `null` when ad list is empty, so the header has no placeholder bar.
+
+### Versioning / History
+- Updated `package.json` and runtime version constants to `0.1.52`.
+- Added this iteration entry to `MAINTAIN.md`.
+
 ## 2026-03-25: v0.1.51 System APIs + Ad Carousel + Style Alignment
 
 ### Scope
