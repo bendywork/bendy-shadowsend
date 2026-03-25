@@ -104,6 +104,7 @@ model Room {
   announcementImageStorage AttachmentStorage?
   announcementUpdatedAt DateTime?
   neverExpire       Boolean      @default(false)
+  allowJoinRequest  Boolean      @default(true)
   status            RoomStatus   @default(ACTIVE)
   deletedAt         DateTime?
   lastActiveAt      DateTime     @default(now())

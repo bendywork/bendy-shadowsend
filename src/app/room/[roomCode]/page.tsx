@@ -246,6 +246,7 @@ export default function RoomPage() {
   const [showNoticePopup, setShowNoticePopup] = useState(false);
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
+  const [roomNameInput, setRoomNameInput] = useState("");
   const [openRoomMenu, setOpenRoomMenu] = useState<RoomMenuState | null>(null);
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
@@ -406,6 +407,7 @@ export default function RoomPage() {
   useEffect(() => {
     if (!snap || snap.me.role !== "OWNER") return;
     setGateCodeInput(snap.room.gateCode ?? "");
+    setRoomNameInput(snap.room.name);
   }, [snap]);
 
   useEffect(() => {
@@ -1229,6 +1231,49 @@ export default function RoomPage() {
     finally { setAction(null); }
   }
 
+  async function updateRoomName() {
+    if (!isOwner) return;
+    setAction("room-name");
+    setError(null);
+    try {
+      const normalized = roomNameInput.trim();
+      if (!normalized) {
+        throw new Error("房间名称不能为空");
+      }
+
+      const result = await apiFetch<{ name: string }>(
+        `/api/rooms/${roomCode}/name`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: normalized,
+          }),
+        },
+      );
+
+      setSnap((prev) =>
+        prev
+          ? {
+              ...prev,
+              room: {
+                ...prev.room,
+                name: result.name,
+              },
+            }
+          : prev,
+      );
+      setRoomNameInput(result.name);
+
+      setHint("房间名称已更新");
+      window.setTimeout(() => setHint(null), 2200);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "房间名称更新失败");
+    } finally {
+      setAction(null);
+    }
+  }
+
   async function updateGateCode() {
     if (!isOwner) return;
     setAction("gate-code");
@@ -1253,6 +1298,43 @@ export default function RoomPage() {
       window.setTimeout(() => setHint(null), 2200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "门禁码更新失败");
+    } finally {
+      setAction(null);
+    }
+  }
+
+  async function updateJoinPolicy(nextAllowJoinRequest: boolean) {
+    if (!isOwner) return;
+    setAction("join-policy");
+    setError(null);
+    try {
+      const result = await apiFetch<{ allowJoinRequest: boolean }>(
+        `/api/rooms/${roomCode}/join-policy`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            allowJoinRequest: nextAllowJoinRequest,
+          }),
+        },
+      );
+
+      setSnap((prev) =>
+        prev
+          ? {
+              ...prev,
+              room: {
+                ...prev.room,
+                allowJoinRequest: result.allowJoinRequest,
+              },
+            }
+          : prev,
+      );
+
+      setHint(result.allowJoinRequest ? "已允许申请加入房间" : "已拒绝申请加入房间");
+      window.setTimeout(() => setHint(null), 2200);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "更新加入策略失败");
     } finally {
       setAction(null);
     }
@@ -2032,6 +2114,25 @@ export default function RoomPage() {
                 <h3 className="mb-2 text-sm font-semibold text-zinc-200">设置</h3>
                 <div className="space-y-3">
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                    <p className="text-xs font-medium text-zinc-200">房间名称</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        value={roomNameInput}
+                        onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
+                        placeholder="输入房间名称"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={updateRoomName}
+                        disabled={action === "room-name"}
+                        className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
+                      >
+                        {action === "room-name" ? "保存中..." : "保存"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                     <p className="text-xs font-medium text-zinc-200">门禁码</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
@@ -2052,6 +2153,35 @@ export default function RoomPage() {
                     <p className="mt-2 text-[11px] text-zinc-500">
                       当前门禁码：{snap.room.gateCode ?? "未设置"}
                     </p>
+                  </div>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-zinc-200">允许申请加入</p>
+                        <p className="text-[11px] text-zinc-500">开启后可通过房间码加入，若设置门禁码则需同时输入</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={snap.room.allowJoinRequest}
+                        onClick={() => {
+                          void updateJoinPolicy(!snap.room.allowJoinRequest);
+                        }}
+                        disabled={action === "join-policy"}
+                        className={clsx(
+                          "inline-flex shrink-0 items-center rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60",
+                          snap.room.allowJoinRequest
+                            ? "border-zinc-500/50 bg-zinc-500/20 text-zinc-100"
+                            : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                        )}
+                      >
+                        {action === "join-policy"
+                          ? "保存中..."
+                          : snap.room.allowJoinRequest
+                            ? "允许"
+                            : "拒绝"}
+                      </button>
+                    </div>
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                     <div className="flex items-center justify-between gap-3">

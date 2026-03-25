@@ -10,12 +10,14 @@ export const gateCodeSchema = z
   .string()
   .regex(/^\d{6}$/, "Gate code must be 6 digits");
 
+export const roomNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Room name is required")
+  .max(48, "Room name must be <= 48 chars");
+
 export const createRoomSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Room name is required")
-    .max(48, "Room name must be <= 48 chars"),
+  name: roomNameSchema,
   gateCode: z
     .string()
     .trim()
@@ -97,6 +99,14 @@ export const updateRoomGateCodeSchema = z.object({
 
 export const updateRoomNeverExpireSchema = z.object({
   neverExpire: z.boolean(),
+});
+
+export const updateRoomNameSchema = z.object({
+  name: roomNameSchema,
+});
+
+export const updateRoomJoinPolicySchema = z.object({
+  allowJoinRequest: z.boolean(),
 });
 
 const announcementImagePayloadSchema = z.object({

@@ -76,6 +76,26 @@ export async function POST(
       return applyUserCookie(response, cookieToSet);
     }
 
+    let inviteToUse: { id: string } | null = null;
+
+    if (payload.inviteToken) {
+      inviteToUse = await prisma.roomInvite.findFirst({
+        where: {
+          roomId: room.id,
+          token: payload.inviteToken,
+          status: InviteStatus.ACTIVE,
+          expiresAt: { gt: now },
+        },
+        select: { id: true },
+      });
+    }
+
+    const canBypassJoinPolicy = Boolean(inviteToUse);
+
+    if (!room.allowJoinRequest && !canBypassJoinPolicy) {
+      throw new ApiError(403, "房主已关闭申请加入房间", "JOIN_REQUEST_DISABLED");
+    }
+
     if (existingMembership?.status === MemberStatus.KICKED || existingMembership?.requiresApproval) {
       const pendingRequest = await prisma.joinRequest.findFirst({
         where: {
@@ -115,20 +135,6 @@ export async function POST(
     }
 
     await assertRoomCapacity(room.id);
-
-    let inviteToUse: { id: string } | null = null;
-
-    if (payload.inviteToken) {
-      inviteToUse = await prisma.roomInvite.findFirst({
-        where: {
-          roomId: room.id,
-          token: payload.inviteToken,
-          status: InviteStatus.ACTIVE,
-          expiresAt: { gt: now },
-        },
-        select: { id: true },
-      });
-    }
 
     const canBypassGateCode = Boolean(inviteToUse);
 

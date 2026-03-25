@@ -97,6 +97,7 @@ export type RoomSnapshot = {
     gateCodeExpiresAt: string | null;
     gateCode: string | null;
     neverExpire: boolean;
+    allowJoinRequest: boolean;
   };
   announcement: {
     text: string | null;

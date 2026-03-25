@@ -174,6 +174,7 @@ export async function GET(
         gateCodeExpiresAt: room.gateCodeExpiresAt?.toISOString() ?? null,
         gateCode: membership.role === RoomRole.OWNER ? room.gateCode : null,
         neverExpire: room.neverExpire,
+        allowJoinRequest: room.allowJoinRequest,
       },
       announcement: {
         text: room.announcementText,
