@@ -1,5 +1,53 @@
 # Maintain Notes
 
+## Rule
+- Every iteration (feature/fix/deploy change) must append an entry to this file.
+
+## 2026-03-25: v0.1.51 System APIs + Ad Carousel + Style Alignment
+
+### Scope
+- Switch controls in room settings are unified to black/white/gray style.
+- Room header adds a vertical ad text carousel area.
+- New system-facing routes added: `/getInfo`, `/offline`, `/changeAuth`.
+- New app auth persistence table and advertisement table.
+
+### Data Layer
+- Added tables:
+  - `bendy_shadowsend_app_auth_config`
+  - `bendy_shadowsend_advertisement`
+- Migration:
+  - `prisma/migrations/20260325113500_add_system_auth_and_advertisement/migration.sql`
+
+### API Changes
+- Added:
+  - `GET/POST /getInfo`
+  - `GET/POST /offline`
+  - `GET/POST /changeAuth`
+- Behavior:
+  - `/getInfo` returns basic info without `auth`; returns privileged server stats/config with valid `auth`.
+  - `/offline` requires `auth`; supports immediate or scheduled shutdown (`yyyy-MM-dd HH:mm:ss`).
+  - `/changeAuth` updates auth from `old` to `new` (1~32 chars).
+- Logging:
+  - All three routes print operation records to server logs.
+
+### Frontend Changes
+- Room settings switches:
+  - `allowJoinRequest`
+  - `neverExpire`
+- Both switches now use grayscale style.
+- Room header ad board:
+  - Vertical rolling display
+  - Click-through URL support
+  - Empty-state fallback text
+
+### Config/Docs
+- Added env support: `APP_AUTH` (default `bendywork`, 1~32 chars).
+- README updated with:
+  - max ad `content` length (`120`)
+  - external API documentation
+  - ad JSON format reference
+  - 0.1.51 update log
+
 ## 2026-03-25: Room Rename + Join Policy
 
 ### Scope

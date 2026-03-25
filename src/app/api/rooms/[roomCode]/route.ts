@@ -4,7 +4,13 @@ import {
   buildAnnouncementImageViews,
   parseAnnouncementImages,
 } from "@/lib/announcement";
-import { APP_NAME, APP_OPEN_SOURCE, MESSAGE_PAGE_SIZE } from "@/lib/constants";
+import { getActiveAdBoardItems } from "@/lib/ad-board";
+import {
+  APP_NAME,
+  APP_OPEN_SOURCE,
+  MAX_AD_CONTENT_CHARS,
+  MESSAGE_PAGE_SIZE,
+} from "@/lib/constants";
 import { env } from "@/lib/env";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
 import { enrichMessagesWithAttachmentPreviewUrls } from "@/lib/attachment-preview";
@@ -73,7 +79,7 @@ export async function GET(
       throw new ApiError(403, "你当前无法访问该房间", "MEMBER_INACTIVE");
     }
 
-    const [members, messagesRaw, stats, pendingRequests] = await Promise.all([
+    const [members, messagesRaw, stats, pendingRequests, adItems] = await Promise.all([
       prisma.roomMember.findMany({
         where: {
           roomId: room.id,
@@ -133,6 +139,7 @@ export async function GET(
             },
           })
         : Promise.resolve([]),
+      getActiveAdBoardItems(),
     ]);
 
     const announcementImages = buildAnnouncementImageViews(
@@ -212,6 +219,10 @@ export async function GET(
       stats: {
         roomOnline: stats.roomOnline,
         totalOnline: stats.totalOnline,
+      },
+      adBoard: {
+        items: adItems,
+        maxContentChars: MAX_AD_CONTENT_CHARS,
       },
     });
 

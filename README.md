@@ -40,6 +40,7 @@ Copy-Item .env.example .env
 
 | 变量名 | 必填 | 说明 |
 | --- | --- | --- |
+| `APP_AUTH` | 否 | 外部管理接口鉴权参数，长度 1~32，默认 `bendywork` |
 | `S3_REGION` | 否 | 区域（可不填，默认空值） |
 | `S3_ENDPOINT` | 是 | S3 API 地址，例如 `https://s3.amazonaws.com` 或 `https://<account>.r2.cloudflarestorage.com` |
 | `S3_BUCKET` | 是 | Bucket 名称 |
@@ -178,6 +179,7 @@ npm run dev
 | --- | --- | --- |
 | `DATABASE_URL` | 是 | Prisma 数据库连接串 |
 | `CHAT_ENCRYPTION_KEY` | 是 | 聊天消息加密 Key（至少 32 字符） |
+| `APP_AUTH` | 否 | 外部管理接口鉴权参数，长度 1~32，默认 `bendywork` |
 | `S3_REGION` | 否 | S3 区域（可不填，默认空值） |
 | `S3_ENDPOINT` | 是 | S3 兼容 API Endpoint |
 | `S3_BUCKET` | 是 | Bucket 名称 |
@@ -236,6 +238,10 @@ npm run dev
   - `公告`：成员可查看公告；房主可配置公告文本与图片。
   - `管理`：房主切换右侧成员管理面板显示/隐藏。
   - `解散`：房主确认后解散房间（逻辑删除）。
+- 顶部广告条（文本轮播）：
+  - 位于房间头部操作按钮下方，纵向滚动轮播。
+  - 支持多条广告 JSON 存储，单条 `content` 最大长度为 `120` 字符。
+  - 统一字号使用 `text-sm`（与房间头部文本一致）。
 - 右侧管理区：
   - 房主可在最下方修改当前房间邀请码（门禁码）。
 - 公告触达：
@@ -254,6 +260,68 @@ npm run dev
   - 首页中置创建/加入双 Tab。
   - 房间页三栏布局（左：房间树，中：聊天，右：成员）。
   - 左下展示版本、开源协议、房间在线、总在线、当前用户。
+
+## 系统对外接口
+
+> 这些接口为外部统一管理后台预留，不依赖本项目内置后台页面。
+
+### 1) 获取系统信息 `/getInfo`
+
+- 请求方式：`GET` / `POST`
+- 参数：
+  - `auth`：非必传
+- 返回：
+  - 不传 `auth`：仅返回 `title`、`version`
+  - 传递 `auth` 且校验通过：返回完整信息，包括：
+    - `onlineRooms`：当前在线房间数
+    - `Rooms`：房间总数（包含逻辑删除和未删除）
+    - `onlineUsers`：当前在线用户数
+    - `serverAddress`：当前服务地址
+    - `fileServerInfo`：包含 `Dufs` 与 `S1`（S3）完整配置信息
+- 日志：每次调用都会在服务端打印记录。
+
+### 2) 关闭应用 `/offline`
+
+- 请求方式：`GET` / `POST`
+- 参数：
+  - `auth`：必传，不传或错误都返回认证失败
+  - `time`：非必传，格式 `yyyy-MM-dd HH:mm:ss`
+- 行为：
+  - 不传 `time`：立即执行关闭
+  - 传 `time`：校验通过后在指定时间执行关闭
+- 日志：每次调用都会在服务端打印记录。
+
+### 3) 更改鉴权参数 `/changeAuth`
+
+- 请求方式：`GET` / `POST`
+- 参数：
+  - `old`：旧 auth（必传）
+  - `new`：新 auth（必传，长度 1~32）
+- 说明：
+  - auth 配置持久化在数据库表 `bendy_shadowsend_app_auth_config`
+  - 初始值由 `APP_AUTH` 提供，默认 `bendywork`
+- 日志：每次修改都会在服务端打印请求记录。
+
+## 广告数据结构
+
+- 广告表：`bendy_shadowsend_advertisement`
+- 字段：展示时间段（`startsAt` ~ `endsAt`）+ 广告内容 JSON（`content`）
+- `content` 示例：
+
+```json
+[
+  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" },
+  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" },
+  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" },
+  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" },
+  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" }
+]
+```
+
+- 校验规则：
+  - `content` 最大 120 字符
+  - `color` 支持 `#RGB` 或 `#RRGGBB`
+  - `url` 可为空；非空时需为合法 URL
 
 ## 目录结构
 
@@ -296,6 +364,13 @@ npm run db:reinit:prefixed
 > 维护约定：每次迭代（功能、修复、部署调整）都必须同步补充本节。
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
+
+### 2026-03-25
+
+- `0.1.51` 设置区开关统一为黑白灰配色（允许申请加入、永不过期）。
+- `0.1.51` 房间头部新增广告文本上下滚动轮播，数据来源 `bendy_shadowsend_advertisement`。
+- `0.1.51` 新增系统接口：`/getInfo`、`/offline`、`/changeAuth`。
+- `0.1.51` 新增 auth 持久化表：`bendy_shadowsend_app_auth_config`（初始值来自 `APP_AUTH`，默认 `bendywork`）。
 
 ### 2026-03-24
 

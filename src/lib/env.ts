@@ -3,6 +3,7 @@
 import { APP_VERSION } from "@/lib/constants";
 
 const baseSchema = z.object({
+  APP_AUTH: z.string().trim().min(1).max(32).optional(),
   CHAT_ENCRYPTION_KEY: z
     .string()
     .min(32, "CHAT_ENCRYPTION_KEY 至少 32 字符")
@@ -35,6 +36,7 @@ const devFallbackKey = "0123456789abcdef0123456789abcdef";
 
 export const env = {
   appVersion: APP_VERSION,
+  appAuth: parsed.data.APP_AUTH ?? "bendywork",
   encryptionKey:
     parsed.data.CHAT_ENCRYPTION_KEY ??
     (process.env.NODE_ENV === "production" ? undefined : devFallbackKey),

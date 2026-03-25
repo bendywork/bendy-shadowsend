@@ -13,7 +13,7 @@ import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS,
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
+import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
 type DirectUploadPreparePayload = {
@@ -88,6 +88,9 @@ const MAX_MESSAGES_IN_MEMORY = 220;
 const MESSAGE_COLLAPSE_CHAR_THRESHOLD = 1200;
 const MESSAGE_COLLAPSE_PREVIEW_MAX = 1600;
 const MESSAGE_COLLAPSE_PREVIEW_MIN = 360;
+const AD_CAROUSEL_INTERVAL_MS = 4200;
+const AD_CAROUSEL_SLIDE_MS = 320;
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 function withStableAttachmentPreviewUrls(
   prev: RoomSnapshot | null,
@@ -234,20 +237,112 @@ function SwitchBtn({
       className={clsx(
         "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200",
         checked
-          ? "border-rose-300/30 bg-rose-300/35"
+          ? "border-zinc-500 bg-zinc-500/50"
           : "border-zinc-600 bg-zinc-700",
         disabled
           ? "cursor-not-allowed opacity-60"
-          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/50",
+          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/60",
       )}
     >
       <span
         className={clsx(
           "inline-block h-5 w-5 rounded-full shadow-[0_1px_6px_rgba(0,0,0,0.4)] transition-transform duration-200",
-          checked ? "translate-x-5 bg-rose-300" : "translate-x-0.5 bg-zinc-200",
+          checked ? "translate-x-5 bg-zinc-100" : "translate-x-0.5 bg-zinc-200",
         )}
       />
     </button>
+  );
+}
+
+function AdCarouselItem({
+  item,
+  className,
+}: {
+  item: AdBoardItem;
+  className: string;
+}) {
+  const textColor = HEX_COLOR_RE.test(item.color) ? item.color : "#d4d4d8";
+
+  if (item.url) {
+    return (
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={clsx(
+          "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-300 ease-out",
+          className,
+        )}
+        style={{ color: textColor }}
+        title={item.content}
+      >
+        <span className="truncate">{item.content}</span>
+      </a>
+    );
+  }
+
+  return (
+    <div
+      className={clsx(
+        "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-300 ease-out",
+        className,
+      )}
+      style={{ color: textColor }}
+      title={item.content}
+    >
+      <span className="truncate">{item.content}</span>
+    </div>
+  );
+}
+
+function AdCarousel({ items }: { items: AdBoardItem[] }) {
+  const [index, setIndex] = useState(0);
+  const [animating, setAnimating] = useState(false);
+
+  useEffect(() => {
+    if (items.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setAnimating(true);
+    }, AD_CAROUSEL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [items.length]);
+
+  useEffect(() => {
+    if (!animating || items.length <= 1) return;
+    const timer = window.setTimeout(() => {
+      setIndex((prev) => (prev + 1) % items.length);
+      setAnimating(false);
+    }, AD_CAROUSEL_SLIDE_MS);
+    return () => window.clearTimeout(timer);
+  }, [animating, items.length]);
+
+  if (items.length === 0) {
+    return (
+      <div className="relative h-9 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900/70 px-3">
+        <div className="absolute inset-0 flex items-center text-sm text-zinc-500">
+          暂无广告内容
+        </div>
+      </div>
+    );
+  }
+
+  const safeIndex = index % items.length;
+  const current = items[safeIndex];
+  const next = items[(safeIndex + 1) % items.length];
+
+  return (
+    <div className="relative h-9 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900/70">
+      <AdCarouselItem
+        item={current}
+        className={animating ? "-translate-y-full" : "translate-y-0"}
+      />
+      {items.length > 1 ? (
+        <AdCarouselItem
+          item={next}
+          className={animating ? "translate-y-0" : "translate-y-full"}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -1615,6 +1710,7 @@ export default function RoomPage() {
               {isOwner ? <Btn icon={<Settings2 className="h-3.5 w-3.5" />} label={showManage ? "管理(隐藏)" : "管理(显示)"} onClick={() => setShowManage((v) => !v)} /> : null}
               {isOwner ? <Btn icon={<Trash2 className="h-3.5 w-3.5" />} label={action === "dissolve" ? "解散中..." : "解散"} onClick={dissolve} danger disabled={action === "dissolve"} /> : null}
             </div>
+            <AdCarousel items={snap.adBoard.items} />
             {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
           </header>
 

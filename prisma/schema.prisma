@@ -236,3 +236,24 @@ model Presence {
   @@map("bendy_shadowsend_presence")
 }
 
+model AppAuthConfig {
+  id        String   @id @default("default")
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bendy_shadowsend_app_auth_config")
+}
+
+model Advertisement {
+  id        String   @id @default(cuid())
+  startsAt  DateTime
+  endsAt    DateTime
+  content   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startsAt, endsAt])
+  @@map("bendy_shadowsend_advertisement")
+}
+

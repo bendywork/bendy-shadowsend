@@ -81,6 +81,12 @@ export type MessageItem = {
   attachments: AttachmentItem[];
 };
 
+export type AdBoardItem = {
+  content: string;
+  color: string;
+  url: string;
+};
+
 export type RoomSnapshot = {
   app: {
     name: string;
@@ -119,6 +125,10 @@ export type RoomSnapshot = {
   stats: {
     roomOnline: number;
     totalOnline: number;
+  };
+  adBoard: {
+    items: AdBoardItem[];
+    maxContentChars: number;
   };
   waitingApproval?: boolean;
 };
