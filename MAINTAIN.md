@@ -3,6 +3,27 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-03-28: Fix image upload failure around 12MB
+
+### Symptom
+- Uploading image files around `12MB` failed in the room page, even though business limits allowed much larger files.
+
+### Root Cause
+- The image path uses backend proxy upload (`/api/rooms/[roomCode]/upload` with `FormData`).
+- Production logs show `413 FUNCTION_PAYLOAD_TOO_LARGE` on `/api/rooms/[roomCode]/upload`.
+- This is a platform-level function request body limit (triggered before route code runs), so large image uploads fail when forced through backend proxy.
+
+### Fix
+- Upload strategy adjusted so all file types (including images) prefer S3 pre-signed direct upload first.
+- `/api/rooms/[roomCode]/upload-url` now allows image MIME types when S3 is configured.
+- Frontend no longer forces `image/*` to proxy path; only falls back to proxy when direct upload fails.
+- Added explicit `413` error handling in proxy upload XHR for clearer user feedback.
+- Kept `next.config.ts` `experimental.proxyClientMaxBodySize: "256mb"` for self-host/proxy deployments where Next proxy body buffering is in play.
+
+### Notes
+- Existing app-level file size checks remain unchanged.
+- If S3 is unavailable, large files on serverless platforms may still be constrained by platform payload limits.
+
 ## 2026-03-25: v0.1.53 Dissolve Redirect Fix
 
 ### Scope

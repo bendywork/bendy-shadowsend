@@ -716,6 +716,20 @@ export default function RoomPage() {
       };
 
       xhr.onload = () => {
+        if (xhr.status === 413) {
+          console.error("[upload] proxy payload too large", {
+            requestUrl,
+            roomCode,
+            status: xhr.status,
+            responseText: xhr.responseText,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+          });
+          reject(new Error("中转上传被服务平台拒绝（413），请优先使用 S3 直传"));
+          return;
+        }
+
         let parsed:
           | {
               ok: boolean;
@@ -836,11 +850,6 @@ export default function RoomPage() {
   }
 
   async function upload(file: File, onProgress?: (percent: number) => void) {
-    const isImage = file.type.startsWith("image/");
-    if (isImage) {
-      return uploadByProxy(file, onProgress);
-    }
-
     try {
       return await uploadDirectToS3(file, onProgress);
     } catch (directUploadError) {

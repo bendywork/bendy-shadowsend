@@ -42,12 +42,12 @@ export async function POST(
 
     await assertRoomMember(room.id, user.id);
 
-    if (payload.mimeType.startsWith("image/")) {
-      throw new ApiError(400, "图片上传请走 DUFS 后端通道", "IMAGE_UPLOAD_USE_DUFS");
-    }
-
     if (!isS3Configured()) {
-      throw new ApiError(400, "当前未配置 S3，请走 DUFS 后端通道上传", "S3_NOT_CONFIGURED");
+      throw new ApiError(
+        400,
+        "当前未配置 S3，请走后端中转上传",
+        "S3_NOT_CONFIGURED",
+      );
     }
 
     const suffix = keyId();

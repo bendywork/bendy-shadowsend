@@ -63,13 +63,14 @@ Copy-Item .env.example .env
 >
 > 当前上传策略：
 >
-> - `image/*`：固定走后端中转上传接口（`/api/rooms/[roomCode]/upload`），并写入 DUFS（不走 S3）。
-> - 非图片文件：
->   - 若已配置 S3：优先走 S3 预签名直传；失败时（且文件不超过 `200MB`）回退后端中转。
->   - 若未配置 S3 且已配置 DUFS：直接走 DUFS（经后端中转）。
-> - 公告图片与普通图片文件使用同一套策略（即图片固定走 DUFS）。
+> - 所有文件（含 `image/*`）：
+>   - 若已配置 S3：优先走 S3 预签名直传；失败时（且文件不超过 `200MB`）回退后端中转（`/api/rooms/[roomCode]/upload`）。
+>   - 若未配置 S3 且已配置 DUFS：走后端中转并写入 DUFS。
+> - 公告图片与普通聊天附件使用同一套策略。
 >
 > 单文件大小上限为 `10GB`（服务端会校验）。
+>
+> 若部署在 Vercel 等函数平台，后端中转会受到函数请求体大小限制（可能触发 `413 FUNCTION_PAYLOAD_TOO_LARGE`），建议优先保证 S3 直传链路可用（含 CORS）。
 >
 > 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
 
