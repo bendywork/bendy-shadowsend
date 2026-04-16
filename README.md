@@ -420,3 +420,37 @@ npm run db:reinit:prefixed
 ## License
 
 MIT © 临时笨迪 contributors
+
+## 版本号管理
+
+### 修改版本号流程
+
+1. 修改 `package.json` 的 `version` 字段：
+
+```json
+{
+  "name": "bendy-shadowsend",
+  "version": "0.1.54"  // 修改这里
+}
+```
+
+2. 运行同步脚本：
+
+```bash
+node scripts/sync-version.js
+```
+
+3. 验证同步结果：
+
+```bash
+grep "version" package.json src/lib/constants.ts
+```
+
+> **重要**：`scripts/sync-version.js` 会自动将 `package.json` 的版本号同步到 `src/lib/constants.ts` 的 `APP_VERSION_PARTS`。
+
+### 为什么需要同步脚本
+
+- 项目的前后端都使用 `APP_VERSION` 常量来显示版本号
+- `package.json` 是 npm 包管理的标准位置
+- `src/lib/constants.ts` 是运行时读取版本号的位置
+- 同步脚本确保两处始终保持一致，避免手动修改出错
