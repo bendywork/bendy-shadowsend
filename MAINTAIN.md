@@ -3,6 +3,28 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-04-16: v0.1.55 Light Theme QR Visibility Fix
+
+### Scope
+- Fix room QR code visibility in light theme
+- Rename the shared theme section title from settings to theme
+- Bump app version to `0.1.55`
+
+### Bug Fixes
+- QR code generation now uses dark modules on a white background instead of white modules on a transparent background.
+- QR image has an explicit white background and padding so light theme overlay/card colors cannot wash it out.
+
+### Frontend Changes
+- `src/app/room/[roomCode]/page.tsx`:
+  - Reset QR image before regenerating it for the current room link.
+  - Generate QR images with `dark: "#18181b"` and `light: "#ffffff"`.
+  - Change the shared theme panel heading to `主题` and inner label to `外观模式`.
+  - Add `bg-white p-2` to the QR image.
+
+### Versioning / History
+- Updated `package.json` and runtime version to `0.1.55`.
+- Added this iteration entry to `MAINTAIN.md`.
+
 ## 2026-04-16: v0.1.54 成员列表滚动与主题设置修复
 
 ### Scope

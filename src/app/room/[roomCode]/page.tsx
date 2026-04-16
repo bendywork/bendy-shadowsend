@@ -442,7 +442,8 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (!showQr || !joinLink) return;
-    void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark: "#f4f4f5", light: "#00000000" } }).then(setQr);
+    setQr(null);
+    void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark: "#18181b", light: "#ffffff" } }).then(setQr);
   }, [showQr, joinLink]);
 
   useEffect(() => {
@@ -2363,12 +2364,12 @@ export default function RoomPage() {
             ) : null}
 
             <div className="mt-4 border-t border-zinc-800 pt-3">
-              <h3 className="mb-2 text-sm font-semibold text-zinc-200">设置</h3>
+              <h3 className="mb-2 text-sm font-semibold text-zinc-200">主题</h3>
               <div className="space-y-3">
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-medium text-zinc-200">主题</p>
+                      <p className="text-xs font-medium text-zinc-200">外观模式</p>
                       <p className="text-[11px] text-zinc-500">切换日间/夜间配色</p>
                     </div>
                     <ThemeToggle />
@@ -2517,7 +2518,7 @@ export default function RoomPage() {
               </button>
             </div>
             {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-zinc-700" />
+              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-zinc-700 bg-white p-2" />
             ) : (
               <div className="flex h-64 items-center justify-center">
                 <LoaderCircle className="h-5 w-5 animate-spin text-zinc-400" />
