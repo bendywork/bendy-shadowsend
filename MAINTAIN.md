@@ -3,6 +3,42 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-04-16: v0.1.54 成员列表滚动与主题设置修复
+
+### Scope
+- Fix member list scrolling for non-owner users
+- Add scroll to owner settings panel
+- Allow all members to change theme settings
+- Bump app version to `0.1.54`
+
+### Bug Fixes
+
+#### 1. Non-owner Member List Height
+- **Before**: Non-owner members had limited height on member list, causing layout issues
+- **After**: Member list now takes full available height with `flex-1 overflow-y-auto` styling
+- Members panel always shows scrollbar when needed regardless of user role
+
+#### 2. Owner Settings Overflow
+- **Before**: Settings panel had no scrollbar, options got pushed off-screen with many members
+- **After**: Settings container now has `max-h-[24rem] overflow-y-auto` for proper scrolling
+- All settings remain accessible even with many room members
+
+#### 3. Theme Toggle Accessibility
+- **Before**: Theme toggle was only visible to room owners
+- **After**: Theme toggle moved to shared settings section, available to all members
+- Every user can now customize their own viewing theme
+
+### Frontend Changes
+- `src/app/room/[roomCode]/page.tsx`:
+  - Member list container: changed from conditional `max-h` to consistent `flex-1 overflow-y-auto`
+  - Approvals list: changed from conditional `max-h` to `flex-1 overflow-y-auto`
+  - Settings section: restructured to show theme toggle for all users
+  - Owner-only settings wrapped in fragment, theme toggle moved outside owner check
+
+### Versioning / History
+- Updated `package.json` and runtime version to `0.1.54`
+- Added this iteration entry to `MAINTAIN.md`
+
 ## 2026-03-28: Fix image upload failure around 12MB
 
 ### Symptom

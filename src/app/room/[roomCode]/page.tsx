@@ -2163,16 +2163,9 @@ export default function RoomPage() {
             </div>
 
             {memberPanelTab === "members" || !isOwner ? (
-              <div>
+              <div className="flex min-h-0 flex-1 flex-col">
                 <h2 className="mb-2 text-lg font-semibold text-zinc-100">{snap.members.length} 人</h2>
-                <div
-                  className={clsx(
-                    "space-y-2",
-                    snap.members.length > 5
-                      ? "max-h-[20rem] overflow-y-auto pr-1"
-                      : "overflow-visible",
-                  )}
-                >
+                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.members.map((m) => (
                     <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
                       <div className="flex items-start justify-between gap-2">
@@ -2238,16 +2231,9 @@ export default function RoomPage() {
             ) : null}
 
             {isOwner && memberPanelTab === "approvals" ? (
-              <div className="space-y-2">
+              <div className="flex min-h-0 flex-1 flex-col">
                 <h2 className="mb-2 text-lg font-semibold text-zinc-100">等待审批</h2>
-                <div
-                  className={clsx(
-                    "space-y-2",
-                    snap.pendingRequests.length > 5
-                      ? "max-h-[20rem] overflow-y-auto pr-1"
-                      : "overflow-visible",
-                  )}
-                >
+                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.pendingRequests.length === 0 ? (
                     <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">
                       暂无待审批
@@ -2290,7 +2276,7 @@ export default function RoomPage() {
             {isOwner ? (
               <div className="mt-4 border-t border-zinc-800 pt-3">
                 <h3 className="mb-2 text-sm font-semibold text-zinc-200">设置</h3>
-                <div className="space-y-3">
+                <div className="max-h-[24rem] space-y-3 overflow-y-auto pr-1">
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                     <p className="text-xs font-medium text-zinc-200">房间名称</p>
                     <div className="mt-2 flex items-center gap-2">
@@ -2372,18 +2358,24 @@ export default function RoomPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium text-zinc-200">主题</p>
-                        <p className="text-[11px] text-zinc-500">切换日间/夜间配色</p>
-                      </div>
-                      <ThemeToggle />
-                    </div>
-                  </div>
                 </div>
               </div>
             ) : null}
+
+            <div className="mt-4 border-t border-zinc-800 pt-3">
+              <h3 className="mb-2 text-sm font-semibold text-zinc-200">设置</h3>
+              <div className="space-y-3">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-zinc-200">主题</p>
+                      <p className="text-[11px] text-zinc-500">切换日间/夜间配色</p>
+                    </div>
+                    <ThemeToggle />
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {error ? <p className="mt-3 text-xs text-zinc-300">{error}</p> : null}
           </aside>
