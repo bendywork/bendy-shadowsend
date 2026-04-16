@@ -103,6 +103,10 @@ button {
   background-color: rgb(255 255 255 / 0.78) !important;
 }
 
+:root[data-theme="light"] .bg-black\/60 {
+  background-color: rgb(255 255 255 / 0.45) !important;
+}
+
 :root[data-theme="light"] .text-white {
   color: #0f172a !important;
 }
