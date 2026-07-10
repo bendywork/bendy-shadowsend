@@ -1,7 +1,8 @@
 ﻿import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ApiError } from "@/lib/api";
-import { env, isS3Configured } from "@/lib/env";
+import { env, isFsServerConfigured, isS3Configured } from "@/lib/env";
+import * as fsServer from "@/lib/fs-server";
 
 const s3ClientCache = new Map<string, S3Client>();
 
@@ -89,6 +90,14 @@ export async function createUploadUrl(params: {
   contentType: string;
   expiresInSeconds?: number;
 }) {
+  if (isFsServerConfigured()) {
+    try {
+      return await fsServer.createUploadUrl(params);
+    } catch (e) {
+      console.error("[fs-server] createUploadUrl failed, falling back to direct S3", e);
+    }
+  }
+
   const command = new PutObjectCommand({
     Bucket: getBucketName(),
     Key: params.key,
@@ -107,6 +116,15 @@ export async function uploadObject(params: {
   contentType: string;
   body: Uint8Array;
 }) {
+  if (isFsServerConfigured()) {
+    try {
+      await fsServer.uploadObject(params);
+      return;
+    } catch (e) {
+      console.error("[fs-server] uploadObject failed, falling back to direct S3", e);
+    }
+  }
+
   const primaryForcePathStyle = resolveForcePathStyle(env.s3.forcePathStyle);
   const createCommand = () =>
     new PutObjectCommand({
@@ -150,6 +168,14 @@ export async function createDownloadUrl(params: {
   filename: string;
   expiresInSeconds?: number;
 }) {
+  if (isFsServerConfigured()) {
+    try {
+      return await fsServer.createDownloadUrl(params);
+    } catch (e) {
+      console.error("[fs-server] createDownloadUrl failed, falling back to direct S3", e);
+    }
+  }
+
   const command = new GetObjectCommand({
     Bucket: getBucketName(),
     Key: params.key,
@@ -169,6 +195,14 @@ export async function createInlineReadUrl(params: {
   key: string;
   expiresInSeconds?: number;
 }) {
+  if (isFsServerConfigured()) {
+    try {
+      return await fsServer.createInlineReadUrl(params);
+    } catch (e) {
+      console.error("[fs-server] createInlineReadUrl failed, falling back to direct S3", e);
+    }
+  }
+
   const command = new GetObjectCommand({
     Bucket: getBucketName(),
     Key: params.key,
@@ -201,6 +235,20 @@ export async function createAttachmentPreviewUrl(params: {
   cookieHeader?: string;
   expiresInSeconds?: number;
 }) {
+  if (isFsServerConfigured()) {
+    try {
+      const url = await fsServer.createAttachmentPreviewUrl({
+        key: params.key,
+        fileName: params.fileName,
+        mimeType: params.mimeType,
+        sizeBytes: params.sizeBytes,
+      });
+      if (url) return url;
+    } catch (e) {
+      console.error("[fs-server] createAttachmentPreviewUrl failed, falling back", e);
+    }
+  }
+
   const rpcUrl = env.ossPreview.rpcUrl;
   const bucketName = getOssPreviewBucketName();
 

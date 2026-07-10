@@ -24,6 +24,9 @@ const baseSchema = z.object({
   OSS_PREVIEW_RPC_URL: z.string().url().optional(),
   OSS_PREVIEW_BUCKET_NAME: z.string().optional(),
   OSS_PREVIEW_COOKIE: z.string().optional(),
+  FS_SERVER_ADDRESS: z.string().url().optional(),
+  FS_SERVER_API_KEY: z.string().optional(),
+  FS_SERVER_API_SECRET: z.string().optional(),
 });
 
 const parsed = baseSchema.safeParse(process.env);
@@ -59,12 +62,23 @@ export const env = {
     bucketName: parsed.data.OSS_PREVIEW_BUCKET_NAME,
     cookie: parsed.data.OSS_PREVIEW_COOKIE,
   },
+  fsServer: {
+    address: parsed.data.FS_SERVER_ADDRESS,
+    apiKey: parsed.data.FS_SERVER_API_KEY,
+    apiSecret: parsed.data.FS_SERVER_API_SECRET,
+  },
 };
 
 export function isS3Configured() {
   const s3 = env.s3;
   return Boolean(
     s3.endpoint && s3.bucket && s3.accessKeyId && s3.secretAccessKey,
+  );
+}
+
+export function isFsServerConfigured() {
+  return Boolean(
+    env.fsServer.address && env.fsServer.apiKey && env.fsServer.apiSecret,
   );
 }
 
