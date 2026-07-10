@@ -9,7 +9,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -782,6 +782,90 @@ export default function RoomPage() {
     return payload;
   }
 
+  async function uploadByChunkedProxy(file: File, onProgress?: (percent: number) => void) {
+    const totalChunks = Math.ceil(file.size / DUFS_CHUNK_SIZE_BYTES);
+    let dufsPath: string | null = null;
+
+    const cleanupDufsFile = async () => {
+      if (!dufsPath) return;
+      await fetch(`/api/rooms/${roomCode}/upload/chunk`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dufsPath }),
+      }).catch(() => {});
+    };
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * DUFS_CHUNK_SIZE_BYTES;
+      const end = Math.min(start + DUFS_CHUNK_SIZE_BYTES, file.size);
+      const chunk = file.slice(start, end);
+
+      const formData = new FormData();
+      formData.append("file", chunk, file.name);
+      formData.append("chunkIndex", String(i));
+      formData.append("totalChunks", String(totalChunks));
+      formData.append("totalBytes", String(file.size));
+      formData.append("fileName", file.name);
+      formData.append("mimeType", file.type);
+      if (dufsPath) {
+        formData.append("dufsPath", dufsPath);
+      }
+
+      const requestUrl = `/api/rooms/${roomCode}/upload/chunk`;
+
+      let response: Response;
+      try {
+        response = await fetch(requestUrl, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+      } catch {
+        await cleanupDufsFile();
+        throw new Error(`Upload failed: ${file.name}`);
+      }
+
+      let parsed: {
+        ok: boolean;
+        data?: ProxyUploadResult & { dufsPath: string };
+        error?: { message?: string };
+      } | null = null;
+
+      try {
+        parsed = await response.json();
+      } catch {
+        await cleanupDufsFile();
+        throw new Error(`Upload failed: ${file.name}`);
+      }
+
+      if (!response.ok || !parsed?.ok || !parsed?.data) {
+        await cleanupDufsFile();
+        throw new Error(parsed?.error?.message ?? `Upload failed: ${file.name}`);
+      }
+
+      if (i === 0) {
+        dufsPath = parsed.data.dufsPath;
+      }
+
+      if (onProgress) {
+        onProgress(Math.min(100, Math.round(((i + 1) / totalChunks) * 100)));
+      }
+
+      if (parsed.data.s3Key) {
+        return {
+          s3Key: parsed.data.s3Key,
+          fileName: parsed.data.fileName,
+          mimeType: parsed.data.mimeType,
+          sizeBytes: parsed.data.sizeBytes,
+          storage: parsed.data.storage,
+          previewUrl: parsed.data.previewUrl ?? null,
+        } satisfies ProxyUploadResult;
+      }
+    }
+
+    throw new Error(`Upload failed: ${file.name}`);
+  }
+
   async function uploadDirectToS3(file: File, onProgress?: (percent: number) => void) {
     const mimeType = file.type?.trim() || "application/octet-stream";
     const prepare = await apiFetch<DirectUploadPreparePayload>(`/api/rooms/${roomCode}/upload-url`, {
@@ -866,6 +950,10 @@ export default function RoomPage() {
         throw new Error(
           `文件超过 ${Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024)}MB 中转上限，请启用 S3 直传或缩小文件后重试`,
         );
+      }
+
+      if (file.type.startsWith("image/") && file.size >= CHUNKED_UPLOAD_THRESHOLD_BYTES) {
+        return uploadByChunkedProxy(file, onProgress);
       }
 
       return uploadByProxy(file, onProgress);

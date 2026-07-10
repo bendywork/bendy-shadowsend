@@ -74,18 +74,37 @@ export async function POST(
     let storage: AttachmentStorage = AttachmentStorage.S3;
 
     if (isImage) {
-      if (!dufsConfigured) {
-        throw new ApiError(503, "图片上传依赖 DUFS，当前未配置", "DUFS_NOT_CONFIGURED");
+      // 图片优先走 Dufs，失败则回退到 S3
+      if (dufsConfigured) {
+        try {
+          key = `img-${room.id}-${Date.now()}-${suffix}-${fileName}`;
+          const uploadedToDufs = await uploadImageToDufs({
+            path: key,
+            body: content,
+            contentType: mimeType,
+          });
+          storage = AttachmentStorage.DUFS;
+          previewUrl = uploadedToDufs.publicUrl;
+        } catch (dufsError) {
+          console.error("[upload] Dufs upload failed, falling back to S3", dufsError);
+        }
       }
 
-      key = `img-${room.id}-${Date.now()}-${suffix}-${fileName}`;
-      const uploadedToDufs = await uploadImageToDufs({
-        path: key,
-        body: content,
-        contentType: mimeType,
-      });
-      storage = AttachmentStorage.DUFS;
-      previewUrl = uploadedToDufs.publicUrl;
+      if (!previewUrl) {
+        if (!s3Configured) {
+          if (!dufsConfigured) {
+            throw new ApiError(503, "图片上传失败：DUFS 未配置", "DUFS_NOT_CONFIGURED");
+          }
+          throw new ApiError(502, "图片上传失败：DUFS 不可用且 S3 未配置", "IMAGE_UPLOAD_FAILED");
+        }
+        key = `rooms/${room.id}/${Date.now()}-${suffix}-${fileName}`;
+        await uploadObject({
+          key,
+          contentType: mimeType,
+          body: content,
+        });
+        storage = AttachmentStorage.S3;
+      }
     } else if (s3Configured) {
       key = `rooms/${room.id}/${Date.now()}-${suffix}-${fileName}`;
       await uploadObject({

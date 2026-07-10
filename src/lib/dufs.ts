@@ -26,8 +26,15 @@ function normalizeAuthHeader(value?: string) {
     return trimmed;
   }
 
-  if (trimmed.includes(":")) {
-    const encoded = Buffer.from(trimmed).toString("base64");
+  // Strip Dufs-style path/permission suffix: user:pass@/path:rw → user:pass
+  let creds = trimmed;
+  const atPath = creds.lastIndexOf("@/");
+  if (atPath > 0) {
+    creds = creds.slice(0, atPath);
+  }
+
+  if (creds.includes(":")) {
+    const encoded = Buffer.from(creds).toString("base64");
     return `Basic ${encoded}`;
   }
 
@@ -173,4 +180,96 @@ export async function fetchDufsFile(path: string) {
   }
 
   return response;
+}
+
+export async function appendToDufsFile(params: {
+  path: string;
+  body: Uint8Array;
+}) {
+  const fileUrl = `${getInternalBaseUrl()}/${encodePath(params.path)}`;
+  const headers: HeadersInit = {
+    "X-Update-Range": "append",
+  };
+
+  const authHeader = getAuthHeader();
+  if (authHeader) {
+    headers.Authorization = authHeader;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(fileUrl, {
+      method: "PATCH",
+      headers,
+      body: Buffer.from(params.body),
+      cache: "no-store",
+    });
+  } catch (error) {
+    console.error("[dufs] append request failed", {
+      fileUrl,
+      sizeBytes: params.body.byteLength,
+      error,
+    });
+    throw new ApiError(502, "DUFS append request failed", "DUFS_APPEND_REQUEST_FAILED");
+  }
+
+  if (!response.ok) {
+    const rawText = await response.text().catch(() => "");
+    console.error("[dufs] append http error", {
+      fileUrl,
+      status: response.status,
+      statusText: response.statusText,
+      rawText,
+    });
+    throw new ApiError(
+      502,
+      `DUFS append failed (${response.status})`,
+      "DUFS_APPEND_FAILED",
+    );
+  }
+}
+
+export async function deleteDufsFile(path: string) {
+  const fileUrl = `${getInternalBaseUrl()}/${encodePath(path)}`;
+  const headers: HeadersInit = {};
+
+  const authHeader = getAuthHeader();
+  if (authHeader) {
+    headers.Authorization = authHeader;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(fileUrl, {
+      method: "DELETE",
+      headers,
+      cache: "no-store",
+    });
+  } catch (error) {
+    console.error("[dufs] delete request failed", { fileUrl, error });
+    throw new ApiError(502, "DUFS delete request failed", "DUFS_DELETE_REQUEST_FAILED");
+  }
+
+  if (!response.ok) {
+    const rawText = await response.text().catch(() => "");
+    console.error("[dufs] delete http error", {
+      fileUrl,
+      status: response.status,
+      statusText: response.statusText,
+      rawText,
+    });
+    throw new ApiError(
+      502,
+      `DUFS delete failed (${response.status})`,
+      "DUFS_DELETE_FAILED",
+    );
+  }
+}
+
+export function createDufsImagePath(params: {
+  roomId: string;
+  suffix: string;
+  fileName: string;
+}) {
+  return `img-${params.roomId}-${Date.now()}-${params.suffix}-${params.fileName}`;
 }
