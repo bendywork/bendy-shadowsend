@@ -366,6 +366,14 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-09-24
+
+- `0.1.56` 全局 UI 优化：重制设计体系，登录页降噪，整体向 macOS 质感靠拢。
+- `bb641cc` 重构 `globals.css`：分层设计令牌、`-apple-system` 字体栈、统一圆角/阴影/聚焦环、精修滚动条。
+- `bb641cc` 日间主题基于 Apple 中性灰 + 系统蓝重制，zinc 工具类走 `--color-zinc-*` 自适应，去掉冗余 `!important`。
+- `bb641cc` 登录页 `page.tsx`：卡片 `.surface-card`、输入 `.field`、分段 `.segmented`、主按钮 `.btn-primary`，收敛标题与动画噪声。
+- `bb641cc` 聊天页 `room/[roomCode]/page.tsx` 主发送按钮改为 accent 主按钮，与登录页统一。
+
 ### 2026-04-16
 
 - `0.1.55` 修复白天模式房间二维码被浅色遮罩/弹窗背景冲淡的问题，二维码改为黑码点白底显示。
