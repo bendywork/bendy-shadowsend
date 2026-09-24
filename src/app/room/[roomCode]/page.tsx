@@ -8,7 +8,7 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -17,6 +17,8 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
+import { Popover } from "@/components/ui/popover";
+import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -360,7 +362,8 @@ export default function RoomPage() {
   const [expandedPendingMessageIds, setExpandedPendingMessageIds] = useState<Record<string, boolean>>({});
   const [copiedTextKeys, setCopiedTextKeys] = useState<Record<string, boolean>>({});
 
-  const [showManage, setShowManage] = useState(true);
+  const [membersCollapsed, , toggleMembersCollapsed] = usePersistentBoolean("tb:members-collapsed", false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
 
@@ -397,7 +400,7 @@ export default function RoomPage() {
 
   const t = useT();
   const isOwner = snap?.me.role === "OWNER";
-  const showMembers = isOwner ? showManage : true;
+  const membersVisible = !membersCollapsed;
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
   const pollingEnabled = Boolean(snap && !snap.waitingApproval);
 
@@ -1689,7 +1692,7 @@ export default function RoomPage() {
 
   return (
     <>
-      <main className={clsx("grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden", showMembers ? "xl:grid-cols-[290px_minmax(0,1fr)_290px]" : "xl:grid-cols-[290px_minmax(0,1fr)]") }>
+      <main className={clsx("grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden", membersVisible ? "xl:grid-cols-[290px_minmax(0,1fr)_290px]" : "xl:grid-cols-[290px_minmax(0,1fr)]") }>
         <aside ref={roomsPanelRef} className="order-2 flex min-h-0 max-h-[52vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-1 xl:max-h-none">
           <div className="mb-4 flex items-center gap-2">
             <div className="flex items-center gap-2">
@@ -1837,7 +1840,7 @@ export default function RoomPage() {
               >
                 房间列表
               </button>
-              {showMembers ? (
+              {membersVisible ? (
                 <button
                   type="button"
                   onClick={() => scrollToPanel("members")}
@@ -1861,12 +1864,21 @@ export default function RoomPage() {
                   <Megaphone className="h-4 w-4" />
                 </IconButton>
               </Tooltip>
+              <Tooltip label={membersVisible ? t("control.members.hide") : t("control.members.show")}>
+                <IconButton
+                  aria-label={membersVisible ? t("control.members.hide") : t("control.members.show")}
+                  active={membersVisible}
+                  onClick={toggleMembersCollapsed}
+                >
+                  <Users className="h-4 w-4" />
+                </IconButton>
+              </Tooltip>
               {isOwner ? (
-                <Tooltip label={showManage ? t("header.managePanel.hide") : t("header.managePanel.show")}>
+                <Tooltip label={t("header.settings")}>
                   <IconButton
-                    aria-label={showManage ? t("header.managePanel.hide") : t("header.managePanel.show")}
-                    active={showManage}
-                    onClick={() => setShowManage((v) => !v)}
+                    aria-label={t("header.settings")}
+                    active={settingsOpen}
+                    onClick={() => setSettingsOpen(true)}
                   >
                     <Settings2 className="h-4 w-4" />
                   </IconButton>
@@ -2252,28 +2264,40 @@ export default function RoomPage() {
           </form>
         </section>
 
-        {showMembers ? (
-          <aside ref={membersPanelRef} className="order-3 flex min-h-0 max-h-[56vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-3 xl:max-h-none">
+        <aside
+          ref={membersPanelRef}
+          className={clsx(
+            "order-3 min-h-0 max-h-[56vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-3 xl:max-h-none",
+            membersVisible ? "flex" : "hidden",
+          )}
+        >
             <div className="mb-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-                {isOwner ? "成员管理" : "成员列表"}
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                  {isOwner ? t("members.manage") : t("members.list")}
+                </p>
+                <Tooltip label={t("members.collapse")}>
+                  <IconButton
+                    aria-label={t("members.collapse")}
+                    className="h-7 w-7"
+                    onClick={toggleMembersCollapsed}
+                  >
+                    <PanelRightClose className="h-4 w-4" />
+                  </IconButton>
+                </Tooltip>
+              </div>
               {isOwner ? (
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="segmented mt-2 grid grid-cols-2 gap-1 p-1">
                   <button
                     type="button"
                     onClick={() => {
                       setOpenMemberMenuId(null);
                       setMemberPanelTab("members");
                     }}
-                    className={clsx(
-                      "rounded-md border px-2 py-1.5 text-xs",
-                      memberPanelTab === "members"
-                        ? "border-zinc-500/60 bg-zinc-500/15 text-zinc-100"
-                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
-                    )}
+                    className="segmented-item px-2 py-1.5 text-xs font-medium"
+                    data-active={memberPanelTab === "members"}
                   >
-                    成员
+                    {t("members.tab.members")}
                   </button>
                   <button
                     type="button"
@@ -2281,14 +2305,10 @@ export default function RoomPage() {
                       setOpenMemberMenuId(null);
                       setMemberPanelTab("approvals");
                     }}
-                    className={clsx(
-                      "rounded-md border px-2 py-1.5 text-xs",
-                      memberPanelTab === "approvals"
-                        ? "border-zinc-500/60 bg-zinc-500/15 text-zinc-100"
-                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
-                    )}
+                    className="segmented-item px-2 py-1.5 text-xs font-medium"
+                    data-active={memberPanelTab === "approvals"}
                   >
-                    审批
+                    {t("members.tab.approvals")}
                   </button>
                 </div>
               ) : null}
@@ -2296,7 +2316,7 @@ export default function RoomPage() {
 
             {memberPanelTab === "members" || !isOwner ? (
               <div className="flex min-h-0 flex-1 flex-col">
-                <h2 className="mb-2 text-lg font-semibold text-zinc-100">{snap.members.length} 人</h2>
+                <h2 className="mb-2 text-lg font-semibold text-zinc-100">{t("members.count", { count: snap.members.length })}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.members.map((m) => (
                     <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
@@ -2306,7 +2326,7 @@ export default function RoomPage() {
                           <div className="min-w-0">
                             <p className="truncate text-sm text-zinc-200">{m.user.nickname}</p>
                             <p className="text-xs text-zinc-500">
-                              {m.role === "OWNER" ? "房主" : "成员"} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
+                              {m.role === "OWNER" ? t("members.role.owner") : t("members.role.member")} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
                             </p>
                           </div>
                         </div>
@@ -2364,11 +2384,11 @@ export default function RoomPage() {
 
             {isOwner && memberPanelTab === "approvals" ? (
               <div className="flex min-h-0 flex-1 flex-col">
-                <h2 className="mb-2 text-lg font-semibold text-zinc-100">等待审批</h2>
+                <h2 className="mb-2 text-lg font-semibold text-zinc-100">{t("approvals.title")}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.pendingRequests.length === 0 ? (
                     <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">
-                      暂无待审批
+                      {t("approvals.empty")}
                     </p>
                   ) : (
                     snap.pendingRequests.map((r) => (
@@ -2387,7 +2407,7 @@ export default function RoomPage() {
                             disabled={action === `approve-${r.id}`}
                             className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                           >
-                            <Check className="h-3 w-3" /> 通过
+                            <Check className="h-3 w-3" /> {t("approvals.approve")}
                           </button>
                           <button
                             type="button"
@@ -2395,7 +2415,7 @@ export default function RoomPage() {
                             disabled={action === `reject-${r.id}`}
                             className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                           >
-                            <X className="h-3 w-3" /> 拒绝
+                            <X className="h-3 w-3" /> {t("approvals.reject")}
                           </button>
                         </div>
                       </div>
@@ -2406,16 +2426,20 @@ export default function RoomPage() {
             ) : null}
 
             {isOwner ? (
-              <div className="mt-4 border-t border-zinc-800 pt-3">
-                <h3 className="mb-2 text-sm font-semibold text-zinc-200">设置</h3>
-                <div className="max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+              <Popover
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                title={t("settings.title")}
+                closeLabel={t("common.close")}
+              >
+                <div className="space-y-3">
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
-                    <p className="text-xs font-medium text-zinc-200">房间名称</p>
+                    <p className="text-xs font-medium text-zinc-200">{t("settings.roomName")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={roomNameInput}
                         onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
-                        placeholder="输入房间名称"
+                        placeholder={t("settings.roomName.placeholder")}
                         className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
                       />
                       <button
@@ -2424,17 +2448,17 @@ export default function RoomPage() {
                         disabled={action === "room-name"}
                         className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
                       >
-                        {action === "room-name" ? "保存中..." : "保存"}
+                        {action === "room-name" ? t("settings.saving") : t("settings.save")}
                       </button>
                     </div>
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
-                    <p className="text-xs font-medium text-zinc-200">门禁码</p>
+                    <p className="text-xs font-medium text-zinc-200">{t("settings.gateCode")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={gateCodeInput}
                         onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="6位数字，留空表示不设置"
+                        placeholder={t("settings.gateCode.placeholder")}
                         className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
                       />
                       <button
@@ -2443,22 +2467,24 @@ export default function RoomPage() {
                         disabled={action === "gate-code"}
                         className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
                       >
-                        {action === "gate-code" ? "保存中..." : "保存"}
+                        {action === "gate-code" ? t("settings.saving") : t("settings.save")}
                       </button>
                     </div>
                     <p className="mt-2 text-[11px] text-zinc-500">
-                      当前门禁码：{snap.room.gateCode ?? "未设置"}
+                      {t("settings.gateCode.current", {
+                        code: snap.room.gateCode ?? t("settings.gateCode.unset"),
+                      })}
                     </p>
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium text-zinc-200">允许申请加入</p>
-                        <p className="text-[11px] text-zinc-500">开启后可通过房间码加入，若设置门禁码则需同时输入</p>
+                        <p className="text-xs font-medium text-zinc-200">{t("settings.joinPolicy")}</p>
+                        <p className="text-[11px] text-zinc-500">{t("settings.joinPolicy.hint")}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] text-zinc-400">
-                          {snap.room.allowJoinRequest ? "允许" : "拒绝"}
+                          {snap.room.allowJoinRequest ? t("settings.joinPolicy.allow") : t("settings.joinPolicy.deny")}
                         </span>
                         <SwitchBtn
                           checked={snap.room.allowJoinRequest}
@@ -2473,12 +2499,12 @@ export default function RoomPage() {
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium text-zinc-200">过期时间</p>
-                        <p className="text-[11px] text-zinc-500">开启后房间不会因长时间无活动自动解散</p>
+                        <p className="text-xs font-medium text-zinc-200">{t("settings.expiry")}</p>
+                        <p className="text-[11px] text-zinc-500">{t("settings.expiry.hint")}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] text-zinc-400">
-                          {snap.room.neverExpire ? "已开启" : "已关闭"}
+                          {snap.room.neverExpire ? t("settings.expiry.on") : t("settings.expiry.off")}
                         </span>
                         <SwitchBtn
                           checked={snap.room.neverExpire}
@@ -2491,12 +2517,11 @@ export default function RoomPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </Popover>
             ) : null}
 
             {error ? <p className="mt-3 text-xs text-zinc-300">{error}</p> : null}
-          </aside>
-        ) : null}
+        </aside>
       </main>
 
       {openRoomMenu

@@ -252,6 +252,15 @@ button {
 }
 
 /* Hover / focus tooltip bubble. */
+.popover-panel {
+  background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
 .tooltip-bubble {
   position: absolute;
   left: 50%;
