@@ -210,7 +210,7 @@ function RoomLinks({
   );
 }
 
-function FileAction({ roomCode, attachment }: { roomCode: string; attachment: AttachmentItem }) {
+function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
   const [loading, setLoading] = useState(false);
   async function open() {
     setLoading(true);
@@ -221,7 +221,7 @@ function FileAction({ roomCode, attachment }: { roomCode: string; attachment: At
       alert(e instanceof Error ? e.message : "打开失败");
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}下载</button>;
+  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
 }
 
 type BubbleAttachment = {
@@ -1976,19 +1976,19 @@ export default function RoomPage() {
           </div>
           <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
             <p>
-              版本 <span className="font-semibold text-zinc-200">{snap.app.version}</span>
+              {t("footer.version")} <span className="font-semibold text-zinc-200">{snap.app.version}</span>
             </p>
             <p>
-              开源协议 <span className="font-semibold text-zinc-200">{snap.app.openSource}</span>
+              {t("footer.license")} <span className="font-semibold text-zinc-200">{snap.app.openSource}</span>
             </p>
             <p>
-              房间在线 <span className="font-semibold text-zinc-200">{snap.stats.roomOnline}</span>
+              {t("footer.roomOnline")} <span className="font-semibold text-zinc-200">{snap.stats.roomOnline}</span>
             </p>
             <p>
-              全站在线 <span className="font-semibold text-zinc-200">{snap.stats.totalOnline}</span>
+              {t("footer.totalOnline")} <span className="font-semibold text-zinc-200">{snap.stats.totalOnline}</span>
             </p>
             <div className="pt-2">
-              <p className="text-zinc-500">当前用户</p>
+              <p className="text-zinc-500">{t("footer.currentUser")}</p>
               <div className="mt-1 flex items-center gap-2">
                 <Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} />
                 <span className="text-sm text-zinc-200">{snap.me.nickname}</span>
@@ -2020,7 +2020,7 @@ export default function RoomPage() {
                   onClick={() => scrollToPanel("rooms")}
                   className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
                 >
-                  房间列表
+                  {t("nav.rooms")}
                 </button>
               ) : null}
               {membersVisible ? (
@@ -2029,7 +2029,7 @@ export default function RoomPage() {
                   onClick={() => scrollToPanel("members")}
                   className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
                 >
-                  成员列表
+                  {t("members.list")}
                 </button>
               ) : null}
               <Tooltip label={navVisible ? t("control.nav.hide") : t("control.nav.show")}>
@@ -2133,7 +2133,7 @@ export default function RoomPage() {
                   copied={Boolean(copiedTextKeys[copyKey])}
                   labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
                   attachments={m.attachments}
-                  renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} />}
+                  renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} label={t("chat.download")} />}
                   onOpenImage={openImageViewer}
                 />
               );
