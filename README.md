@@ -368,6 +368,9 @@ npm run db:reinit:prefixed
 
 ### 2026-09-24
 
+- `0.1.59` 左侧房间导航栏可折叠（偏好持久化）；「管理/加入」标签改为分级折叠菜单（两组各带标题/数量/展开收起与快捷按钮）。
+- `a4c1c9d` 导航栏折叠用 `flex`/`hidden` 切换、网格按左右两栏可见性四态自适应；头部加导航开关（`PanelLeft`）、栏内头部加收起按钮（`PanelLeftClose`），折叠态存 `tb:nav-collapsed`。
+- `a4c1c9d` 房间列表改为「管理的房间/加入的房间」两个可折叠分组（`tb:nav-group-*` 持久化），抽出共享 `handleToggleRoomMenu`，`RoomLinks` 增加 `emptyLabel`，导航文案接入 `t()`。
 - `0.1.58` 右侧成员栏支持折叠（偏好持久化）；房主设置区改为头部按钮触发的弹层面板（Popover），设置项文案接入 i18n。
 - `863e5f6` 成员栏折叠用 `flex`/`hidden` 切换而非卸载（始终挂载），折叠状态存 `tb:members-collapsed`（`usePersistentBoolean` + `useSyncExternalStore`）；成员栏头部加折叠按钮、房主标签页改 `.segmented`。
 - `863e5f6` 房主设置从右栏内联块迁移为 `Popover`（portal 到 body，规避 `<main>` 的 `xl:overflow-hidden` 裁剪，且不再随成员栏折叠而消失）；`globals.css` 补 `.popover-panel`；设置卡片（房间名称/门禁码/加入策略/过期）文案接入 `t()`。

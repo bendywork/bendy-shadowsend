@@ -3,6 +3,37 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-09-24: v0.1.59 左侧导航栏可折叠 + 分级折叠菜单
+
+### Scope
+- Left room-navigation sidebar is now collapsible (persisted in `localStorage` `tb:nav-collapsed`).
+- Replace the 管理/加入 tab toggle with a partitioned, collapsible hierarchical menu (two groups shown at once: 管理的房间 / 加入的房间).
+- i18n the navigation shell strings (title / subtitle / group titles / count / empty / collapse controls).
+- Bump app version to `0.1.59`.
+- Phase 3 of the chat-UI deep refactor plan (`docs/development-plan-2026-09-24-chat-ui-deep-refactor.md`).
+
+### Frontend Changes
+- `src/app/room/[roomCode]/page.tsx`:
+  - New persisted flags via `usePersistentBoolean`: `tb:nav-collapsed` (whole sidebar) + `tb:nav-group-created` / `tb:nav-group-joined` (per-group open state).
+  - The `<main>` grid now derives its column template from both `navVisible` and `membersVisible` (four states: both / left-only / right-only / none) so a collapsed side leaves no empty track.
+  - Left `<aside>` is always mounted and toggles `flex`/`hidden` by `navVisible` (mirrors the member panel; keeps refs/handlers stable).
+  - Header gains a nav toggle `IconButton` (`PanelLeft`, active when open); the sidebar header gains a collapse button (`PanelLeftClose`); the mobile 房间列表 scroll button is gated on `navVisible`.
+  - Removed `roomsPanelTab` state + its menu-reset effect + `activeRooms`; extracted the room context-menu positioning into a shared `handleToggleRoomMenu(room, button)` used by both groups.
+  - Each group renders a header (chevron rotates on open + count badge) with its own create/join quick button, and a `RoomLinks` list when open.
+- `RoomLinks`: added optional `emptyLabel` prop (defaults to 暂无) so each group can show a localized empty state.
+- `src/lib/i18n/messages.ts`: added `control.nav.*` and `nav.*` keys (zh + en, parity-checked).
+
+### Regression Checklist
+- Toggle the left sidebar from the header button and from the in-panel collapse button; state persists across reload and syncs across tabs.
+- Collapsing left and/or right sidebars yields a gap-free grid in every combination.
+- Both room groups expand/collapse independently and persist; counts and empty states are correct.
+- Create/Join quick buttons still respect the room-count limit; room context menu still opens/positions correctly.
+- Navigation strings flip between 中文/English; `npm run lint` + `npm run build` both green.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.59`.
+- Added this entry to `MAINTAIN.md` and README 更新记录 (code commit `a4c1c9d`).
+
 ## 2026-09-24: v0.1.58 右侧成员栏可折叠 + 房主设置弹层（Popover）+ 设置项 i18n
 
 ### Scope
