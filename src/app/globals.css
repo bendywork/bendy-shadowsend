@@ -210,6 +210,80 @@ button {
   color: var(--text-primary);
   background: color-mix(in srgb, var(--text-muted) 12%, transparent);
 }
+
+/* Icon-only button (header actions, theme / language toggles). */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease,
+    transform 0.05s ease;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-primary);
+}
+
+.icon-btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.icon-btn--danger:hover:not(:disabled) {
+  color: #ff453a;
+  background: color-mix(in srgb, #ff453a 14%, transparent);
+}
+
+/* Hover / focus tooltip bubble. */
+.tooltip-bubble {
+  position: absolute;
+  left: 50%;
+  z-index: 60;
+  white-space: nowrap;
+  pointer-events: none;
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.tooltip-bubble--bottom {
+  top: calc(100% + 6px);
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.tooltip-bubble--top {
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%) translateY(2px);
+}
+
+.tooltip-bubble--open {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
 /* Legacy light-mode fixes for dark-oriented utility classes (chat page).
    Most zinc-based utilities adapt via the remapped --color-zinc-* scale above;
    only classes bound to literal black/white still need explicit overrides. */

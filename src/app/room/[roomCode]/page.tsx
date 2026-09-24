@@ -13,6 +13,10 @@ import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS,
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { IconButton } from "@/components/ui/icon-button";
+import { Tooltip } from "@/components/ui/tooltip";
+import { LanguageToggle } from "@/components/ui/language-toggle";
+import { useT } from "@/lib/i18n/context";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -215,9 +219,6 @@ function FileAction({ roomCode, attachment }: { roomCode: string; attachment: At
   }
   return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}下载</button>;
 }
-function Btn({ icon, label, onClick, danger, disabled }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
-  return <button type="button" onClick={onClick} disabled={disabled} className={clsx("inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", danger ? "border-zinc-500/40 text-zinc-200 hover:bg-zinc-600/10" : "border-zinc-700 text-zinc-200 hover:bg-zinc-800")}>{icon}{label}</button>;
-}
 function SwitchBtn({
   checked,
   disabled,
@@ -394,6 +395,7 @@ export default function RoomPage() {
   const latestMessageAtRef = useRef<string | null>(null);
   const [imageViewer, setImageViewer] = useState<ImageViewerState | null>(null);
 
+  const t = useT();
   const isOwner = snap?.me.role === "OWNER";
   const showMembers = isOwner ? showManage : true;
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
@@ -1818,9 +1820,13 @@ export default function RoomPage() {
                 <h1 className="text-xl font-semibold text-zinc-100">{snap.room.name}</h1>
                 <p className="font-mono text-xs text-zinc-500">/{snap.room.roomCode}</p>
               </div>
-              <div className="text-xs text-zinc-400">
-                <Users className="mr-1 inline h-3.5 w-3.5" />
-                {snap.members.length}/20 人
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center text-xs text-zinc-400">
+                  <Users className="mr-1 inline h-3.5 w-3.5" />
+                  {t("header.members", { count: snap.members.length, max: 20 })}
+                </span>
+                <ThemeToggle />
+                <LanguageToggle />
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1840,11 +1846,48 @@ export default function RoomPage() {
                   成员列表
                 </button>
               ) : null}
-              <Btn icon={<Copy className="h-3.5 w-3.5" />} label="邀请" onClick={copyLink} />
-              <Btn icon={<QrCode className="h-3.5 w-3.5" />} label="二维码" onClick={() => setShowQr(true)} />
-              <Btn icon={<Megaphone className="h-3.5 w-3.5" />} label="公告" onClick={isOwner ? openNoticeEditor : openNoticeViewer} />
-              {isOwner ? <Btn icon={<Settings2 className="h-3.5 w-3.5" />} label={showManage ? "管理(隐藏)" : "管理(显示)"} onClick={() => setShowManage((v) => !v)} /> : null}
-              {isOwner ? <Btn icon={<Trash2 className="h-3.5 w-3.5" />} label={action === "dissolve" ? "解散中..." : "解散"} onClick={dissolve} danger disabled={action === "dissolve"} /> : null}
+              <Tooltip label={t("header.invite")}>
+                <IconButton aria-label={t("header.invite")} onClick={copyLink}>
+                  <Copy className="h-4 w-4" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip label={t("header.qr")}>
+                <IconButton aria-label={t("header.qr")} onClick={() => setShowQr(true)}>
+                  <QrCode className="h-4 w-4" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip label={isOwner ? t("header.announcement.edit") : t("header.announcement.view")}>
+                <IconButton aria-label={t("header.announcement")} onClick={isOwner ? openNoticeEditor : openNoticeViewer}>
+                  <Megaphone className="h-4 w-4" />
+                </IconButton>
+              </Tooltip>
+              {isOwner ? (
+                <Tooltip label={showManage ? t("header.managePanel.hide") : t("header.managePanel.show")}>
+                  <IconButton
+                    aria-label={showManage ? t("header.managePanel.hide") : t("header.managePanel.show")}
+                    active={showManage}
+                    onClick={() => setShowManage((v) => !v)}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </IconButton>
+                </Tooltip>
+              ) : null}
+              {isOwner ? (
+                <Tooltip label={action === "dissolve" ? t("header.dissolving") : t("header.dissolve")}>
+                  <IconButton
+                    aria-label={t("header.dissolve")}
+                    danger
+                    onClick={dissolve}
+                    disabled={action === "dissolve"}
+                  >
+                    {action === "dissolve" ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </IconButton>
+                </Tooltip>
+              ) : null}
             </div>
             <AdCarousel items={snap.adBoard.items} />
             {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
@@ -2450,21 +2493,6 @@ export default function RoomPage() {
                 </div>
               </div>
             ) : null}
-
-            <div className="mt-4 border-t border-zinc-800 pt-3">
-              <h3 className="mb-2 text-sm font-semibold text-zinc-200">主题</h3>
-              <div className="space-y-3">
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-medium text-zinc-200">外观模式</p>
-                      <p className="text-[11px] text-zinc-500">切换日间/夜间配色</p>
-                    </div>
-                    <ThemeToggle />
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {error ? <p className="mt-3 text-xs text-zinc-300">{error}</p> : null}
           </aside>
