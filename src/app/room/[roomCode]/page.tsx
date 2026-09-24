@@ -8,7 +8,7 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -2190,14 +2190,16 @@ export default function RoomPage() {
                 {files.map((file, index) => (
                   <span
                     key={`${file.name}-${file.size}-${index}`}
-                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs text-zinc-200"
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200"
                   >
-                    <FileText className="h-3 w-3" />
-                    <span className="max-w-[220px] truncate">{file.name}</span>
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                    <span className="max-w-[200px] truncate">{file.name}</span>
+                    <span className="shrink-0 text-[10px] text-zinc-500">{formatBytes(file.size)}</span>
                     <button
                       type="button"
+                      aria-label={t("composer.removeFile")}
                       onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
-                      className="rounded-full p-0.5 hover:bg-zinc-700"
+                      className="ml-0.5 rounded-full p-0.5 text-zinc-400 transition hover:bg-zinc-700 hover:text-zinc-100"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -2206,21 +2208,21 @@ export default function RoomPage() {
               </div>
             ) : null}
 
-            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/90 p-2">
+            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/80 p-2 transition focus-within:border-zinc-500/60 focus-within:ring-2 focus-within:ring-zinc-500/15">
               <textarea
                 value={text}
                 onChange={(e) => setText(clampMessageText(e.target.value))}
                 onPaste={onPaste}
                 onKeyDown={onComposerKeyDown}
                 maxLength={MAX_MESSAGE_TEXT_CHARS}
-                placeholder="输入框支持 Ctrl+V 粘贴文本或文件；图片/视频可预览，其它文件仅下载。"
-                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+                placeholder={t("composer.placeholder")}
+                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-6 text-zinc-100 outline-none placeholder:text-zinc-500"
               />
-              <div className="mt-2 flex flex-wrap items-center gap-2 px-1 pb-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 hover:bg-zinc-800">
+              <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 transition hover:bg-zinc-800">
                     <Plus className="h-3.5 w-3.5" />
-                    文件
+                    {t("composer.attach")}
                     <input
                       type="file"
                       className="hidden"
@@ -2236,10 +2238,10 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={readClipboard}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 hover:bg-zinc-800"
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 transition hover:bg-zinc-800"
                   >
                     <Copy className="h-3.5 w-3.5" />
-                    读取剪贴板
+                    {t("composer.clipboard")}
                   </button>
                   <button
                     type="button"
@@ -2247,25 +2249,36 @@ export default function RoomPage() {
                     aria-checked={enterToSend}
                     onClick={() => setEnterToSend((prev) => !prev)}
                     className={clsx(
-                      "inline-flex h-8 items-center rounded-lg border px-2.5 text-xs",
+                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition",
                       enterToSend
                         ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
                         : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
                     )}
                   >
-                    回车发送内容：{enterToSend ? "开" : "关"}
+                    <CornerDownLeft className="h-3.5 w-3.5" />
+                    {t("composer.enterToSend")} · {enterToSend ? t("common.on") : t("common.off")}
                   </button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                  <span className="text-[11px] text-zinc-500">
+                  <span
+                    className={clsx(
+                      "text-[11px] tabular-nums",
+                      text.length >= MAX_MESSAGE_TEXT_CHARS
+                        ? "text-red-400"
+                        : text.length > MAX_MESSAGE_TEXT_CHARS * 0.9
+                          ? "text-amber-400"
+                          : "text-zinc-500",
+                    )}
+                  >
                     {text.length}/{MAX_MESSAGE_TEXT_CHARS}
                   </span>
                   <button
                     type="submit"
-                    className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium"
+                    disabled={!text.trim() && files.length === 0}
+                    className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <SendHorizonal className="h-3.5 w-3.5" />
-                    发送
+                    {t("composer.send")}
                   </button>
                 </div>
               </div>
