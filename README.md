@@ -368,6 +368,9 @@ npm run db:reinit:prefixed
 
 ### 2026-09-24
 
+- `0.1.60` 聊天消息气泡组件化：抽出复用 `MessageBubble`/`MessageAttachmentCard`，合并已发送与发送中两处重复标记（约 250 行）；气泡、时间戳与附件预览打磨。
+- `fa8f6ea` 新增模块级哑组件 `MessageBubble` 与 `MessageAttachmentCard`（图片/视频内联预览 + 文件信息 + 可选动作位）；已发送气泡传 Check/CheckCheck 回执与 `FileAction` 下载，发送中气泡传 sending%/失败状态与错误脚注。
+- `fa8f6ea` 聊天外壳文案接入 i18n：`chat.empty/copy/copied/expand/collapse/sendFailed`（zh+en，parity 校验）；聊天正文与后端错误仍不做双语。
 - `0.1.59` 左侧房间导航栏可折叠（偏好持久化）；「管理/加入」标签改为分级折叠菜单（两组各带标题/数量/展开收起与快捷按钮）。
 - `a4c1c9d` 导航栏折叠用 `flex`/`hidden` 切换、网格按左右两栏可见性四态自适应；头部加导航开关（`PanelLeft`）、栏内头部加收起按钮（`PanelLeftClose`），折叠态存 `tb:nav-collapsed`。
 - `a4c1c9d` 房间列表改为「管理的房间/加入的房间」两个可折叠分组（`tb:nav-group-*` 持久化），抽出共享 `handleToggleRoomMenu`，`RoomLinks` 增加 `emptyLabel`，导航文案接入 `t()`。

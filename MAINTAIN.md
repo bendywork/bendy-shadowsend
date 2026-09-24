@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-09-24: v0.1.60 聊天消息气泡组件化 + 正文 i18n
+
+### Scope
+- Extract a shared module-level `MessageBubble` (+ `MessageAttachmentCard`) and use it for both committed and pending chat bubbles, removing ~250 lines of duplicated markup.
+- Beautify bubbles (softer `rounded-2xl` + `shadow-sm`, `tabular-nums` timestamps, `·`-separated attachment meta).
+- i18n the chat shell strings (empty state / copy / copied / expand / collapse / send-failed).
+- Bump app version to `0.1.60`.
+- Phase 4 of the chat-UI deep refactor plan (`docs/development-plan-2026-09-24-chat-ui-deep-refactor.md`).
+
+### Frontend Changes
+- `src/app/room/[roomCode]/page.tsx`:
+  - New module-level `type BubbleAttachment` + `MessageAttachmentCard` (inline image/video preview with double-click zoom, file name + `mimeType · size`, optional trailing action node).
+  - New module-level dumb `MessageBubble` (props: `own`, avatar/nickname/`createdAt`, `metaSlot`, `content`/`collapsed`/`visibleContent`, copy/expand handlers + `labels`, `attachments` + `renderAttachmentAction`, `onOpenImage`, `footerSlot`).
+  - Committed `snap.messages.map` renders `<MessageBubble>` with Check/CheckCheck receipts as `metaSlot` and a `FileAction` download as `renderAttachmentAction`.
+  - Pending `pendingMessages.map` renders `<MessageBubble own>` with sending(%)/failed status as `metaSlot`, no attachment action, and the failed error line as `footerSlot`.
+  - Added `type ReactNode` to the react import.
+- `src/lib/i18n/messages.ts`: added `chat.empty/copy/copied/expand/collapse/sendFailed` (zh + en, parity-checked).
+
+### Regression Checklist
+- Own / other-user / sent bubbles render as before (avatar, nickname, timestamp, receipts).
+- Long messages still collapse/expand; copy still copies raw content with the ✅ feedback.
+- Image double-click still opens the viewer; video plays inline; non-previewable files still show the download button (committed only).
+- Pending bubbles show sending % / failed X + error footer; language switch flips the new chat strings.
+- `npm run lint` + `npm run build` both green.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.60`.
+- Added this entry to `MAINTAIN.md` and README 更新记录 (code commit `fa8f6ea`).
+
 ## 2026-09-24: v0.1.59 左侧导航栏可折叠 + 分级折叠菜单
 
 ### Scope
