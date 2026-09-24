@@ -368,6 +368,9 @@ npm run db:reinit:prefixed
 
 ### 2026-09-24
 
+- `0.1.58` 右侧成员栏支持折叠（偏好持久化）；房主设置区改为头部按钮触发的弹层面板（Popover），设置项文案接入 i18n。
+- `863e5f6` 成员栏折叠用 `flex`/`hidden` 切换而非卸载（始终挂载），折叠状态存 `tb:members-collapsed`（`usePersistentBoolean` + `useSyncExternalStore`）；成员栏头部加折叠按钮、房主标签页改 `.segmented`。
+- `863e5f6` 房主设置从右栏内联块迁移为 `Popover`（portal 到 body，规避 `<main>` 的 `xl:overflow-hidden` 裁剪，且不再随成员栏折叠而消失）；`globals.css` 补 `.popover-panel`；设置卡片（房间名称/门禁码/加入策略/过期）文案接入 `t()`。
 - `0.1.57` 聊天页顶部控件区优化：房间头部动作按钮改纯图标 + 悬停提示气泡，主题/语言切换移至头部右上角，新增中/英语言切换。
 - `9ebc887` 新增轻量客户端 i18n（`messages` 表 + Context，`useSyncExternalStore` 读 localStorage 规避水合不匹配）与复用组件 `IconButton`/`Tooltip`/`LanguageToggle`，`globals.css` 补 `.icon-btn`/`.tooltip-bubble`。
 - `9ebc887` 主题切换重构为纯图标置于右上角；头部动作按钮（邀请/二维码/公告/管理/解散）改纯图标 + 提示气泡并接入 i18n；移除右侧栏内重复的主题设置区。

@@ -3,6 +3,33 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-09-24: v0.1.58 右侧成员栏可折叠 + 房主设置弹层（Popover）+ 设置项 i18n
+
+### Scope
+- Right member sidebar is now collapsible for everyone; state persists in `localStorage` (`tb:members-collapsed`).
+- Owner settings moved from an inline block in the right sidebar into a header-triggered `Popover` (portal to `body`).
+- i18n the settings card labels (room name / gate code / join policy / expiry).
+- Bump app version to `0.1.58`.
+- Phase 2 of the chat-UI deep refactor plan (`docs/development-plan-2026-09-24-chat-ui-deep-refactor.md`).
+
+### Frontend Changes
+- `src/lib/use-persistent-boolean.ts` (new): `usePersistentBoolean(key, serverDefault)` — localStorage-backed boolean via `useSyncExternalStore` (same-tab custom event + cross-tab `storage`); no `setState`-in-effect.
+- `src/components/ui/popover.tsx` (new): portal modal (to `body`), backdrop + centered `.popover-panel` card, Esc / backdrop-click to close — immune to ancestor `overflow` clipping.
+- `src/app/room/[roomCode]/page.tsx`: `showManage` split into `membersCollapsed` (persisted, everyone) + `settingsOpen`; the member `<aside>` is always mounted and toggles `flex`/`hidden` by visibility (so the settings Popover mounts regardless of collapse); aside header gains a collapse button; owner tabs → `.segmented`; settings block wrapped in `<Popover>` with all labels routed through `t()`.
+- `src/lib/i18n/messages.ts`: added Phase 2 shell keys (`settings.*`, `members.*`, `approvals.*`, `control.members.*`, `header.settings`, `common.close`).
+- `src/app/globals.css`: added `.popover-panel`.
+
+### Regression Checklist
+- Collapse/expand the member sidebar; state persists across reload and syncs across tabs.
+- When collapsed, the grid drops to 2 columns with no empty gap.
+- Owner opens settings from the header button even while the member sidebar is collapsed (Popover still renders); Esc / backdrop closes it.
+- All settings labels flip between 中文/English.
+- `npm run lint` + `npm run build` both green.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.58`.
+- Added this entry to `MAINTAIN.md` and README 更新记录 (code commit `863e5f6`).
+
 ## 2026-09-24: v0.1.57 聊天页顶部控件区（图标按钮 + 提示 + 主题/语言切换）
 
 ### Scope
