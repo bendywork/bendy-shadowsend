@@ -368,6 +368,8 @@ npm run db:reinit:prefixed
 
 ### 2026-09-24
 
+- `0.1.62` i18n 外壳收尾：底栏统计/移动端跳转按钮/文件下载文案接入 `t()`；新增预水合内联脚本，在首帧前同步 `<html data-theme>`/`<html lang>`，消除主题/语言默认值闪烁（FOUC）。
+- `6501e6b` `layout.tsx` 注入 `PREHYDRATION_INIT` 内联脚本（读 `tb:theme`/`tb:lang`，`<html>` 加 `suppressHydrationWarning`）；`messages.ts` 新增 `footer.*`/`nav.rooms`/`chat.download`（zh+en）；`FileAction` 增加 `label` 属性。
 - `0.1.61` 底部输入区 composer 重设计：focus 高亮环、文件 chip 显示大小、工具栏图标化、字数上限色阶提示、空内容禁用发送；composer 文案接入 i18n。
 - `209b315` composer 文案接入 i18n（`composer.*` + `common.on/off`，zh+en）；回车发送开关加 `CornerDownLeft` 图标，发送按钮在无文本且无文件时禁用（与 `send()` 空内容 no-op 一致）。
 - `0.1.60` 聊天消息气泡组件化：抽出复用 `MessageBubble`/`MessageAttachmentCard`，合并已发送与发送中两处重复标记（约 250 行）；气泡、时间戳与附件预览打磨。

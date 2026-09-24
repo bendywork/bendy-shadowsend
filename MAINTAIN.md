@@ -3,6 +3,37 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-09-24: v0.1.62 i18n 外壳收尾 + 预水合防闪烁（FOUC）
+
+### Scope
+- Route the remaining chat-shell strings through `t()` (footer stats card, mobile jump buttons, file download label).
+- Add a pre-hydration inline script that syncs `<html data-theme>` and `<html lang>` from `localStorage` before first paint, eliminating the theme/language default-value flash.
+- Bump app version to `0.1.62`.
+- Phase 6 (final) of the chat-UI deep refactor plan (`docs/development-plan-2026-09-24-chat-ui-deep-refactor.md`).
+
+### Frontend Changes
+- `src/app/layout.tsx`:
+  - Added a raw inline `<head>` script (`PREHYDRATION_INIT`) that reads `tb:theme` / `tb:lang` and sets `data-theme` (default `dark`) and `lang` (default `zh-CN`) on `<html>` synchronously, before hydration.
+  - Added `suppressHydrationWarning` to `<html>` (the script mutates its attributes pre-hydration).
+- `src/app/room/[roomCode]/page.tsx`:
+  - Footer stats (`version` / `license` / `roomOnline` / `totalOnline` / `currentUser`) now use `t("footer.*")`.
+  - Mobile jump buttons use `t("nav.rooms")` / `t("members.list")`.
+  - `FileAction` gained a `label` prop; the download button label is passed as `t("chat.download")`.
+- `src/lib/i18n/messages.ts`: added `footer.version/license/roomOnline/totalOnline/currentUser`, `nav.rooms`, `chat.download` (zh + en, parity-checked).
+
+### Docs read (per AGENTS.md)
+- Consulted `node_modules/next/dist/docs/01-app/03-api-reference/02-components/script.md`: `beforeInteractive` does not block hydration and targets external scripts, so a raw inline `<head>` script (not `next/script`) is the correct FOUC-prevention primitive.
+
+### Regression Checklist
+- Reload with a saved light theme: no dark flash before paint; toggle still persists and syncs across tabs.
+- Reload with `tb:lang=en`: `<html lang>` is `en`; shell strings render in English (footer, mobile buttons, download).
+- No React hydration warning on `<html>`.
+- `npm run lint` + `npm run build` both green.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.62`.
+- Added this entry to `MAINTAIN.md` and README 更新记录 (code commit `6501e6b`).
+
 ## 2026-09-24: v0.1.61 底部输入区 composer 重设计 + 文案 i18n
 
 ### Scope
