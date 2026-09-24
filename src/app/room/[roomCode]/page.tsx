@@ -1,7 +1,7 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import Image from "next/image";
@@ -223,6 +223,164 @@ function FileAction({ roomCode, attachment }: { roomCode: string; attachment: At
   }
   return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}下载</button>;
 }
+
+type BubbleAttachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  previewType: AttachmentItem["previewType"];
+  previewUrl?: string | null;
+};
+
+function MessageAttachmentCard({
+  attachment,
+  onOpenImage,
+  action,
+}: {
+  attachment: BubbleAttachment;
+  onOpenImage: (url: string | null | undefined, fileName: string) => void;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/80 p-2.5">
+      {hasInlinePreview(attachment) ? (
+        <div className="mb-2 overflow-hidden rounded-lg border border-zinc-700/80 bg-black">
+          {attachment.previewType === "IMAGE" ? (
+            <img
+              src={attachment.previewUrl ?? ""}
+              alt={attachment.fileName}
+              className="max-h-[360px] w-full cursor-zoom-in object-contain"
+              loading="lazy"
+              onDoubleClick={() => onOpenImage(attachment.previewUrl, attachment.fileName)}
+            />
+          ) : attachment.previewType === "VIDEO" ? (
+            <video
+              src={attachment.previewUrl ?? ""}
+              controls
+              preload="metadata"
+              className="max-h-[360px] w-full"
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm text-zinc-200">{attachment.fileName}</p>
+          <p className="text-xs text-zinc-500">{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</p>
+        </div>
+        {action ?? null}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({
+  own,
+  avatarInitial,
+  avatarColor,
+  nickname,
+  createdAt,
+  metaSlot,
+  content,
+  collapsed,
+  visibleContent,
+  onToggleExpand,
+  onCopy,
+  copied,
+  labels,
+  attachments,
+  renderAttachmentAction,
+  onOpenImage,
+  footerSlot,
+}: {
+  own: boolean;
+  avatarInitial: string;
+  avatarColor: string;
+  nickname: string;
+  createdAt: string;
+  metaSlot?: ReactNode;
+  content: string;
+  collapsed: boolean;
+  visibleContent: string;
+  onToggleExpand: () => void;
+  onCopy: () => void;
+  copied: boolean;
+  labels: { copy: string; copied: string; expand: string; collapse: string };
+  attachments: BubbleAttachment[];
+  renderAttachmentAction?: (attachment: BubbleAttachment) => ReactNode;
+  onOpenImage: (url: string | null | undefined, fileName: string) => void;
+  footerSlot?: ReactNode;
+}) {
+  return (
+    <article className={clsx("flex", own ? "justify-end" : "justify-start")}>
+      <div
+        className={clsx(
+          "w-full max-w-[92%] rounded-2xl border p-3 shadow-sm sm:max-w-[85%]",
+          own ? "border-zinc-500/40 bg-zinc-500/10" : "border-zinc-800 bg-zinc-900/60",
+        )}
+      >
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Avatar initial={avatarInitial} color={avatarColor} className="h-7 w-7" />
+            <span className="text-sm font-medium text-zinc-200">{nickname}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+            <time className="tabular-nums">{fmt(createdAt)}</time>
+            {metaSlot}
+          </div>
+        </div>
+
+        {content ? (
+          <div className="space-y-2">
+            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">{visibleContent}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onCopy}
+                className={clsx(
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition",
+                  copied
+                    ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
+                    : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                )}
+              >
+                <Copy className="h-3 w-3" />
+                {copied ? labels.copied : labels.copy}
+              </button>
+              {content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
+                <button
+                  type="button"
+                  onClick={onToggleExpand}
+                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                >
+                  {collapsed ? labels.expand : labels.collapse}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {attachments.length ? (
+          <div className="mt-3 space-y-2">
+            {attachments.map((attachment) => (
+              <MessageAttachmentCard
+                key={attachment.id}
+                attachment={attachment}
+                onOpenImage={onOpenImage}
+                action={renderAttachmentAction?.(attachment)}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {footerSlot}
+      </div>
+    </article>
+  );
+}
+
 function SwitchBtn({
   checked,
   disabled,
@@ -1942,270 +2100,87 @@ export default function RoomPage() {
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-6 text-center text-sm text-zinc-500">
-                暂无消息，开始发送吧。
+                {t("chat.empty")}
               </div>
             ) : null}
 
             {snap.messages.map((m) => {
               const isOwnMessage = m.sender.id === snap.me.id;
               const deliveryState = getMessageDeliveryState(m);
+              const expanded = Boolean(expandedMessageIds[m.id]);
+              const collapsed = isMessageCollapsed(m.content, expanded);
+              const copyKey = `message-${m.id}`;
               return (
-                <article key={m.id} className={clsx("flex", isOwnMessage ? "justify-end" : "justify-start")}>
-                  <div
-                    className={clsx(
-                      "w-full max-w-[92%] rounded-xl border p-3 sm:max-w-[85%]",
-                      isOwnMessage
-                        ? "border-zinc-500/40 bg-zinc-500/10"
-                        : "border-zinc-800 bg-zinc-900/60",
-                    )}
-                  >
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Avatar
-                          initial={m.sender.avatarInitial}
-                          color={m.sender.avatarColor}
-                          className="h-7 w-7"
-                        />
-                        <span className="text-sm font-medium text-zinc-200">{m.sender.nickname}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-[11px] text-zinc-500">
-                        <time>{fmt(m.createdAt)}</time>
-                        {isOwnMessage && deliveryState === "sent" ? (
-                          <Check className="h-3.5 w-3.5 text-zinc-300" />
-                        ) : null}
-                        {isOwnMessage && deliveryState === "read" ? (
-                          <CheckCheck className="h-3.5 w-3.5 text-zinc-300" />
-                        ) : null}
-                      </div>
-                    </div>
-
-                    {m.content ? (
-                      <div className="space-y-2">
-                        {(() => {
-                          const expanded = Boolean(expandedMessageIds[m.id]);
-                          const collapsed = isMessageCollapsed(m.content, expanded);
-                          const visibleContent = collapsed
-                            ? `${getCollapsedPreviewText(m.content)}...`
-                            : m.content;
-
-                          return (
-                            <>
-                              <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">{visibleContent}</p>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {(() => {
-                                  const copyFeedbackKey = `message-${m.id}`;
-                                  const copied = Boolean(copiedTextKeys[copyFeedbackKey]);
-                                  return (
-                                <button
-                                  type="button"
-                                  onClick={() => void copyMessageText(m.content, copyFeedbackKey)}
-                                  className={clsx(
-                                    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition",
-                                    copied
-                                      ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
-                                      : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
-                                  )}
-                                >
-                                  <Copy className="h-3 w-3" />
-                                  {copied ? "已复制✅" : "复制文本"}
-                                </button>
-                                  );
-                                })()}
-                                {m.content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setExpandedMessageIds((prev) => ({
-                                        ...prev,
-                                        [m.id]: !expanded,
-                                      }))
-                                    }
-                                    className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                                  >
-                                    {collapsed ? "展开全文" : "收起"}
-                                  </button>
-                                ) : null}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    ) : null}
-
-                    {m.attachments.length ? (
-                      <div className="mt-3 space-y-2">
-                        {m.attachments.map((a) => (
-                          <div
-                            key={a.id}
-                            className="rounded-lg border border-zinc-700/80 bg-zinc-900 p-2.5"
-                          >
-                            {hasInlinePreview(a) ? (
-                              <div className="mb-2 overflow-hidden rounded-md border border-zinc-700 bg-black">
-                                {a.previewType === "IMAGE" ? (
-                                  <img
-                                    src={a.previewUrl ?? ""}
-                                    alt={a.fileName}
-                                    className="max-h-[360px] w-full cursor-zoom-in object-contain"
-                                    loading="lazy"
-                                    onDoubleClick={() => openImageViewer(a.previewUrl, a.fileName)}
-                                  />
-                                ) : (
-                                  <video
-                                    src={a.previewUrl ?? ""}
-                                    controls
-                                    preload="metadata"
-                                    className="max-h-[360px] w-full"
-                                  />
-                                )}
-                              </div>
-                            ) : null}
-
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm text-zinc-200">{a.fileName}</p>
-                                <p className="text-xs text-zinc-500">{a.mimeType} | {formatBytes(a.sizeBytes)}</p>
-                              </div>
-                              <FileAction roomCode={roomCode} attachment={a} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </article>
+                <MessageBubble
+                  key={m.id}
+                  own={isOwnMessage}
+                  avatarInitial={m.sender.avatarInitial}
+                  avatarColor={m.sender.avatarColor}
+                  nickname={m.sender.nickname}
+                  createdAt={m.createdAt}
+                  metaSlot={
+                    isOwnMessage && deliveryState === "sent" ? (
+                      <Check className="h-3.5 w-3.5 text-zinc-300" />
+                    ) : isOwnMessage && deliveryState === "read" ? (
+                      <CheckCheck className="h-3.5 w-3.5 text-zinc-300" />
+                    ) : null
+                  }
+                  content={m.content}
+                  collapsed={collapsed}
+                  visibleContent={collapsed ? `${getCollapsedPreviewText(m.content)}...` : m.content}
+                  onToggleExpand={() => setExpandedMessageIds((prev) => ({ ...prev, [m.id]: !expanded }))}
+                  onCopy={() => void copyMessageText(m.content, copyKey)}
+                  copied={Boolean(copiedTextKeys[copyKey])}
+                  labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
+                  attachments={m.attachments}
+                  renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} />}
+                  onOpenImage={openImageViewer}
+                />
               );
             })}
 
-            {pendingMessages.map((message) => (
-              <article key={message.localId} className="flex justify-end">
-                <div className="w-full max-w-[92%] rounded-xl border border-zinc-500/40 bg-zinc-500/10 p-3 sm:max-w-[85%]">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Avatar
-                        initial={snap.me.avatarInitial}
-                        color={snap.me.avatarColor}
-                        className="h-7 w-7"
-                      />
-                      <span className="text-sm font-medium text-zinc-200">{snap.me.nickname}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                      <time>{fmt(message.createdAt)}</time>
-                      {message.status === "sending" ? (
-                        <>
-                          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-zinc-300" />
-                          <span>{message.progress}%</span>
-                        </>
-                      ) : (
-                        <>
-                          <X className="h-3.5 w-3.5 text-red-300" />
-                          <span>发送失败</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {message.content ? (
-                    <div className="space-y-2">
-                      {(() => {
-                        const expanded = Boolean(expandedPendingMessageIds[message.localId]);
-                        const collapsed = isMessageCollapsed(message.content, expanded);
-                        const visibleContent = collapsed
-                          ? `${getCollapsedPreviewText(message.content)}...`
-                          : message.content;
-
-                        return (
-                          <>
-                            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">
-                              {visibleContent}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
-                              {(() => {
-                                const copyFeedbackKey = `pending-${message.localId}`;
-                                const copied = Boolean(copiedTextKeys[copyFeedbackKey]);
-                                return (
-                              <button
-                                type="button"
-                                onClick={() => void copyMessageText(message.content, copyFeedbackKey)}
-                                className={clsx(
-                                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition",
-                                  copied
-                                    ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
-                                    : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
-                                )}
-                              >
-                                <Copy className="h-3 w-3" />
-                                {copied ? "已复制✅" : "复制文本"}
-                              </button>
-                                );
-                              })()}
-                              {message.content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setExpandedPendingMessageIds((prev) => ({
-                                      ...prev,
-                                      [message.localId]: !expanded,
-                                    }))
-                                  }
-                                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                                >
-                                  {collapsed ? "展开全文" : "收起"}
-                                </button>
-                              ) : null}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  ) : null}
-
-                  {message.attachments.length ? (
-                    <div className="mt-3 space-y-2">
-                      {message.attachments.map((attachment) => (
-                        <div
-                          key={attachment.id}
-                          className="rounded-lg border border-zinc-700/80 bg-zinc-900 p-2.5"
-                        >
-                          {hasInlinePreview(attachment) ? (
-                            <div className="mb-2 overflow-hidden rounded-md border border-zinc-700 bg-black">
-                              {attachment.previewType === "IMAGE" ? (
-                                <img
-                                  src={attachment.previewUrl ?? ""}
-                                  alt={attachment.fileName}
-                                  className="max-h-[360px] w-full cursor-zoom-in object-contain"
-                                  loading="lazy"
-                                  onDoubleClick={() =>
-                                    openImageViewer(attachment.previewUrl, attachment.fileName)
-                                  }
-                                />
-                              ) : attachment.previewType === "VIDEO" ? (
-                                <video
-                                  src={attachment.previewUrl ?? ""}
-                                  controls
-                                  preload="metadata"
-                                  className="max-h-[360px] w-full"
-                                />
-                              ) : null}
-                            </div>
-                          ) : null}
-
-                          <div className="min-w-0">
-                            <p className="truncate text-sm text-zinc-200">{attachment.fileName}</p>
-                            <p className="text-xs text-zinc-500">
-                              {attachment.mimeType} | {formatBytes(attachment.sizeBytes)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {message.status === "failed" && message.error ? (
-                    <p className="mt-2 text-xs text-red-300">{message.error}</p>
-                  ) : null}
-                </div>
-              </article>
-            ))}
+            {pendingMessages.map((message) => {
+              const expanded = Boolean(expandedPendingMessageIds[message.localId]);
+              const collapsed = isMessageCollapsed(message.content, expanded);
+              const copyKey = `pending-${message.localId}`;
+              return (
+                <MessageBubble
+                  key={message.localId}
+                  own
+                  avatarInitial={snap.me.avatarInitial}
+                  avatarColor={snap.me.avatarColor}
+                  nickname={snap.me.nickname}
+                  createdAt={message.createdAt}
+                  metaSlot={
+                    message.status === "sending" ? (
+                      <>
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin text-zinc-300" />
+                        <span>{message.progress}%</span>
+                      </>
+                    ) : (
+                      <>
+                        <X className="h-3.5 w-3.5 text-red-300" />
+                        <span>{t("chat.sendFailed")}</span>
+                      </>
+                    )
+                  }
+                  content={message.content}
+                  collapsed={collapsed}
+                  visibleContent={collapsed ? `${getCollapsedPreviewText(message.content)}...` : message.content}
+                  onToggleExpand={() => setExpandedPendingMessageIds((prev) => ({ ...prev, [message.localId]: !expanded }))}
+                  onCopy={() => void copyMessageText(message.content, copyKey)}
+                  copied={Boolean(copiedTextKeys[copyKey])}
+                  labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
+                  attachments={message.attachments}
+                  onOpenImage={openImageViewer}
+                  footerSlot={
+                    message.status === "failed" && message.error ? (
+                      <p className="mt-2 text-xs text-red-300">{message.error}</p>
+                    ) : null
+                  }
+                />
+              );
+            })}
             <div ref={endRef} />
           </div>
 
