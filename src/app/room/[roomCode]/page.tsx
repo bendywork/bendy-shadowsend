@@ -8,7 +8,7 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, Clock3, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, ChevronRight, Clock3, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -158,14 +158,16 @@ function RoomLinks({
   rooms,
   activeCode,
   onToggleMenu,
+  emptyLabel = "暂无",
 }: {
   rooms: RoomTreeItem[];
   activeCode: string;
   onToggleMenu: (room: RoomTreeItem, triggerButton: HTMLButtonElement) => void;
+  emptyLabel?: string;
 }) {
   return (
     <div className="space-y-1">
-      {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">暂无</p> : rooms.map((r) => (
+      {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">{emptyLabel}</p> : rooms.map((r) => (
         <div
           key={r.id}
           className={clsx(
@@ -363,6 +365,9 @@ export default function RoomPage() {
   const [copiedTextKeys, setCopiedTextKeys] = useState<Record<string, boolean>>({});
 
   const [membersCollapsed, , toggleMembersCollapsed] = usePersistentBoolean("tb:members-collapsed", false);
+  const [navCollapsed, , toggleNavCollapsed] = usePersistentBoolean("tb:nav-collapsed", false);
+  const [createdCollapsed, , toggleCreatedCollapsed] = usePersistentBoolean("tb:nav-group-created", false);
+  const [joinedCollapsed, , toggleJoinedCollapsed] = usePersistentBoolean("tb:nav-group-joined", false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
@@ -378,7 +383,6 @@ export default function RoomPage() {
   const [openRoomMenu, setOpenRoomMenu] = useState<RoomMenuState | null>(null);
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
-  const [roomsPanelTab, setRoomsPanelTab] = useState<"created" | "joined">("created");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
   const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -401,6 +405,7 @@ export default function RoomPage() {
   const t = useT();
   const isOwner = snap?.me.role === "OWNER";
   const membersVisible = !membersCollapsed;
+  const navVisible = !navCollapsed;
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
   const pollingEnabled = Boolean(snap && !snap.waitingApproval);
 
@@ -525,10 +530,6 @@ export default function RoomPage() {
   }, [isOwner]);
 
   useEffect(() => {
-    setOpenRoomMenu(null);
-  }, [roomsPanelTab]);
-
-  useEffect(() => {
     if (!isOwner && memberPanelTab !== "members") {
       setMemberPanelTab("members");
     }
@@ -561,7 +562,6 @@ export default function RoomPage() {
   const rooms = useMemo(() => ({ created: boot?.tree.createdRooms ?? [], joined: boot?.tree.joinedRooms ?? [] }), [boot]);
   const roomCount = rooms.created.length + rooms.joined.length;
   const canAddMoreRooms = roomCount < MAX_USER_ROOMS;
-  const activeRooms = roomsPanelTab === "created" ? rooms.created : rooms.joined;
   const clampMessageText = useCallback((value: string) => value.slice(0, MAX_MESSAGE_TEXT_CHARS), []);
 
   function sortRooms(items: RoomTreeItem[]) {
@@ -1690,12 +1690,45 @@ export default function RoomPage() {
   };
   const isPreviewingNoticeDraft = Boolean(noticePreview);
 
+  function handleToggleRoomMenu(targetRoom: RoomTreeItem, triggerButton: HTMLButtonElement) {
+    if (openRoomMenu?.room.id === targetRoom.id) {
+      setOpenRoomMenu(null);
+      return;
+    }
+    const rect = triggerButton.getBoundingClientRect();
+    const menuWidth = 100;
+    const menuHeight = 36;
+    const viewportPadding = 8;
+    const nextLeft = Math.max(
+      viewportPadding,
+      Math.min(window.innerWidth - menuWidth - viewportPadding, rect.right - menuWidth),
+    );
+    const nextTop = rect.bottom + 6 + menuHeight > window.innerHeight
+      ? Math.max(viewportPadding, rect.top - menuHeight - 6)
+      : rect.bottom + 6;
+    setOpenRoomMenu({ room: targetRoom, left: nextLeft, top: nextTop });
+  }
+
   return (
     <>
-      <main className={clsx("grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden", membersVisible ? "xl:grid-cols-[290px_minmax(0,1fr)_290px]" : "xl:grid-cols-[290px_minmax(0,1fr)]") }>
-        <aside ref={roomsPanelRef} className="order-2 flex min-h-0 max-h-[52vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-1 xl:max-h-none">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="flex items-center gap-2">
+      <main
+        className={clsx(
+          "grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden",
+          navVisible && membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)_290px]",
+          navVisible && !membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)]",
+          !navVisible && membersVisible && "xl:grid-cols-[minmax(0,1fr)_290px]",
+          !navVisible && !membersVisible && "xl:grid-cols-[minmax(0,1fr)]",
+        )}
+      >
+        <aside
+          ref={roomsPanelRef}
+          className={clsx(
+            "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-1 xl:max-h-none",
+            navVisible ? "flex" : "hidden",
+          )}
+        >
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/70 p-1">
                 <Image
                   src="/1.png"
@@ -1713,85 +1746,75 @@ export default function RoomPage() {
                 />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">房间导航</p>
-                <h2 className="text-lg font-semibold text-zinc-100">加入 / 管理</h2>
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">{t("nav.title")}</p>
+                <h2 className="truncate text-lg font-semibold text-zinc-100">{t("nav.subtitle")}</h2>
               </div>
             </div>
+            <Tooltip label={t("nav.collapse")}>
+              <IconButton aria-label={t("nav.collapse")} onClick={toggleNavCollapsed}>
+                <PanelLeftClose className="h-4 w-4" />
+              </IconButton>
+            </Tooltip>
           </div>
-          <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-1">
-            <button
-              type="button"
-              onClick={() => setRoomsPanelTab("created")}
-              className={clsx(
-                "rounded-lg px-2 py-1.5 text-xs",
-                roomsPanelTab === "created"
-                  ? "bg-zinc-700 text-zinc-100"
-                  : "text-zinc-300 hover:bg-zinc-800",
-              )}
-            >
-              管理
-            </button>
-            <button
-              type="button"
-              onClick={() => setRoomsPanelTab("joined")}
-              className={clsx(
-                "rounded-lg px-2 py-1.5 text-xs",
-                roomsPanelTab === "joined"
-                  ? "bg-zinc-700 text-zinc-100"
-                  : "text-zinc-300 hover:bg-zinc-800",
-              )}
-            >
-              加入
-            </button>
-          </div>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-              {roomsPanelTab === "created" ? "管理的房间" : "加入的房间"}
-            </p>
-            <button
-              type="button"
-              aria-label={roomsPanelTab === "created" ? "创建房间" : "加入房间"}
-              onClick={() => openRoomEntry(roomsPanelTab === "created" ? "create" : "join")}
-              disabled={!canAddMoreRooms || roomEntrySubmitting}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <p className="mb-3 text-[11px] text-zinc-500">
-            当前已加入/创建房间数：
-            <span className="ml-1 font-semibold text-zinc-300">{roomCount}/{MAX_USER_ROOMS}</span>
-            {!canAddMoreRooms ? <span className="ml-1">（已达上限）</span> : null}
+          <p className="mb-3 flex flex-wrap items-center gap-x-1.5 text-[11px] text-zinc-500">
+            <span>{t("nav.count", { count: roomCount, max: MAX_USER_ROOMS })}</span>
+            {!canAddMoreRooms ? <span className="text-zinc-600">· {t("nav.count.full")}</span> : null}
           </p>
-          <div className="overflow-y-auto pb-3">
-            <RoomLinks
-              rooms={activeRooms}
-              activeCode={roomCode}
-              onToggleMenu={(targetRoom, triggerButton) => {
-                if (openRoomMenu?.room.id === targetRoom.id) {
-                  setOpenRoomMenu(null);
-                  return;
-                }
-
-                const rect = triggerButton.getBoundingClientRect();
-                const menuWidth = 100;
-                const menuHeight = 36;
-                const viewportPadding = 8;
-                const nextLeft = Math.max(
-                  viewportPadding,
-                  Math.min(window.innerWidth - menuWidth - viewportPadding, rect.right - menuWidth),
-                );
-                const nextTop = rect.bottom + 6 + menuHeight > window.innerHeight
-                  ? Math.max(viewportPadding, rect.top - menuHeight - 6)
-                  : rect.bottom + 6;
-
-                setOpenRoomMenu({
-                  room: targetRoom,
-                  left: nextLeft,
-                  top: nextTop,
-                });
-              }}
-            />
+          <div className="flex-1 space-y-4 overflow-y-auto pb-3">
+            <div>
+              <div className="mb-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={toggleCreatedCollapsed}
+                  aria-expanded={!createdCollapsed}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-zinc-500 hover:text-zinc-300"
+                >
+                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !createdCollapsed && "rotate-90")} />
+                  <span className="truncate">{t("nav.group.created")}</span>
+                  <span className="ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">{rooms.created.length}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("nav.create")}
+                  title={t("nav.create")}
+                  onClick={() => openRoomEntry("create")}
+                  disabled={!canAddMoreRooms || roomEntrySubmitting}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {!createdCollapsed ? (
+                <RoomLinks rooms={rooms.created} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
+              ) : null}
+            </div>
+            <div>
+              <div className="mb-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={toggleJoinedCollapsed}
+                  aria-expanded={!joinedCollapsed}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-zinc-500 hover:text-zinc-300"
+                >
+                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !joinedCollapsed && "rotate-90")} />
+                  <span className="truncate">{t("nav.group.joined")}</span>
+                  <span className="ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">{rooms.joined.length}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("nav.join")}
+                  title={t("nav.join")}
+                  onClick={() => openRoomEntry("join")}
+                  disabled={!canAddMoreRooms || roomEntrySubmitting}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {!joinedCollapsed ? (
+                <RoomLinks rooms={rooms.joined} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
+              ) : null}
+            </div>
           </div>
           <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
             <p>
@@ -1833,13 +1856,15 @@ export default function RoomPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => scrollToPanel("rooms")}
-                className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
-              >
-                房间列表
-              </button>
+              {navVisible ? (
+                <button
+                  type="button"
+                  onClick={() => scrollToPanel("rooms")}
+                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
+                >
+                  房间列表
+                </button>
+              ) : null}
               {membersVisible ? (
                 <button
                   type="button"
@@ -1849,6 +1874,15 @@ export default function RoomPage() {
                   成员列表
                 </button>
               ) : null}
+              <Tooltip label={navVisible ? t("control.nav.hide") : t("control.nav.show")}>
+                <IconButton
+                  aria-label={navVisible ? t("control.nav.hide") : t("control.nav.show")}
+                  active={navVisible}
+                  onClick={toggleNavCollapsed}
+                >
+                  <PanelLeft className="h-4 w-4" />
+                </IconButton>
+              </Tooltip>
               <Tooltip label={t("header.invite")}>
                 <IconButton aria-label={t("header.invite")} onClick={copyLink}>
                   <Copy className="h-4 w-4" />
