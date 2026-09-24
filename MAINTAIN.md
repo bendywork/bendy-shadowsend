@@ -3,6 +3,30 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-09-24: v0.1.56 全局 UI 优化（macOS 质感）
+
+### Scope
+- Rework the global design system for a calmer, more refined macOS-like look.
+- Redesign the login/landing page (reduce visual noise).
+- Skin the chat send button as the accent primary action.
+- Bump app version to `0.1.56`.
+
+### Design System (`src/app/globals.css`)
+- Refined dark/light token palettes; light theme rebuilt on Apple neutral grays + system blue accent.
+- Added `-apple-system` / SF font stack and font smoothing (antialiased).
+- Added unified radius/shadow/ring tokens and theme-aware helpers: `.surface-card`, `.field`, `.btn-primary`, `.segmented`.
+- Softer body background gradients; thinner scrollbars; global `:focus-visible` ring.
+- Light-mode zinc utilities now adapt via remapped `--color-zinc-*`; dropped redundant `border-zinc-800/900` `!important` fixes.
+
+### Frontend Changes
+- `src/app/page.tsx`: removed extra glow overlay; toned down heading/typewriter scale; card → `.surface-card`; tabs → `.segmented`; inputs → `.field`; submit → `.btn-primary`; distinct error styling.
+- `src/app/room/[roomCode]/page.tsx`: send button → `.btn-primary` (accent), consistent with login.
+- `docs/development-plan-2026-09-24-global-ui-optimize.md`: evaluation + phased optimization plan.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.56`.
+- Added this iteration entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-04-16: v0.1.55 Light Theme QR Visibility Fix
 
 ### Scope

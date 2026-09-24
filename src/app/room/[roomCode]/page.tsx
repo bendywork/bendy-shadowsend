@@ -2198,7 +2198,7 @@ export default function RoomPage() {
                   </span>
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-1 rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                    className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium"
                   >
                     <SendHorizonal className="h-3.5 w-3.5" />
                     发送

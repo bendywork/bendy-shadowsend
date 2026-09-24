@@ -209,12 +209,10 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 sm:py-10 lg:flex lg:items-center">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.10),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.08),transparent_38%)]" />
-
-      <section className="relative mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
-        <div className="flex min-h-0 items-center px-1 sm:px-4 lg:min-h-[620px]">
-          <div className="w-full max-w-xl space-y-6 sm:space-y-8">
-            <div className="w-full max-w-[560px]">
+      <section className="relative mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+        <div className="flex min-h-0 items-center px-1 sm:px-3 lg:min-h-[560px]">
+          <div className="w-full max-w-xl space-y-6 sm:space-y-7">
+            <div className="w-full max-w-[440px]">
               <Image
                 src="/2.png"
                 width={500}
@@ -233,28 +231,28 @@ export default function HomePage() {
               />
             </div>
 
-            <h2 className="text-3xl font-semibold leading-tight text-zinc-100 sm:text-5xl">
+            <h2 className="text-2xl font-semibold leading-tight tracking-tight text-zinc-100 sm:text-4xl">
               临时信息传递空间
             </h2>
 
-            <p className="max-w-lg text-lg leading-relaxed text-zinc-300 sm:text-2xl">
+            <p className="max-w-md text-base leading-relaxed text-zinc-400 sm:text-lg">
               房间 10 分钟无活跃自动销毁，信息短驻留、低负担。
             </p>
 
-            <p className="min-h-[2.5rem] font-mono text-xl text-zinc-200 sm:text-3xl">
+            <p className="min-h-[2rem] font-mono text-base text-zinc-500 sm:text-lg">
               {typedText}
-              <span className="ml-1 inline-block h-7 w-2 animate-pulse bg-zinc-300 align-middle" />
+              <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-zinc-500 align-middle sm:h-5" />
             </p>
           </div>
         </div>
 
-        <div className="flex min-h-0 items-center lg:min-h-[620px]">
-          <section className="w-full rounded-3xl border border-zinc-800/80 bg-black/65 p-6 shadow-[0_18px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-8">
+        <div className="flex min-h-0 items-center lg:min-h-[560px]">
+          <section className="surface-card w-full p-6 sm:p-7">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">SESSION ENTRY</p>
-                <h1 className="mt-2 text-3xl font-semibold text-zinc-100">临时笨迪</h1>
-                <p className="mt-2 text-sm text-zinc-400">加入或创建房间，消息仅在活跃期内保留。</p>
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500">Session Entry</p>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">临时笨迪</h1>
+                <p className="mt-1.5 text-sm text-zinc-400">加入或创建房间，消息仅在活跃期内保留。</p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
                 <ThemeToggle />
@@ -274,22 +272,20 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="mb-5 inline-flex w-full rounded-xl border border-zinc-800 bg-zinc-950 p-1 sm:w-auto">
+            <div className="segmented mb-5 inline-flex w-full p-1 sm:w-auto">
               <button
                 type="button"
                 onClick={() => setTab("join")}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition ${
-                  tab === "join" ? "bg-zinc-700 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800"
-                } flex-1 justify-center sm:flex-none`}
+                data-active={tab === "join"}
+                className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
               >
                 <DoorOpen className="h-4 w-4" /> 加入
               </button>
               <button
                 type="button"
                 onClick={() => setTab("create")}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition ${
-                  tab === "create" ? "bg-zinc-700 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800"
-                } flex-1 justify-center sm:flex-none`}
+                data-active={tab === "create"}
+                className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
               >
                 <PlusCircle className="h-4 w-4" /> 创建
               </button>
@@ -304,7 +300,7 @@ export default function HomePage() {
                     value={joinRoomCode}
                     onChange={(event) => setJoinRoomCode(event.target.value.trim())}
                     placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field px-4 py-2.5 text-sm"
                   />
                 </label>
 
@@ -316,7 +312,7 @@ export default function HomePage() {
                       setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                     }
                     placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field px-4 py-2.5 text-sm"
                   />
                 </label>
 
@@ -326,14 +322,14 @@ export default function HomePage() {
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
                     placeholder="有邀请链接时自动填充"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field px-4 py-2.5 text-sm"
                   />
                 </label>
 
                 <button
                   type="submit"
                   disabled={submitting || loading}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
                 >
                   {submitting ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -352,7 +348,7 @@ export default function HomePage() {
                     value={createName}
                     onChange={(event) => setCreateName(event.target.value)}
                     placeholder="输入房间名"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field px-4 py-2.5 text-sm"
                   />
                 </label>
 
@@ -364,14 +360,14 @@ export default function HomePage() {
                       setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                     }
                     placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field px-4 py-2.5 text-sm"
                   />
                 </label>
 
                 <button
                   type="submit"
                   disabled={submitting || loading}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
                 >
                   {submitting ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -394,8 +390,16 @@ export default function HomePage() {
               </div>
             </div>
 
-            {info ? <p className="mt-4 text-sm text-zinc-300">{info}</p> : null}
-            {error ? <p className="mt-4 text-sm text-zinc-300">{error}</p> : null}
+            {info ? (
+              <p className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-300">
+                {info}
+              </p>
+            ) : null}
+            {error ? (
+              <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+                {error}
+              </p>
+            ) : null}
           </section>
         </div>
       </section>
