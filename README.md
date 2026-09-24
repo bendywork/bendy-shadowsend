@@ -368,6 +368,8 @@ npm run db:reinit:prefixed
 
 ### 2026-09-24
 
+- `0.1.61` 底部输入区 composer 重设计：focus 高亮环、文件 chip 显示大小、工具栏图标化、字数上限色阶提示、空内容禁用发送；composer 文案接入 i18n。
+- `209b315` composer 文案接入 i18n（`composer.*` + `common.on/off`，zh+en）；回车发送开关加 `CornerDownLeft` 图标，发送按钮在无文本且无文件时禁用（与 `send()` 空内容 no-op 一致）。
 - `0.1.60` 聊天消息气泡组件化：抽出复用 `MessageBubble`/`MessageAttachmentCard`，合并已发送与发送中两处重复标记（约 250 行）；气泡、时间戳与附件预览打磨。
 - `fa8f6ea` 新增模块级哑组件 `MessageBubble` 与 `MessageAttachmentCard`（图片/视频内联预览 + 文件信息 + 可选动作位）；已发送气泡传 Check/CheckCheck 回执与 `FileAction` 下载，发送中气泡传 sending%/失败状态与错误脚注。
 - `fa8f6ea` 聊天外壳文案接入 i18n：`chat.empty/copy/copied/expand/collapse/sendFailed`（zh+en，parity 校验）；聊天正文与后端错误仍不做双语。

@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-09-24: v0.1.61 底部输入区 composer 重设计 + 文案 i18n
+
+### Scope
+- Redesign the chat composer (file chips, textarea, action toolbar, send button) for a calmer macOS feel.
+- i18n all composer strings.
+- Bump app version to `0.1.61`.
+- Phase 5 of the chat-UI deep refactor plan (`docs/development-plan-2026-09-24-chat-ui-deep-refactor.md`).
+
+### Frontend Changes
+- `src/app/room/[roomCode]/page.tsx`:
+  - Composer container gains a `focus-within` highlight ring; file chips are softer (`rounded-xl`) and now show `formatBytes(size)` plus an aria-labelled remove button.
+  - Toolbar buttons unified (icons + `transition`); the enter-to-send switch gains a `CornerDownLeft` icon and reads `Enter to send · On/Off`.
+  - Character counter turns amber near the limit and red at the limit (`tabular-nums`).
+  - Send button is disabled when there is no trimmed text and no files (mirrors the existing empty-content no-op in `send()`).
+  - Imported `CornerDownLeft` from lucide.
+- `src/lib/i18n/messages.ts`: added `composer.placeholder/attach/clipboard/enterToSend/send/removeFile` + `common.on/off` (zh + en, parity-checked).
+
+### Regression Checklist
+- Paste text/files, attach via the file picker, and read-clipboard all still work; chips remove individually.
+- Enter-to-send toggle still gates Enter submission; Shift+Enter still newlines.
+- Send is blocked (button disabled) only when both text and files are empty; otherwise sends as before.
+- Composer strings flip between 中文/English; counter color states render.
+- `npm run lint` + `npm run build` both green.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.61`.
+- Added this entry to `MAINTAIN.md` and README 更新记录 (code commit `209b315`).
+
 ## 2026-09-24: v0.1.60 聊天消息气泡组件化 + 正文 i18n
 
 ### Scope
