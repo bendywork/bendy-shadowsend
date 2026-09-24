@@ -368,6 +368,9 @@ npm run db:reinit:prefixed
 
 ### 2026-09-24
 
+- `0.1.57` 聊天页顶部控件区优化：房间头部动作按钮改纯图标 + 悬停提示气泡，主题/语言切换移至头部右上角，新增中/英语言切换。
+- `9ebc887` 新增轻量客户端 i18n（`messages` 表 + Context，`useSyncExternalStore` 读 localStorage 规避水合不匹配）与复用组件 `IconButton`/`Tooltip`/`LanguageToggle`，`globals.css` 补 `.icon-btn`/`.tooltip-bubble`。
+- `9ebc887` 主题切换重构为纯图标置于右上角；头部动作按钮（邀请/二维码/公告/管理/解散）改纯图标 + 提示气泡并接入 i18n；移除右侧栏内重复的主题设置区。
 - `0.1.56` 全局 UI 优化：重制设计体系，登录页降噪，整体向 macOS 质感靠拢。
 - `bb641cc` 重构 `globals.css`：分层设计令牌、`-apple-system` 字体栈、统一圆角/阴影/聚焦环、精修滚动条。
 - `bb641cc` 日间主题基于 Apple 中性灰 + 系统蓝重制，zinc 工具类走 `--color-zinc-*` 自适应，去掉冗余 `!important`。

@@ -3,6 +3,42 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-09-24: v0.1.57 聊天页顶部控件区（图标按钮 + 提示 + 主题/语言切换）
+
+### Scope
+- Chat room header: convert 邀请/二维码/公告/管理/解散 action buttons to icon-only with hover tooltips.
+- Move theme toggle to the header top-right as a standalone icon button; add a 中/英 language switcher next to it.
+- Introduce a lightweight client-side i18n framework (shell strings only).
+- Remove the duplicate theme section from the right sidebar (theme now lives only in the header, so hiding the owner manage panel no longer hides the theme control).
+- Bump app version to `0.1.57`.
+- This is Phase 1 of the chat-UI deep refactor plan (`docs/development-plan-2026-09-24-chat-ui-deep-refactor.md`).
+
+### i18n Framework (`src/lib/i18n/*`)
+- `messages.ts`: zh/en message table (UI shell only — chat content & backend errors excluded), typed `Lang`/`MessageKey`, compile-time en/zh key-parity check.
+- `context.tsx`: `LanguageProvider` + `useLanguage()`/`useT()`. Language preference stored in `localStorage` (`tb:lang`) and read via `useSyncExternalStore` (server snapshot = `DEFAULT_LANG` → matches `<html lang="zh-CN">`, avoids hydration mismatch; no `setState` inside effects). Missing-key fallback: lang → default → key; `{param}` interpolation.
+- Mounted `<LanguageProvider>` around `{children}` in `src/app/layout.tsx`.
+
+### Reusable UI (`src/components/ui/*`)
+- `IconButton`: square icon-only button (`.icon-btn`), `active`/`danger` variants.
+- `Tooltip`: hover-delay (~800ms) bubble, immediate on keyboard focus; `role="tooltip"`.
+- `LanguageToggle`: `.segmented` 中/EN switcher bound to the i18n context.
+
+### Frontend Changes
+- `src/components/theme/theme-toggle.tsx`: rebuilt as an icon-only `IconButton` + `Tooltip`; theme read via `useSyncExternalStore` (`tb:theme`), server snapshot `dark`.
+- `src/app/room/[roomCode]/page.tsx`: header member count via `t("header.members", …)`; top-right cluster `<ThemeToggle/>` + `<LanguageToggle/>`; action buttons → `<Tooltip><IconButton/></Tooltip>` with i18n labels; removed the `Btn` helper (now unused) and the right-sidebar 主题 section.
+- `src/app/globals.css`: added `.icon-btn` (+ `--active`/`--danger`) and `.tooltip-bubble` (+ `--top`/`--bottom`/`--open`).
+
+### Regression Checklist
+- Header actions show icon-only; hovering ~1s reveals a tooltip; keyboard focus shows it immediately.
+- Theme toggle in the header switches dark/light and persists across reloads (no hydration warning; no flash beyond the known pre-hydration FOUC deferred to a later phase).
+- Language switcher flips shell strings (member count, action tooltips) between 中文/English and persists (`tb:lang`).
+- Owner hiding the manage panel no longer loses the theme control (it lives in the header now).
+- Non-owner sees invite/QR/announcement (view) actions; owner additionally sees manage + dissolve.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.57`.
+- Added this entry to `MAINTAIN.md` and README 更新记录 (code commit `9ebc887`).
+
 ## 2026-09-24: v0.1.56 全局 UI 优化（macOS 质感）
 
 ### Scope
