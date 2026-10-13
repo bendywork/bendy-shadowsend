@@ -368,6 +368,8 @@ npm run db:reinit:prefixed
 
 ### 2026-10-13
 
+- `0.1.64` 决策回写（REQ-202610-0463）：7 项决策结论（dc-01 ~ dc-07）同步至路线图与平台需求卡——更新 15 张、关闭 7 张决策卡、新增 6 张（REQ-202610-0747 ~ REQ-202610-0752）；UI 清单 46 → 49 条、上传清单 9 → 12 条；实施顺序定为「先上传后 UI」。
+- `47fb770` 更新 `docs/development-plan-2026-10-13-roadmap.md`（决策结论 + §4 架构改写为 Vercel 原生分片，不建 CF Worker）；`package.json` / `src/lib/constants.ts` 版本同步至 `0.1.64`（docs-only，无功能变更）。
 - `0.1.63` 发展路线规划（REQ-202610-0463）：产出 UI 全面改版（46 条）与上传通道重构（9 条）路线图及 7 张决策卡（含 Jev 校准），需求已回填平台（REQ-202610-0464 ~ REQ-202610-0525）。
 - `bd453b2` 新增 `docs/development-plan-2026-10-13-roadmap.md`（含 file.sang.pub / pic.sl.al 实测协议附录）；`package.json` / `src/lib/constants.ts` 版本同步至 `0.1.63`（docs-only，无功能变更）。
 

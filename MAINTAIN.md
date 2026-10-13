@@ -3,6 +3,28 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-13: v0.1.64 决策回写（7 项决策结论同步路线图与需求卡，REQ-202610-0463）
+
+### Scope
+- Record the 7 decision outcomes (dc-01 ~ dc-07, released on the platform decision session by fntp) and sync the impact surface back to the roadmap doc and the BACS requirement cards.
+- Bump app version to `0.1.64`. Docs-only iteration — no runtime behavior change.
+
+### Changes
+- `docs/development-plan-2026-10-13-roadmap.md`:
+  - §1/§5: sequencing per dc-07 (upload first, UI second); all 7 decisions marked 已决 — dc-01=B (Vercel-native chunking only, no CF Worker), dc-02=A (monochrome + inverted primary buttons), dc-03=B (theme-batched 4–5 batches), dc-04=A (full multi-platform incl. mobile), dc-05=A (legacy config bypass, stock read-only), dc-06=A (bounded same-service retry 2-3x + explicit errors), dc-07=B (upload-first).
+  - §3.2: UI list 46 → 49 items (ui-47 mobile gestures, ui-48 multi-platform real-device acceptance, ui-49 accent-color cleanup); §4.5: upload list 9 → 12 items (up-10 receiver merge + integrity, up-11 concurrent chunks + resume, up-12 legacy storage decommission); new ranges `REQ-202610-0747` ~ `REQ-202610-0752`.
+  - §4.3/§4.4: architecture rewritten for the Vercel-native chunking path (≤4.5MB per request, ≈4MB chunks, receiver merge; no CF Worker).
+- Platform write-back (BACS): 15 cards updated (decision pins), 7 decision cards closed (`completed`), 6 new cards inserted (`REQ-202610-0747` ~ `REQ-202610-0752`).
+- `package.json` / `src/lib/constants.ts`: version synced to `0.1.64` via `scripts/sync-version.js`.
+
+### Regression Checklist
+- `npm run lint` + `npm run build` both green (no functional change).
+- Live check after deploy: `GET /api/bootstrap` reports `0.1.64`.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.64`.
+- Added this entry to `MAINTAIN.md` and README 更新记录 (commit `47fb770`).
+
 ## 2026-10-13: v0.1.63 发展路线规划（UI 全面改版 + 上传通道重构，REQ-202610-0463）
 
 ### Scope
