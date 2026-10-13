@@ -366,6 +366,11 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-13
+
+- `0.1.63` 发展路线规划（REQ-202610-0463）：产出 UI 全面改版（46 条）与上传通道重构（9 条）路线图及 7 张决策卡（含 Jev 校准），需求已回填平台（REQ-202610-0464 ~ REQ-202610-0525）。
+- `bd453b2` 新增 `docs/development-plan-2026-10-13-roadmap.md`（含 file.sang.pub / pic.sl.al 实测协议附录）；`package.json` / `src/lib/constants.ts` 版本同步至 `0.1.63`（docs-only，无功能变更）。
+
 ### 2026-09-24
 
 - `0.1.62` i18n 外壳收尾：底栏统计/移动端跳转按钮/文件下载文案接入 `t()`；新增预水合内联脚本，在首帧前同步 `<html data-theme>`/`<html lang>`，消除主题/语言默认值闪烁（FOUC）。

@@ -3,6 +3,26 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-13: v0.1.63 发展路线规划（UI 全面改版 + 上传通道重构，REQ-202610-0463）
+
+### Scope
+- Produce the next-phase development roadmap: full UI revamp (macOS-minimal, 46 items) and upload-channel rebuild onto third-party services (9 items), with 7 decision cards (Jev-calibrated).
+- Backfill 62 requirement cards into the BACS platform (`REQ-202610-0464` ~ `REQ-202610-0525`).
+- Bump app version to `0.1.63`. Docs-only iteration — no runtime behavior change.
+
+### Changes
+- Added `docs/development-plan-2026-10-13-roadmap.md`:
+  - Baseline & problem inventory (UI + upload pipeline), design principles, 46 UI items (ui-01 ~ ui-46, groups A–F), 9 upload items (up-01 ~ up-09), 7 decision cards (dc-01 ~ dc-07), and appendices with live-verified protocols for `file.sang.pub` / `pic.sl.al` plus platform limits (Vercel 4.5MB / CF Workers 100–200MB / CORS findings).
+- `package.json` / `src/lib/constants.ts`: version synced to `0.1.63` via `scripts/sync-version.js`.
+
+### Regression Checklist
+- `npm run lint` + `npm run build` both green (no functional change).
+- Live check after deploy: `GET /api/bootstrap` reports `0.1.63`.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.63`.
+- Added this entry to `MAINTAIN.md` and README 更新记录 (commit `bd453b2`).
+
 ## 2026-09-24: v0.1.62 i18n 外壳收尾 + 预水合防闪烁（FOUC）
 
 ### Scope
