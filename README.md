@@ -366,6 +366,11 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-17
+
+- `0.1.65` 边框收敛与层级规范（REQ-202610-0465）：建立 base / panel / card / overlay / inset 五级 surface 体系，首页与聊天页移除装饰性描边，改用背景分层、留白与轻投影；仅保留输入聚焦、危险提示与上传投放区必要描边。
+- `e348f77` 新增 `docs/design-system-surfaces.md`（层级定义 / 使用规则 / 验收口径）；`globals.css` 增加 surface 令牌与组件类，`page.tsx` 与 `room/[roomCode]/page.tsx` 全面接入；`package.json` / `src/lib/constants.ts` 版本同步至 `0.1.65`。
+
 ### 2026-10-13
 
 - `0.1.64` 决策回写（REQ-202610-0463）：7 项决策结论（dc-01 ~ dc-07）同步至路线图与平台需求卡——更新 15 张、关闭 7 张决策卡、新增 6 张（REQ-202610-0747 ~ REQ-202610-0752）；UI 清单 46 → 49 条、上传清单 9 → 12 条；实施顺序定为「先上传后 UI」。

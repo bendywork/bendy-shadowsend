@@ -3,6 +3,30 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-17: v0.1.65 边框收敛与层级规范（REQ-202610-0465）
+
+### Scope
+- 落地 UI 改版 A 设计基座 ui-02：定义并应用 base / panel / card / overlay / inset 五级 surface，核心页面去掉装饰性描边，仅保留输入聚焦、危险操作与上传投放区的必要描边。
+- 不涉及数据库结构、接口行为与业务逻辑。
+
+### Changes
+- `src/app/globals.css`:
+  - 新增 `--bg-overlay`、`--surface-inset/hover/selected`、`--border-subtle/strong/danger`、`--danger-text`、`--shadow-card/overlay` 令牌，深/浅双主题分别给值。
+  - 新增 `.surface-base/panel/card/overlay/inset/control/hover/selected/danger`、`.hairline-b/t`、`.message-bubble(--own)`、`.composer-shell`、`.dropzone`。
+  - `.surface-card` / `.popover-panel` / `.tooltip-bubble` 去描边，改为分层背景 + 轻投影；`.field` 默认无可见描边、聚焦时出现；`.segmented` 去外框；`.icon-btn--active` 改为背景选中态。
+- `src/app/page.tsx`：身份卡、统计/提示条、错误提示改用 surface 语义类。
+- `src/app/room/[roomCode]/page.tsx`：三栏布局改用 `surface-panel` / `surface-base`；房间列表、消息气泡、附件卡、成员卡、审批卡、设置分组、composer 及全部弹层/菜单统一去描边并接入 surface 语义类。
+- `docs/design-system-surfaces.md`：新增层级定义、使用规则、类名速查与验收口径。
+
+### Regression Checklist
+- `npm run lint` 通过（0 error）。
+- `npm run build` 通过（Next.js 16.2.1，TypeScript 0 error）。
+- 视觉冒烟：首页深/浅双主题截图无装饰描边；DOM 计算样式审计仅剩危险提示 1px 语义描边，`.surface-card` 的 `border-top-width` 为 0。
+
+### Versioning / History
+- `package.json` / `src/lib/constants.ts` 版本同步至 `0.1.65`（`scripts/sync-version.js`）。
+- 功能提交：`e348f77`；本条目与 README 更新记录随文档提交补充。
+
 ## 2026-10-13: v0.1.64 决策回写（7 项决策结论同步路线图与需求卡，REQ-202610-0463）
 
 ### Scope
