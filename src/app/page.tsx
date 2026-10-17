@@ -257,7 +257,7 @@ export default function HomePage() {
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
                 <ThemeToggle />
                 {displayMe ? (
-                  <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2">
+                  <div className="surface-inset flex items-center gap-3 rounded-2xl px-3 py-2">
                     <Avatar
                       initial={displayMe.avatarInitial}
                       color={displayMe.avatarColor}
@@ -380,23 +380,23 @@ export default function HomePage() {
             )}
 
             <div className="mt-5 space-y-2 text-xs">
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400">
+              <div className="surface-inset rounded-xl px-3 py-2 text-zinc-400">
                 当前已加入/创建房间数：
                 <span className="ml-1 font-semibold text-zinc-200">{roomCount}/10</span>
               </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400">
+              <div className="surface-inset rounded-xl px-3 py-2 text-zinc-400">
                 <Shield className="mr-1 inline h-3.5 w-3.5 text-zinc-300" />
                 门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
               </div>
             </div>
 
             {info ? (
-              <p className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-300">
+              <p className="surface-inset mt-4 rounded-lg px-3 py-2 text-sm text-zinc-300">
                 {info}
               </p>
             ) : null}
             {error ? (
-              <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+              <p className="surface-danger mt-4 rounded-lg px-3 py-2 text-sm">
                 {error}
               </p>
             ) : null}

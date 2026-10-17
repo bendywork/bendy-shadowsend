@@ -167,14 +167,14 @@ function RoomLinks({
 }) {
   return (
     <div className="space-y-1">
-      {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">{emptyLabel}</p> : rooms.map((r) => (
+      {rooms.length === 0 ? <p className="surface-inset rounded-lg px-3 py-2 text-xs text-zinc-500">{emptyLabel}</p> : rooms.map((r) => (
         <div
           key={r.id}
           className={clsx(
-            "rounded-lg border px-3 py-2 text-sm",
+            "surface-hover rounded-lg px-3 py-2 text-sm",
             activeCode === r.roomCode
-              ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100"
-              : "border-zinc-800 bg-zinc-900/70 text-zinc-300 hover:border-zinc-700",
+              ? "surface-selected text-zinc-100"
+              : "text-zinc-300",
           )}
         >
           <div className="flex items-start gap-2">
@@ -198,7 +198,7 @@ function RoomLinks({
                 aria-haspopup="menu"
                 data-room-menu-trigger={r.id}
                 onClick={(event) => onToggleMenu(r, event.currentTarget)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                className="surface-control inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-300"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </button>
@@ -221,7 +221,7 @@ function FileAction({ roomCode, attachment, label }: { roomCode: string; attachm
       alert(e instanceof Error ? e.message : "打开失败");
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
+  return <button type="button" onClick={open} disabled={loading} className="surface-control inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-300">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
 }
 
 type BubbleAttachment = {
@@ -243,9 +243,9 @@ function MessageAttachmentCard({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/80 p-2.5">
+    <div className="surface-inset rounded-xl p-2.5">
       {hasInlinePreview(attachment) ? (
-        <div className="mb-2 overflow-hidden rounded-lg border border-zinc-700/80 bg-black">
+        <div className="mb-2 overflow-hidden rounded-lg bg-black">
           {attachment.previewType === "IMAGE" ? (
             <img
               src={attachment.previewUrl ?? ""}
@@ -317,8 +317,8 @@ function MessageBubble({
     <article className={clsx("flex", own ? "justify-end" : "justify-start")}>
       <div
         className={clsx(
-          "w-full max-w-[92%] rounded-2xl border p-3 shadow-sm sm:max-w-[85%]",
-          own ? "border-zinc-500/40 bg-zinc-500/10" : "border-zinc-800 bg-zinc-900/60",
+          "message-bubble w-full max-w-[92%] p-3 sm:max-w-[85%]",
+          own ? "message-bubble--own" : "",
         )}
       >
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -340,10 +340,10 @@ function MessageBubble({
                 type="button"
                 onClick={onCopy}
                 className={clsx(
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition",
+                  "surface-control inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition",
                   copied
-                    ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
-                    : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                    ? "surface-selected text-zinc-100"
+                    : "text-zinc-300",
                 )}
               >
                 <Copy className="h-3 w-3" />
@@ -353,7 +353,7 @@ function MessageBubble({
                 <button
                   type="button"
                   onClick={onToggleExpand}
-                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                  className="surface-control inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-zinc-300"
                 >
                   {collapsed ? labels.expand : labels.collapse}
                 </button>
@@ -398,10 +398,10 @@ function SwitchBtn({
       disabled={disabled}
       onClick={onToggle}
       className={clsx(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200",
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200",
         checked
-          ? "border-zinc-500 bg-zinc-500/50"
-          : "border-zinc-600 bg-zinc-700",
+          ? "bg-zinc-500/60"
+          : "bg-zinc-700",
         disabled
           ? "cursor-not-allowed opacity-60"
           : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/60",
@@ -488,7 +488,7 @@ function AdCarousel({ items }: { items: AdBoardItem[] }) {
   const next = items[(safeIndex + 1) % items.length];
 
   return (
-    <div className="relative h-9 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900/70">
+    <div className="surface-inset relative h-9 overflow-hidden rounded-lg">
       <AdCarouselItem
         item={current}
         className={animating ? "-translate-y-full" : "translate-y-0"}
@@ -1818,7 +1818,7 @@ export default function RoomPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-sm text-zinc-300">{error}</p>
-        <Link href="/" className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-200">
+        <Link href="/" className="surface-control rounded-xl px-4 py-2 text-sm text-zinc-200">
           返回首页
         </Link>
       </main>
@@ -1830,7 +1830,7 @@ export default function RoomPage() {
   if (snap.waitingApproval) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
-        <section className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900/90 p-8 text-center">
+        <section className="surface-card w-full max-w-lg rounded-2xl p-8 text-center">
           <Clock3 className="mx-auto h-8 w-8 text-zinc-300" />
           <h1 className="mt-4 text-xl font-semibold text-zinc-100">等待房主审批</h1>
           <p className="mt-2 text-sm text-zinc-400">你曾被移出该房间，再次加入需要房主审批。</p>
@@ -1871,7 +1871,7 @@ export default function RoomPage() {
     <>
       <main
         className={clsx(
-          "grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden",
+          "surface-base grid min-h-[100dvh] w-full grid-cols-1 gap-0 xl:h-[100dvh] xl:overflow-hidden",
           navVisible && membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)_290px]",
           navVisible && !membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)]",
           !navVisible && membersVisible && "xl:grid-cols-[minmax(0,1fr)_290px]",
@@ -1881,13 +1881,13 @@ export default function RoomPage() {
         <aside
           ref={roomsPanelRef}
           className={clsx(
-            "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-1 xl:max-h-none",
+            "surface-panel order-2 min-h-0 max-h-[52vh] flex-col rounded-none p-4 xl:order-1 xl:max-h-none",
             navVisible ? "flex" : "hidden",
           )}
         >
           <div className="mb-4 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/70 p-1">
+              <div className="surface-inset relative h-9 w-9 overflow-hidden rounded-lg p-1">
                 <Image
                   src="/1.png"
                   alt="Temp Bendy"
@@ -1937,7 +1937,7 @@ export default function RoomPage() {
                   title={t("nav.create")}
                   onClick={() => openRoomEntry("create")}
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="surface-control inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-300 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
@@ -1964,7 +1964,7 @@ export default function RoomPage() {
                   title={t("nav.join")}
                   onClick={() => openRoomEntry("join")}
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="surface-control inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-300 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
@@ -1974,7 +1974,7 @@ export default function RoomPage() {
               ) : null}
             </div>
           </div>
-          <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
+          <div className="surface-inset mt-auto space-y-2 rounded-xl p-3 text-xs text-zinc-400">
             <p>
               {t("footer.version")} <span className="font-semibold text-zinc-200">{snap.app.version}</span>
             </p>
@@ -1997,8 +1997,8 @@ export default function RoomPage() {
           </div>
         </aside>
 
-        <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 xl:order-2 xl:h-full xl:min-h-0">
-          <header className="space-y-3 border-b border-zinc-800 px-3 py-3 sm:px-4">
+        <section className="surface-base order-1 flex min-h-[60vh] flex-col rounded-none xl:order-2 xl:h-full xl:min-h-0">
+          <header className="hairline-b space-y-3 px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h1 className="text-xl font-semibold text-zinc-100">{snap.room.name}</h1>
@@ -2018,7 +2018,7 @@ export default function RoomPage() {
                 <button
                   type="button"
                   onClick={() => scrollToPanel("rooms")}
-                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
+                  className="surface-control inline-flex items-center rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 xl:hidden"
                 >
                   {t("nav.rooms")}
                 </button>
@@ -2027,7 +2027,7 @@ export default function RoomPage() {
                 <button
                   type="button"
                   onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
+                  className="surface-control inline-flex items-center rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 xl:hidden"
                 >
                   {t("members.list")}
                 </button>
@@ -2094,12 +2094,12 @@ export default function RoomPage() {
               ) : null}
             </div>
             <AdCarousel items={snap.adBoard.items} />
-            {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
+            {hint ? <div className="surface-selected rounded-lg px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
           </header>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-6 text-center text-sm text-zinc-500">
+              <div className="surface-inset rounded-xl px-4 py-6 text-center text-sm text-zinc-500">
                 {t("chat.empty")}
               </div>
             ) : null}
@@ -2184,13 +2184,13 @@ export default function RoomPage() {
             <div ref={endRef} />
           </div>
 
-          <form ref={composerFormRef} onSubmit={send} className="border-t border-zinc-800 p-3 sm:p-4">
+          <form ref={composerFormRef} onSubmit={send} className="hairline-t p-3 sm:p-4">
             {files.length ? (
               <div className="mb-2 flex flex-wrap gap-2">
                 {files.map((file, index) => (
                   <span
                     key={`${file.name}-${file.size}-${index}`}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200"
+                    className="surface-inset inline-flex max-w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs text-zinc-200"
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
                     <span className="max-w-[200px] truncate">{file.name}</span>
@@ -2208,7 +2208,7 @@ export default function RoomPage() {
               </div>
             ) : null}
 
-            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/80 p-2 transition focus-within:border-zinc-500/60 focus-within:ring-2 focus-within:ring-zinc-500/15">
+            <div className="composer-shell rounded-2xl p-2">
               <textarea
                 value={text}
                 onChange={(e) => setText(clampMessageText(e.target.value))}
@@ -2220,7 +2220,7 @@ export default function RoomPage() {
               />
               <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 transition hover:bg-zinc-800">
+                  <label className="surface-control inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg px-2.5 text-xs text-zinc-200">
                     <Plus className="h-3.5 w-3.5" />
                     {t("composer.attach")}
                     <input
@@ -2238,7 +2238,7 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={readClipboard}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 transition hover:bg-zinc-800"
+                    className="surface-control inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs text-zinc-200"
                   >
                     <Copy className="h-3.5 w-3.5" />
                     {t("composer.clipboard")}
@@ -2249,10 +2249,10 @@ export default function RoomPage() {
                     aria-checked={enterToSend}
                     onClick={() => setEnterToSend((prev) => !prev)}
                     className={clsx(
-                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition",
+                      "surface-control inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs transition",
                       enterToSend
-                        ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
-                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                        ? "surface-selected text-zinc-100"
+                        : "text-zinc-300",
                     )}
                   >
                     <CornerDownLeft className="h-3.5 w-3.5" />
@@ -2289,7 +2289,7 @@ export default function RoomPage() {
         <aside
           ref={membersPanelRef}
           className={clsx(
-            "order-3 min-h-0 max-h-[56vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-3 xl:max-h-none",
+            "surface-panel order-3 min-h-0 max-h-[56vh] flex-col rounded-none p-4 xl:order-3 xl:max-h-none",
             membersVisible ? "flex" : "hidden",
           )}
         >
@@ -2341,7 +2341,7 @@ export default function RoomPage() {
                 <h2 className="mb-2 text-lg font-semibold text-zinc-100">{t("members.count", { count: snap.members.length })}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.members.map((m) => (
-                    <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
+                    <div key={m.id} className="surface-inset rounded-lg px-3 py-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
                           <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
@@ -2363,12 +2363,12 @@ export default function RoomPage() {
                               aria-haspopup="menu"
                               aria-expanded={openMemberMenuId === m.id}
                               onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-500/40 text-zinc-300 hover:bg-zinc-800"
+                              className="surface-control inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-300"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
                             {openMemberMenuId === m.id ? (
-                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl">
+                              <div role="menu" className="surface-overlay absolute right-0 top-9 z-20 w-32 rounded-md p-1.5">
                                 <button
                                   type="button"
                                   role="menuitem"
@@ -2409,12 +2409,12 @@ export default function RoomPage() {
                 <h2 className="mb-2 text-lg font-semibold text-zinc-100">{t("approvals.title")}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.pendingRequests.length === 0 ? (
-                    <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">
+                    <p className="surface-inset rounded-lg px-3 py-2 text-xs text-zinc-500">
                       {t("approvals.empty")}
                     </p>
                   ) : (
                     snap.pendingRequests.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                      <div key={r.id} className="surface-inset rounded-lg p-2.5">
                         <div className="mb-2 flex items-center gap-2">
                           <Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" />
                           <div>
@@ -2427,7 +2427,7 @@ export default function RoomPage() {
                             type="button"
                             onClick={() => review(r, "approve")}
                             disabled={action === `approve-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                            className="surface-control inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                           >
                             <Check className="h-3 w-3" /> {t("approvals.approve")}
                           </button>
@@ -2435,7 +2435,7 @@ export default function RoomPage() {
                             type="button"
                             onClick={() => review(r, "reject")}
                             disabled={action === `reject-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                            className="surface-control inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
                           >
                             <X className="h-3 w-3" /> {t("approvals.reject")}
                           </button>
@@ -2455,14 +2455,14 @@ export default function RoomPage() {
                 closeLabel={t("common.close")}
               >
                 <div className="space-y-3">
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                  <div className="surface-inset rounded-lg p-2.5">
                     <p className="text-xs font-medium text-zinc-200">{t("settings.roomName")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={roomNameInput}
                         onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
                         placeholder={t("settings.roomName.placeholder")}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
+                        className="field w-full rounded-lg px-2.5 py-1.5 text-xs text-zinc-100"
                       />
                       <button
                         type="button"
@@ -2474,14 +2474,14 @@ export default function RoomPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                  <div className="surface-inset rounded-lg p-2.5">
                     <p className="text-xs font-medium text-zinc-200">{t("settings.gateCode")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={gateCodeInput}
                         onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         placeholder={t("settings.gateCode.placeholder")}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
+                        className="field w-full rounded-lg px-2.5 py-1.5 text-xs text-zinc-100"
                       />
                       <button
                         type="button"
@@ -2498,7 +2498,7 @@ export default function RoomPage() {
                       })}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                  <div className="surface-inset rounded-lg p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs font-medium text-zinc-200">{t("settings.joinPolicy")}</p>
@@ -2518,7 +2518,7 @@ export default function RoomPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                  <div className="surface-inset rounded-lg p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs font-medium text-zinc-200">{t("settings.expiry")}</p>
@@ -2551,7 +2551,7 @@ export default function RoomPage() {
           <div
             ref={floatingRoomMenuRef}
             role="menu"
-            className="fixed z-[90] w-24 rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-2xl"
+            className="surface-overlay fixed z-[90] w-24 rounded-md p-1"
             style={{ top: `${openRoomMenu.top}px`, left: `${openRoomMenu.left}px` }}
           >
             <button
@@ -2572,7 +2572,7 @@ export default function RoomPage() {
 
       {roomEntryMode ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl">
+          <section className="surface-overlay w-full max-w-md rounded-2xl p-5">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold text-zinc-100">
@@ -2585,7 +2585,7 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={() => setRoomEntryMode(null)}
-                className="rounded-md border border-zinc-700 p-1 text-zinc-300 hover:bg-zinc-800"
+                className="surface-control rounded-md p-1 text-zinc-300"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2600,7 +2600,7 @@ export default function RoomPage() {
                     value={createName}
                     onChange={(event) => setCreateName(event.target.value)}
                     placeholder="输入房间名"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field w-full rounded-xl px-3 py-2 text-sm text-zinc-100"
                   />
                 </label>
                 <label className="block space-y-1">
@@ -2611,7 +2611,7 @@ export default function RoomPage() {
                       setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                     }
                     placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field w-full rounded-xl px-3 py-2 text-sm text-zinc-100"
                   />
                 </label>
                 <button
@@ -2632,7 +2632,7 @@ export default function RoomPage() {
                     value={joinRoomCode}
                     onChange={(event) => setJoinRoomCode(event.target.value.trim())}
                     placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field w-full rounded-xl px-3 py-2 text-sm text-zinc-100"
                   />
                 </label>
                 <label className="block space-y-1">
@@ -2641,7 +2641,7 @@ export default function RoomPage() {
                     value={joinGateCode}
                     onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field w-full rounded-xl px-3 py-2 text-sm text-zinc-100"
                   />
                 </label>
                 <label className="block space-y-1">
@@ -2650,7 +2650,7 @@ export default function RoomPage() {
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
                     placeholder="有邀请链接时填入"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="field w-full rounded-xl px-3 py-2 text-sm text-zinc-100"
                   />
                 </label>
                 <button
@@ -2669,19 +2669,19 @@ export default function RoomPage() {
 
       {showQr ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-950 p-5">
+          <section className="surface-overlay w-full max-w-sm rounded-2xl p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-zinc-100">房间二维码</h3>
               <button
                 type="button"
                 onClick={() => setShowQr(false)}
-                className="rounded-md border border-zinc-700 p-1 text-zinc-300"
+                className="surface-control rounded-md p-1 text-zinc-300"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-zinc-700 bg-white p-2" />
+              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg bg-white p-2 shadow-sm" />
             ) : (
               <div className="flex h-64 items-center justify-center">
                 <LoaderCircle className="h-5 w-5 animate-spin text-zinc-400" />
@@ -2694,13 +2694,13 @@ export default function RoomPage() {
 
       {showNoticeEditor ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-950 p-5">
+          <section className="surface-overlay w-full max-w-lg rounded-2xl p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-zinc-100">配置公告</h3>
               <button
                 type="button"
                 onClick={closeNoticeEditor}
-                className="rounded-md border border-zinc-700 p-1 text-zinc-300"
+                className="surface-control rounded-md p-1 text-zinc-300"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2710,7 +2710,7 @@ export default function RoomPage() {
               value={noticeText}
               onChange={(e) => setNoticeText(e.target.value)}
               placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none"
+              className="field min-h-[120px] w-full rounded-xl px-3 py-2 text-sm text-zinc-100"
             />
 
             <input
@@ -2730,7 +2730,7 @@ export default function RoomPage() {
                 {noticeImages.map((image) => (
                   <div
                     key={image.id}
-                    className="group relative h-24 w-24 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900"
+                    className="surface-inset group relative h-24 w-24 overflow-hidden rounded-xl"
                   >
                     <button
                       type="button"
@@ -2747,7 +2747,7 @@ export default function RoomPage() {
                     <button
                       type="button"
                       onClick={() => removeNoticeImage(image.id)}
-                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 bg-black/80 text-zinc-200 opacity-100 transition hover:bg-zinc-800 group-hover:opacity-100"
+                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-zinc-200 opacity-100 transition hover:bg-black/85 group-hover:opacity-100"
                       title="删除图片"
                     >
                       <X className="h-3 w-3" />
@@ -2759,7 +2759,7 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={() => noticeImageInputRef.current?.click()}
-                    className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-600 bg-zinc-900/70 px-2 text-center text-[11px] text-zinc-300 hover:bg-zinc-800"
+                    className="dropzone flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl px-2 text-center text-[11px] text-zinc-300"
                   >
                     <Plus className="mb-1 h-4 w-4" />
                     上传公告图片
@@ -2775,14 +2775,14 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={closeNoticeEditor}
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
+                className="surface-control rounded-lg px-3 py-1.5 text-sm text-zinc-300"
               >
                 取消
               </button>
               <button
                 type="button"
                 onClick={previewNoticeDraft}
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-800"
+                className="surface-control rounded-lg px-3 py-1.5 text-sm text-zinc-200"
               >
                 预览
               </button>
@@ -2802,7 +2802,7 @@ export default function RoomPage() {
 
       {showNoticePopup ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-zinc-400/50 bg-zinc-950 p-5">
+          <section className="surface-overlay w-full max-w-lg rounded-2xl p-5">
             <div className="mb-3 flex items-center gap-2 text-zinc-300">
               <Megaphone className="h-5 w-5" />
               <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
@@ -2822,7 +2822,7 @@ export default function RoomPage() {
                     key={`${image.imageUrl}-${index}`}
                     type="button"
                     onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
-                    className="overflow-hidden rounded-lg border border-zinc-700 bg-black"
+                    className="overflow-hidden rounded-lg bg-black"
                   >
                     <img
                       src={image.imageUrl}
@@ -2860,7 +2860,7 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={() => setImageViewer(null)}
-                className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-800"
+                className="surface-control rounded-md px-2 py-1 text-xs text-zinc-200"
               >
                 关闭
               </button>
@@ -2868,7 +2868,7 @@ export default function RoomPage() {
             <img
               src={imageViewer.url}
               alt={imageViewer.fileName}
-              className="max-h-[80vh] w-full rounded-lg border border-zinc-700 bg-black object-contain"
+              className="max-h-[80vh] w-full rounded-lg bg-black object-contain"
             />
           </section>
         </div>
