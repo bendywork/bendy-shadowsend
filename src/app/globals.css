@@ -1,78 +1,236 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Design tokens — macOS-inspired neutral system.
-   Dark is default; light overrides via [data-theme="light"].
+   Design tokens — monochrome foundation (REQ-202610-0464 / dc-02)
+
+   Architecture:
+     1. Primitive ramp   — 10 neutral steps (0 = canvas … 9 = ink)
+     2. Semantic tokens  — surfaces / lines / ink / action / status
+     3. Theme mapping    — dark is default, light only swaps the ramp
+     4. Component layer  — helpers consume semantic tokens only
+
+   Rules:
+     · No colored accent tokens. Primary actions are inverted
+       (dark: white on black · light: black on white).
+     · Color is reserved for semantic status (success / warning / danger).
+     · Components must not hardcode hex/rgb values; add a token instead.
    ============================================================ */
 :root {
   color-scheme: dark;
 
-  --bg-base: #0a0a0c;
-  --bg-panel: #141417;
-  --bg-card: #1c1c20;
-  --border: #2a2a30;
-  --text-primary: #f5f5f7;
-  --text-muted: #9a9aa2;
+  /* 01 · Neutral ramp — 10 steps */
+  --ds-gray-0: #08080a;
+  --ds-gray-1: #101014;
+  --ds-gray-2: #16161a;
+  --ds-gray-3: #1d1d22;
+  --ds-gray-4: #25252b;
+  --ds-gray-5: #313139;
+  --ds-gray-6: #4a4a53;
+  --ds-gray-7: #8e8e98;
+  --ds-gray-8: #c9c9d0;
+  --ds-gray-9: #f5f5f7;
 
-  --accent: #0a84ff;
-  --accent-hover: #3a9dff;
-  --accent-contrast: #ffffff;
-  --accent-soft: rgba(10, 132, 255, 0.16);
-  --ring: rgba(10, 132, 255, 0.5);
+  /* 02 · Surfaces */
+  --ds-surface-canvas: var(--ds-gray-0);
+  --ds-surface-panel: var(--ds-gray-1);
+  --ds-surface-card: var(--ds-gray-2);
+  --ds-surface-elevated: var(--ds-gray-3);
+  --ds-surface-elevated-strong: var(--ds-gray-4);
+  --ds-surface-elevated-hover: var(--ds-gray-5);
 
-  --bg-gradient-a: rgba(120, 140, 210, 0.05);
-  --bg-gradient-b: rgba(110, 200, 220, 0.04);
+  /* 03 · Lines */
+  --ds-line-subtle: var(--ds-gray-4);
+  --ds-line: var(--ds-gray-5);
+  --ds-line-strong: var(--ds-gray-6);
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
+  /* 04 · Ink */
+  --ds-ink: var(--ds-gray-9);
+  --ds-ink-soft: var(--ds-gray-8);
+  --ds-ink-muted: var(--ds-gray-7);
+  --ds-ink-faint: color-mix(in srgb, var(--ds-gray-7) 70%, transparent);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
+  /* 05 · Monochrome action (inverted primary button) */
+  --ds-action-bg: #f5f5f7;
+  --ds-action-bg-hover: #ffffff;
+  --ds-action-fg: #08080a;
+  --ds-action-soft: color-mix(in srgb, var(--ds-gray-9) 12%, transparent);
+  --ds-action-border: color-mix(in srgb, var(--ds-gray-9) 34%, transparent);
+  --ds-focus-ring: color-mix(in srgb, var(--ds-gray-9) 55%, transparent);
+  --ds-selection-bg: color-mix(in srgb, var(--ds-gray-9) 22%, transparent);
+
+  /* 06 · Semantic status — the only chromatic colors in the system */
+  --ds-success: #30d158;
+  --ds-success-soft: color-mix(in srgb, #30d158 14%, transparent);
+  --ds-success-border: color-mix(in srgb, #30d158 38%, transparent);
+  --ds-success-glow: color-mix(in srgb, #30d158 60%, transparent);
+  --ds-warning: #ffd60a;
+  --ds-warning-soft: color-mix(in srgb, #ffd60a 14%, transparent);
+  --ds-warning-border: color-mix(in srgb, #ffd60a 38%, transparent);
+  --ds-danger: #ff453a;
+  --ds-danger-soft: color-mix(in srgb, #ff453a 14%, transparent);
+  --ds-danger-border: color-mix(in srgb, #ff453a 38%, transparent);
+
+  /* 07 · Radius */
+  --ds-radius-xs: 6px;
+  --ds-radius-sm: 8px;
+  --ds-radius-md: 12px;
+  --ds-radius-lg: 16px;
+  --ds-radius-xl: 20px;
+  --ds-radius-2xl: 24px;
+  --ds-radius-full: 999px;
+
+  /* 08 · Spacing — 4px rhythm */
+  --ds-space-0: 0;
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --ds-space-10: 40px;
+  --ds-space-12: 48px;
+  --ds-space-16: 64px;
+
+  /* 09 · Elevation */
+  --ds-shadow-xs: 0 1px 2px rgb(0 0 0 / 0.35);
+  --ds-shadow-sm: 0 2px 8px rgb(0 0 0 / 0.28);
+  --ds-shadow-md: 0 10px 30px rgb(0 0 0 / 0.42);
+  --ds-shadow-lg: 0 24px 64px rgb(0 0 0 / 0.52);
+
+  /* 10 · Motion */
+  --ds-duration-fast: 120ms;
+  --ds-duration-base: 180ms;
+  --ds-duration-slow: 280ms;
+  --ds-duration-slower: 420ms;
+  --ds-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ds-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* 11 · Overlays & special surfaces */
+  --ds-overlay: rgb(0 0 0 / 0.4);
+  --ds-overlay-strong: rgb(0 0 0 / 0.66);
+  --ds-media-backdrop: #000000;
+  --ds-qr-surface: #ffffff;
+  --ds-qr-dark: #111113;
+  --ds-qr-light: #ffffff;
+  --ds-avatar-fg: #ffffff;
+
+  /* 12 · Ambient wash (neutral, replaces colored glow) */
+  --ds-ambient-a: rgb(255 255 255 / 0.035);
+  --ds-ambient-b: rgb(255 255 255 / 0.02);
 }
+
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg-base: #f5f5f7;
-  --bg-panel: #ffffff;
-  --bg-card: #ffffff;
-  --border: #e3e3e8;
-  --text-primary: #1d1d1f;
-  --text-muted: #6e6e73;
+  /* Inverted neutral ramp: 0 = canvas … 9 = ink */
+  --ds-gray-0: #f4f4f6;
+  --ds-gray-1: #ffffff;
+  --ds-gray-2: #fbfbfc;
+  --ds-gray-3: #f1f1f3;
+  --ds-gray-4: #e7e7ea;
+  --ds-gray-5: #dadae0;
+  --ds-gray-6: #c3c3ca;
+  --ds-gray-7: #85858d;
+  --ds-gray-8: #56565e;
+  --ds-gray-9: #111113;
 
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-contrast: #ffffff;
-  --accent-soft: rgba(0, 113, 227, 0.12);
-  --ring: rgba(0, 113, 227, 0.4);
+  /* Inverted primary action: black surface, white ink */
+  --ds-action-bg: #111113;
+  --ds-action-bg-hover: #000000;
+  --ds-action-fg: #ffffff;
+  --ds-action-soft: rgb(17 17 19 / 0.08);
+  --ds-action-border: rgb(17 17 19 / 0.26);
+  --ds-focus-ring: rgb(17 17 19 / 0.42);
+  --ds-selection-bg: rgb(17 17 19 / 0.14);
 
-  --bg-gradient-a: rgba(0, 113, 227, 0.06);
-  --bg-gradient-b: rgba(88, 86, 214, 0.05);
+  /* Status colors adjusted for light-surface contrast */
+  --ds-success: #1a7f37;
+  --ds-success-soft: rgb(26 127 55 / 0.1);
+  --ds-success-border: rgb(26 127 55 / 0.32);
+  --ds-success-glow: rgb(26 127 55 / 0.35);
+  --ds-warning: #9a6700;
+  --ds-warning-soft: rgb(154 103 0 / 0.1);
+  --ds-warning-border: rgb(154 103 0 / 0.32);
+  --ds-danger: #d1242f;
+  --ds-danger-soft: rgb(209 36 47 / 0.09);
+  --ds-danger-border: rgb(209 36 47 / 0.3);
 
-  --shadow-sm: 0 1px 2px rgba(20, 20, 40, 0.06);
-  --shadow-md: 0 10px 30px rgba(20, 20, 40, 0.08);
-  --shadow-lg: 0 24px 64px rgba(20, 20, 40, 0.12);
+  --ds-shadow-xs: 0 1px 2px rgb(20 20 40 / 0.05);
+  --ds-shadow-sm: 0 2px 8px rgb(20 20 40 / 0.06);
+  --ds-shadow-md: 0 10px 30px rgb(20 20 40 / 0.08);
+  --ds-shadow-lg: 0 24px 64px rgb(20 20 40 / 0.12);
 
-  /* Invert Tailwind zinc scale to clean cool grays for light mode. */
-  --color-zinc-50: #1d1d1f;
-  --color-zinc-100: #26262a;
-  --color-zinc-200: #35353b;
-  --color-zinc-300: #48484f;
-  --color-zinc-400: #6e6e73;
-  --color-zinc-500: #86868b;
-  --color-zinc-600: #aeaeb2;
-  --color-zinc-700: #d2d2d7;
-  --color-zinc-800: #e5e5ea;
-  --color-zinc-900: #f2f2f5;
-  --color-zinc-950: #ffffff;
+  --ds-overlay: rgb(17 17 19 / 0.28);
+  --ds-overlay-strong: rgb(17 17 19 / 0.5);
+  --ds-ambient-a: rgb(17 17 19 / 0.03);
+  --ds-ambient-b: rgb(17 17 19 / 0.018);
 }
+
+/* Expose the semantic tokens to Tailwind utilities (bg-canvas, text-ink…). */
 @theme inline {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
     "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
   --font-mono: "SF Mono", "SFMono-Regular", "Cascadia Mono", "JetBrains Mono", Menlo,
     Consolas, monospace;
+
+  --color-canvas: var(--ds-surface-canvas);
+  --color-panel: var(--ds-surface-panel);
+  --color-card: var(--ds-surface-card);
+  --color-elevated: var(--ds-surface-elevated);
+  --color-elevated-strong: var(--ds-surface-elevated-strong);
+  --color-elevated-hover: var(--ds-surface-elevated-hover);
+
+  --color-line-subtle: var(--ds-line-subtle);
+  --color-line: var(--ds-line);
+  --color-line-strong: var(--ds-line-strong);
+
+  --color-ink: var(--ds-ink);
+  --color-ink-soft: var(--ds-ink-soft);
+  --color-ink-muted: var(--ds-ink-muted);
+  --color-ink-faint: var(--ds-ink-faint);
+
+  --color-action: var(--ds-action-bg);
+  --color-action-hover: var(--ds-action-bg-hover);
+  --color-action-fg: var(--ds-action-fg);
+  --color-action-soft: var(--ds-action-soft);
+  --color-action-border: var(--ds-action-border);
+
+  --color-success: var(--ds-success);
+  --color-success-soft: var(--ds-success-soft);
+  --color-success-border: var(--ds-success-border);
+  --color-warning: var(--ds-warning);
+  --color-warning-soft: var(--ds-warning-soft);
+  --color-warning-border: var(--ds-warning-border);
+  --color-danger: var(--ds-danger);
+  --color-danger-soft: var(--ds-danger-soft);
+  --color-danger-border: var(--ds-danger-border);
+
+  --color-overlay: var(--ds-overlay);
+  --color-overlay-strong: var(--ds-overlay-strong);
+  --color-media: var(--ds-media-backdrop);
+  --color-qr-surface: var(--ds-qr-surface);
+  --color-avatar-fg: var(--ds-avatar-fg);
+
+  --radius-xs: var(--ds-radius-xs);
+  --radius-sm: var(--ds-radius-sm);
+  --radius-md: var(--ds-radius-md);
+  --radius-lg: var(--ds-radius-lg);
+  --radius-xl: var(--ds-radius-xl);
+  --radius-2xl: var(--ds-radius-2xl);
+  --radius-full: var(--ds-radius-full);
+
+  --shadow-xs: var(--ds-shadow-xs);
+  --shadow-sm: var(--ds-shadow-sm);
+  --shadow-md: var(--ds-shadow-md);
+  --shadow-lg: var(--ds-shadow-lg);
+
+  --duration-fast: var(--ds-duration-fast);
+  --duration-base: var(--ds-duration-base);
+  --duration-slow: var(--ds-duration-slow);
+  --duration-slower: var(--ds-duration-slower);
+  --ease-standard: var(--ds-ease-standard);
+  --ease-out: var(--ds-ease-out);
 }
 
 * {
@@ -86,17 +244,19 @@ body {
 
 body {
   margin: 0;
-  color: var(--text-primary);
+  color: var(--ds-ink);
   background:
-    radial-gradient(1200px circle at 15% -12%, var(--bg-gradient-a), transparent 46%),
-    radial-gradient(1000px circle at 85% 118%, var(--bg-gradient-b), transparent 46%),
-    var(--bg-base);
+    radial-gradient(1200px circle at 15% -12%, var(--ds-ambient-a), transparent 46%),
+    radial-gradient(1000px circle at 85% 118%, var(--ds-ambient-b), transparent 46%),
+    var(--ds-surface-canvas);
   background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition:
+    background-color var(--ds-duration-slow) var(--ds-ease-standard),
+    color var(--ds-duration-slow) var(--ds-ease-standard);
 }
 
 a {
@@ -105,7 +265,7 @@ a {
 }
 
 ::selection {
-  background: var(--accent-soft);
+  background: var(--ds-selection-bg);
 }
 
 input,
@@ -113,20 +273,21 @@ textarea,
 button {
   font: inherit;
 }
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
-  border-radius: 999px;
+  border-radius: var(--ds-radius-full);
   border: 2px solid transparent;
-  background: color-mix(in srgb, var(--text-muted) 42%, transparent);
+  background: color-mix(in srgb, var(--ds-ink-muted) 42%, transparent);
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-muted) 68%, transparent);
+  background: color-mix(in srgb, var(--ds-ink-muted) 68%, transparent);
   background-clip: content-box;
 }
 
@@ -135,48 +296,70 @@ button {
 }
 
 :where(input, textarea, select, button, a, [tabindex]):focus-visible {
-  outline: 2px solid var(--ring);
+  outline: 2px solid var(--ds-focus-ring);
   outline-offset: 2px;
 }
-/* Theme-aware component helpers (used by refined pages). */
+
+/* Unified micro-interaction: colors / elevation / transform only. */
+.transition-ui {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: var(--ds-duration-base);
+  transition-timing-function: var(--ds-ease-standard);
+}
+
+/* ============================================================
+   Component helpers — token-only. No literal colors below.
+   ============================================================ */
+
+/* Surface hierarchy: canvas → panel → card → overlay. */
 .surface-card {
-  background: color-mix(in srgb, var(--bg-panel) 82%, transparent);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
+  background: color-mix(in srgb, var(--ds-surface-panel) 84%, transparent);
+  border: 1px solid var(--ds-line-subtle);
+  border-radius: var(--ds-radius-2xl);
+  box-shadow: var(--ds-shadow-lg);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
 .field {
   width: 100%;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-card) 55%, transparent);
-  color: var(--text-primary);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  border-radius: var(--ds-radius-md);
+  border: 1px solid var(--ds-line);
+  background: color-mix(in srgb, var(--ds-surface-card) 55%, transparent);
+  color: var(--ds-ink);
+  transition:
+    border-color var(--ds-duration-base) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-base) var(--ds-ease-standard),
+    background-color var(--ds-duration-base) var(--ds-ease-standard);
 }
 
 .field::placeholder {
-  color: var(--text-muted);
+  color: var(--ds-ink-muted);
   opacity: 0.85;
 }
 
 .field:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--ds-action-border);
+  box-shadow: 0 0 0 3px var(--ds-action-soft);
 }
+
+/* Primary action is inverted per theme (dc-02). */
 .btn-primary {
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-radius: var(--radius-md);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
-  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.05s ease;
+  background: var(--ds-action-bg);
+  color: var(--ds-action-fg);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  box-shadow: var(--ds-shadow-xs);
+  transition:
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-base) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard),
+    opacity var(--ds-duration-base) var(--ds-ease-standard);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--ds-action-bg-hover);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -188,27 +371,105 @@ button {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  background: var(--ds-surface-elevated);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-line-subtle);
+  border-radius: var(--ds-radius-md);
+  transition:
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    border-color var(--ds-duration-base) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--ds-surface-elevated-hover);
+}
+
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ds-ink-soft);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  transition:
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    color var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+}
+
+.btn-danger {
+  background: var(--ds-danger-soft);
+  color: var(--ds-danger);
+  border: 1px solid var(--ds-danger-border);
+  border-radius: var(--ds-radius-md);
+  transition:
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    border-color var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-danger) 20%, transparent);
+}
+
+.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-1);
+  height: 32px;
+  padding: 0 var(--ds-space-3);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.btn-md {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  height: 40px;
+  padding: 0 var(--ds-space-4);
+  font-size: 14px;
+  font-weight: 600;
+}
+
 .segmented {
-  background: color-mix(in srgb, var(--bg-card) 60%, transparent);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--ds-surface-elevated) 60%, transparent);
+  border: 1px solid var(--ds-line-subtle);
+  border-radius: var(--ds-radius-md);
 }
 
 .segmented-item {
-  border-radius: calc(var(--radius-md) - 4px);
-  color: var(--text-muted);
-  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  border-radius: calc(var(--ds-radius-md) - 4px);
+  color: var(--ds-ink-muted);
+  transition:
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    color var(--ds-duration-base) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-base) var(--ds-ease-standard);
 }
 
 .segmented-item[data-active="true"] {
-  background: var(--bg-panel);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
+  background: var(--ds-surface-panel);
+  color: var(--ds-ink);
+  box-shadow: var(--ds-shadow-xs);
 }
 
 .segmented-item:not([data-active="true"]):hover {
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--ds-ink);
+  background: var(--ds-action-soft);
 }
 
 /* Icon-only button (header actions, theme / language toggles). */
@@ -218,17 +479,20 @@ button {
   justify-content: center;
   width: 34px;
   height: 34px;
-  border-radius: var(--radius-md);
+  border-radius: var(--ds-radius-md);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-muted);
-  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease,
-    transform 0.05s ease;
+  color: var(--ds-ink-muted);
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    border-color var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
 }
 
 .icon-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
-  color: var(--text-primary);
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
 }
 
 .icon-btn:active:not(:disabled) {
@@ -241,24 +505,108 @@ button {
 }
 
 .icon-btn--active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+  border-color: var(--ds-action-border);
 }
 
 .icon-btn--danger:hover:not(:disabled) {
-  color: #ff453a;
-  background: color-mix(in srgb, #ff453a 14%, transparent);
+  color: var(--ds-danger);
+  background: var(--ds-danger-soft);
 }
 
-/* Hover / focus tooltip bubble. */
+/* Floating panels & tooltips. */
 .popover-panel {
-  background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  background: color-mix(in srgb, var(--ds-surface-panel) 94%, transparent);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-lg);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+.menu-panel {
+  background: var(--ds-surface-panel);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-md);
+  box-shadow: var(--ds-shadow-lg);
+  padding: var(--ds-space-1);
+}
+
+.menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--ds-space-1);
+  border-radius: var(--ds-radius-sm);
+  padding: var(--ds-space-2) var(--ds-space-2);
+  text-align: left;
+  font-size: 12px;
+  color: var(--ds-ink-soft);
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.menu-item:hover:not(:disabled) {
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+}
+
+.menu-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.menu-item--danger {
+  color: var(--ds-danger);
+}
+
+.menu-item--danger:hover:not(:disabled) {
+  background: var(--ds-danger-soft);
+  color: var(--ds-danger);
+}
+
+/* Inline status notes (success / warning / danger). */
+.notice {
+  border-radius: var(--ds-radius-lg);
+  border: 1px solid var(--ds-line-subtle);
+  background: var(--ds-surface-elevated);
+  color: var(--ds-ink-soft);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  font-size: 12px;
+}
+
+.notice--success {
+  border-color: var(--ds-success-border);
+  background: var(--ds-success-soft);
+  color: var(--ds-success);
+}
+
+.notice--warning {
+  border-color: var(--ds-warning-border);
+  background: var(--ds-warning-soft);
+  color: var(--ds-warning);
+}
+
+.notice--danger {
+  border-color: var(--ds-danger-border);
+  background: var(--ds-danger-soft);
+  color: var(--ds-danger);
+}
+
+/* Small metadata chip (counts, file sizes, roles). */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  border-radius: var(--ds-radius-full);
+  border: 1px solid var(--ds-line-subtle);
+  background: var(--ds-surface-elevated);
+  color: var(--ds-ink-muted);
+  padding: 2px var(--ds-space-2);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .tooltip-bubble {
@@ -267,16 +615,18 @@ button {
   z-index: 60;
   white-space: nowrap;
   pointer-events: none;
-  padding: 4px 8px;
+  padding: var(--ds-space-1) var(--ds-space-2);
   font-size: 11px;
   line-height: 1.2;
-  color: var(--text-primary);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
+  color: var(--ds-ink);
+  background: var(--ds-surface-card);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-sm);
+  box-shadow: var(--ds-shadow-md);
   opacity: 0;
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition:
+    opacity var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
 }
 
 .tooltip-bubble--bottom {
@@ -293,42 +643,12 @@ button {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
-/* Legacy light-mode fixes for dark-oriented utility classes (chat page).
-   Most zinc-based utilities adapt via the remapped --color-zinc-* scale above;
-   only classes bound to literal black/white still need explicit overrides. */
-:root[data-theme="light"] .bg-black {
-  background-color: var(--bg-base) !important;
-}
-:root[data-theme="light"] .bg-black\/65 {
-  background-color: rgb(255 255 255 / 0.72) !important;
-}
-:root[data-theme="light"] .bg-black\/60 {
-  background-color: rgb(255 255 255 / 0.5) !important;
-}
-:root[data-theme="light"] .text-white {
-  color: #1d1d1f !important;
-}
-:root[data-theme="light"] .shadow-\[0_18px_70px_rgba\(0\,0\,0\,0\.55\)\] {
-  box-shadow: 0 18px 48px rgb(20 20 40 / 0.12) !important;
-}
-:root[data-theme="light"] .bg-zinc-500\/10 {
-  background-color: rgb(0 113 227 / 0.08) !important;
-}
-:root[data-theme="light"] .bg-zinc-500\/15 {
-  background-color: rgb(0 113 227 / 0.1) !important;
-}
-:root[data-theme="light"] .bg-zinc-500\/20 {
-  background-color: rgb(0 113 227 / 0.14) !important;
-}
-:root[data-theme="light"] .border-zinc-500\/60,
-:root[data-theme="light"] .border-zinc-500\/50,
-:root[data-theme="light"] .border-zinc-500\/40,
-:root[data-theme="light"] .border-zinc-500\/30 {
-  border-color: rgb(0 113 227 / 0.4) !important;
-}
+
+/* Theme-specific artwork (logos) without !important overrides. */
 :root[data-theme="light"] .theme-dark-only {
-  display: none !important;
+  display: none;
 }
+
 :root:not([data-theme="light"]) .theme-light-only {
-  display: none !important;
+  display: none;
 }

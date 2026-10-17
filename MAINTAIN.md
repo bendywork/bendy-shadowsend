@@ -3,6 +3,37 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
+
+### Scope
+- Rebuild the design-token foundation for the UI revamp: a 10-step neutral gray primitive ramp, semantic surface/line/ink/action tokens, radius, spacing, elevation, motion duration/easing, and semantic status colors (success/warning/danger).
+- Remove the 9 groups of light-theme `!important` overrides and the `--color-zinc-*` inversion hacks. Both themes now share one semantic contract and only swap the primitive ramp.
+- Apply decision dc-02: monochrome accent only; primary buttons are inverted (dark = light surface + dark ink, light = dark surface + light ink).
+- Bump app version to `0.1.65`.
+
+### Changes
+- `src/app/globals.css`:
+  - Added `--ds-gray-0` … `--ds-gray-9` primitive ramp plus semantic tokens: `--ds-surface-*`, `--ds-line-*`, `--ds-ink-*`, `--ds-action-*`, `--ds-success/warning/danger-*`.
+  - Added radius (`--ds-radius-*`), 4px-rhythm spacing (`--ds-space-*`), elevation (`--ds-shadow-*`), motion (`--ds-duration-*` / `--ds-ease-*`), overlay/media/QR/avatar tokens.
+  - Mapped all tokens through `@theme inline` so utilities such as `bg-panel`, `text-ink-muted`, `border-line`, `shadow-md`, `duration-base` resolve to CSS variables.
+  - Rebuilt component helpers (`.surface-card`, `.field`, `.btn-primary/secondary/ghost/danger`, `.segmented`, `.icon-btn`, `.menu-*`, `.notice-*`, `.chip`, `.tooltip-bubble`) to consume semantic tokens only.
+  - Removed every `!important`; light theme no longer re-declares utilities or colors.
+- `src/app/page.tsx`, `src/app/room/[roomCode]/page.tsx`, `src/components/chat/avatar.tsx`, `src/components/ui/popover.tsx`: migrated all legacy `zinc`/`black`/`white`/`red`/`amber`/`emerald` utilities to semantic tokens (210+ occurrences).
+- `src/app/room/[roomCode]/page.tsx`: QR code colors now read `--ds-qr-dark` / `--ds-qr-light` from computed styles instead of hardcoded hex.
+- `src/lib/ad-board.ts`: default ad text color is now empty (= inherit `--ds-ink-soft`) instead of a hardcoded gray; only valid hex overrides remain supported.
+- `src/lib/identity.ts`: avatar color pool neutralized (`#6b7280`/`#4b5563` → `#6b6b73`/`#4b4b52`), no blue-gray values left.
+- `package.json` / `src/lib/constants.ts`: version synced to `0.1.65` via `scripts/sync-version.js`.
+
+### Regression Checklist
+- `npm run lint` green.
+- `npm run build` green (Next.js 16.2.1, 12 static pages).
+- Playwright dual-theme check on `/`: `data-theme` switches correctly; primary button is `rgb(245,245,247)` on `rgb(8,8,10)` in dark and `rgb(17,17,19)` on white in light; surfaces/ink/borders all change with the ramp; no legacy blue accent (`rgb(10,132,255)` / `rgb(0,113,227)`) and no horizontal overflow at 1440px or 390px.
+- Local API 500s during the check are due to no database in the verification environment; rendering and token assertions are unaffected.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.65`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-13: v0.1.64 决策回写（7 项决策结论同步路线图与需求卡，REQ-202610-0463）
 
 ### Scope

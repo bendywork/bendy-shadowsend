@@ -35,7 +35,7 @@ export function Popover({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-[12vh] backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-overlay px-4 py-[12vh] backdrop-blur-sm"
       onMouseDown={onClose}
       role="presentation"
     >

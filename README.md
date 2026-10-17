@@ -366,6 +366,12 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-17
+
+- `0.1.65` 设计令牌体系重建（REQ-202610-0464 / ui-01）：`globals.css` 重建 10 级中性灰 primitive ramp 与语义 surface/line/ink/action 令牌，补齐圆角、4px 间距、阴影、动效时长/缓动及 success/warning/danger 状态色；全部令牌经 `@theme inline` 暴露为 Tailwind 工具类。
+- 删除浅色模式 9 组 `!important` 覆写与 `--color-zinc-*` 反色 hack，双主题只切换 primitive ramp；主按钮按 dc-02 采用反色（深色白底黑字 / 浅色黑底白字）。
+- 首页、房间页、头像与弹层完成语义化迁移（210+ 处旧颜色工具类）；二维码颜色改读 `--ds-qr-*`，广告默认色改为继承主题，头像色池去除蓝灰值；新增 `.btn-secondary`/`.btn-ghost`/`.btn-danger`/`.menu-*`/`.notice`/`.chip` 等共享组件类。
+
 ### 2026-10-13
 
 - `0.1.64` 决策回写（REQ-202610-0463）：7 项决策结论（dc-01 ~ dc-07）同步至路线图与平台需求卡——更新 15 张、关闭 7 张决策卡、新增 6 张（REQ-202610-0747 ~ REQ-202610-0752）；UI 清单 46 → 49 条、上传清单 9 → 12 条；实施顺序定为「先上传后 UI」。

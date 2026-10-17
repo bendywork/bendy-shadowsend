@@ -231,17 +231,17 @@ export default function HomePage() {
               />
             </div>
 
-            <h2 className="text-2xl font-semibold leading-tight tracking-tight text-zinc-100 sm:text-4xl">
+            <h2 className="text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-4xl">
               临时信息传递空间
             </h2>
 
-            <p className="max-w-md text-base leading-relaxed text-zinc-400 sm:text-lg">
+            <p className="max-w-md text-base leading-relaxed text-ink-muted sm:text-lg">
               房间 10 分钟无活跃自动销毁，信息短驻留、低负担。
             </p>
 
-            <p className="min-h-[2rem] font-mono text-base text-zinc-500 sm:text-lg">
+            <p className="min-h-[2rem] font-mono text-base text-ink-faint sm:text-lg">
               {typedText}
-              <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-zinc-500 align-middle sm:h-5" />
+              <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-ink-muted align-middle sm:h-5" />
             </p>
           </div>
         </div>
@@ -250,22 +250,22 @@ export default function HomePage() {
           <section className="surface-card w-full p-6 sm:p-7">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500">Session Entry</p>
-                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">临时笨迪</h1>
-                <p className="mt-1.5 text-sm text-zinc-400">加入或创建房间，消息仅在活跃期内保留。</p>
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-ink-faint">Session Entry</p>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">临时笨迪</h1>
+                <p className="mt-1.5 text-sm text-ink-muted">加入或创建房间，消息仅在活跃期内保留。</p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
                 <ThemeToggle />
                 {displayMe ? (
-                  <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2">
+                  <div className="flex items-center gap-3 rounded-2xl border border-line-subtle bg-panel/80 px-3 py-2">
                     <Avatar
                       initial={displayMe.avatarInitial}
                       color={displayMe.avatarColor}
                       className="h-10 w-10 text-sm"
                     />
                     <div>
-                      <p className="text-xs text-zinc-500">当前身份</p>
-                      <p className="text-sm font-medium text-zinc-100">{displayMe.nickname}</p>
+                      <p className="text-xs text-ink-faint">当前身份</p>
+                      <p className="text-sm font-medium text-ink">{displayMe.nickname}</p>
                     </div>
                   </div>
                 ) : null}
@@ -294,7 +294,7 @@ export default function HomePage() {
             {tab === "join" ? (
               <form className="space-y-4" onSubmit={handleJoin}>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">房间号（URL 随机码）</span>
+                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
                   <input
                     required
                     value={joinRoomCode}
@@ -305,7 +305,7 @@ export default function HomePage() {
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">门禁码（可选，6 位数字）</span>
+                  <span className="text-xs text-ink-muted">门禁码（可选，6 位数字）</span>
                   <input
                     value={joinGateCode}
                     onChange={(event) =>
@@ -317,7 +317,7 @@ export default function HomePage() {
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">邀请 Token（可选）</span>
+                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
                   <input
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
@@ -342,7 +342,7 @@ export default function HomePage() {
             ) : (
               <form className="space-y-4" onSubmit={handleCreate}>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">房间名称</span>
+                  <span className="text-xs text-ink-muted">房间名称</span>
                   <input
                     required
                     value={createName}
@@ -353,7 +353,7 @@ export default function HomePage() {
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">门禁码（可选）</span>
+                  <span className="text-xs text-ink-muted">门禁码（可选）</span>
                   <input
                     value={createGateCode}
                     onChange={(event) =>
@@ -380,23 +380,23 @@ export default function HomePage() {
             )}
 
             <div className="mt-5 space-y-2 text-xs">
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400">
+              <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
                 当前已加入/创建房间数：
-                <span className="ml-1 font-semibold text-zinc-200">{roomCount}/10</span>
+                <span className="ml-1 font-semibold text-ink-soft">{roomCount}/10</span>
               </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400">
-                <Shield className="mr-1 inline h-3.5 w-3.5 text-zinc-300" />
+              <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
+                <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />
                 门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
               </div>
             </div>
 
             {info ? (
-              <p className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-300">
+              <p className="mt-4 rounded-lg border border-line-subtle bg-panel/50 px-3 py-2 text-sm text-ink-soft">
                 {info}
               </p>
             ) : null}
             {error ? (
-              <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+              <p className="mt-4 rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">
                 {error}
               </p>
             ) : null}
