@@ -3,6 +3,36 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 房间页巨型组件拆分（REQ-202610-0508 / ui-45）
+
+### Scope
+- 将 `src/app/room/[roomCode]/page.tsx` 从 3000 行按业务域拆分为组件与 hooks，页面只保留编排职责，为后续 UI 改版与持续迭代提供稳定边界。
+- 保持零行为回归：DOM 结构、class 名、文案、轮询节奏、上传降级策略、公告与成员操作流程均与原实现一致。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/room-page.ts` (new): 房间页纯函数与常量（预览类型、时间格式化、附件预览 URL 稳定化、消息合并/裁剪、折叠预览、房间排序、已读状态、浮层定位）。
+- `src/lib/room-upload.ts` (new): 原上传实现原样迁出，保留 S3 直传、代理上传、分块代理上传与降级判定。
+- `src/lib/use-room-data.ts` (new): bootstrap/快照加载、消息轮询、在线心跳、15s 快照同步与重试。
+- `src/lib/use-room-messages.ts` (new): 草稿、附件、发送队列、进度、失败重试提示、复制与长消息折叠。
+- `src/lib/use-room-ui.ts` (new): 侧栏折叠持久化、设置弹层、房间/成员菜单、成员面板 tab、图片查看器及外部点击/Esc 行为。
+- `src/lib/use-room-announcement.ts` (new): 公告编辑/预览/已读、图片对象 URL 生命周期与公告保存。
+- `src/lib/use-room-settings.ts` (new): 房间名、门禁码、加入策略、永不过期、解散与设置校验。
+- `src/lib/use-room-members.ts` / `use-room-membership.ts` (new): 成员移除/转让/审批，以及创建/加入/退出房间与邀请链接复制。
+- `src/components/chat/*` (new): `FileAction`、`MessageBubble`、`AdCarousel`、`RoomComposer` 展示组件。
+- `src/components/room/*` (new): 房间侧栏、成员面板、设置弹层、页头、房间菜单、入口弹窗、二维码、公告编辑/查看、图片查看器与共享 `SwitchBtn`。
+- `src/app/room/[roomCode]/page.tsx`: 从 3000 行降至 542 行，仅保留状态编排、加载/审批态与页面布局。
+
+### Regression Checklist
+- `npm test` green: 43/43 tests（新增 16 条房间页纯函数测试 + 3 条上传降级策略测试）。
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
