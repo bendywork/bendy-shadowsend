@@ -595,6 +595,59 @@ button {
   color: var(--ds-danger);
 }
 
+/* Skeleton loading placeholders — shimmer moves transform only. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ds-surface-elevated) 85%, transparent);
+}
+
+.skeleton--sm {
+  border-radius: var(--ds-radius-sm);
+}
+
+.skeleton--md {
+  border-radius: var(--ds-radius-md);
+}
+
+.skeleton--lg {
+  border-radius: var(--ds-radius-lg);
+}
+
+.skeleton--full {
+  border-radius: var(--ds-radius-full);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--ds-ink) 9%, transparent),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: skeleton-sweep 1.6s var(--ds-ease-standard) infinite;
+}
+
+@keyframes skeleton-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* Small metadata chip (counts, file sizes, roles). */
 .chip {
   display: inline-flex;

@@ -366,6 +366,12 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-18
+
+- `0.1.68` 加载与空状态规范（REQ-202610-0476 / ui-13）：新增 `Skeleton`/`SkeletonText`/`SkeletonAvatar` 基础件与房间列表、消息流、成员栏、首页身份卡、房间页三栏组合骨架；新增统一 `EmptyState`（rooms/messages/members/approvals/generic 线稿插画 + 标题/描述/动作 + compact 模式）。
+- 房间页首屏由孤立 spinner 改为三栏骨架；房间分组、空消息流、成员与审批接入统一空态，空消息流动作可直接聚焦 composer；首页身份卡与房间计数加载时显示骨架。
+- `globals.css` 新增仅动画 `transform` 的骨架扫光与 `prefers-reduced-motion` 降级；新增 `loading.*` / `empty.*` 中英文案；新增 `docs/design-system-loading-empty.md` 与 11 条 Vitest 用例。
+
 ### 2026-10-17
 
 - `0.1.65` 设计令牌体系重建（REQ-202610-0464 / ui-01）：`globals.css` 重建 10 级中性灰 primitive ramp 与语义 surface/line/ink/action 令牌，补齐圆角、4px 间距、阴影、动效时长/缓动及 success/warning/danger 状态色；全部令牌经 `@theme inline` 暴露为 Tailwind 工具类。

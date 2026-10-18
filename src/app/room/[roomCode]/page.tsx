@@ -16,6 +16,8 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
+import { EmptyState } from "@/components/ui/empty-state";
+import { RoomPageSkeleton } from "@/components/ui/skeleton";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
@@ -167,7 +169,9 @@ function RoomLinks({
 }) {
   return (
     <div className="space-y-1">
-      {rooms.length === 0 ? <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">{emptyLabel}</p> : rooms.map((r) => (
+      {rooms.length === 0 ? (
+        <EmptyState variant="rooms" title={emptyLabel} compact />
+      ) : rooms.map((r) => (
         <div
           key={r.id}
           className={clsx(
@@ -549,6 +553,7 @@ export default function RoomPage() {
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
@@ -1810,11 +1815,7 @@ export default function RoomPage() {
   }
 
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center text-ink-soft">
-        <LoaderCircle className="h-6 w-6 animate-spin" />
-      </main>
-    );
+    return <RoomPageSkeleton />;
   }
 
   if (error && !snap) {
@@ -2102,9 +2103,20 @@ export default function RoomPage() {
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
-              <div className="rounded-xl border border-line-subtle bg-panel/50 px-4 py-6 text-center text-sm text-ink-faint">
-                {t("chat.empty")}
-              </div>
+              <EmptyState
+                variant="messages"
+                title={t("empty.chat.title")}
+                description={t("empty.chat.description")}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => composerTextareaRef.current?.focus()}
+                    className="btn-secondary btn-sm"
+                  >
+                    {t("empty.chat.action")}
+                  </button>
+                }
+              />
             ) : null}
 
             {snap.messages.map((m) => {
@@ -2213,6 +2225,7 @@ export default function RoomPage() {
 
             <div className="rounded-2xl border border-line bg-panel/80 p-2 transition-ui focus-within:border-action-border focus-within:ring-2 focus-within:ring-action-soft">
               <textarea
+                ref={composerTextareaRef}
                 value={text}
                 onChange={(e) => setText(clampMessageText(e.target.value))}
                 onPaste={onPaste}
@@ -2343,7 +2356,14 @@ export default function RoomPage() {
               <div className="flex min-h-0 flex-1 flex-col">
                 <h2 className="mb-2 text-lg font-semibold text-ink">{t("members.count", { count: snap.members.length })}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-                  {snap.members.map((m) => (
+                  {snap.members.length === 0 ? (
+                    <EmptyState
+                      variant="members"
+                      title={t("empty.members.title")}
+                      description={t("empty.members.description")}
+                      compact
+                    />
+                  ) : snap.members.map((m) => (
                     <div key={m.id} className="rounded-lg border border-line-subtle bg-panel/70 px-3 py-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
@@ -2412,9 +2432,12 @@ export default function RoomPage() {
                 <h2 className="mb-2 text-lg font-semibold text-ink">{t("approvals.title")}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.pendingRequests.length === 0 ? (
-                    <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">
-                      {t("approvals.empty")}
-                    </p>
+                    <EmptyState
+                      variant="approvals"
+                      title={t("approvals.empty")}
+                      description={t("empty.approvals.description")}
+                      compact
+                    />
                   ) : (
                     snap.pendingRequests.map((r) => (
                       <div key={r.id} className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">

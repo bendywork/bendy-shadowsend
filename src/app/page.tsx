@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { HomeIdentitySkeleton, Skeleton } from "@/components/ui/skeleton";
 
 type JoinResult = {
   joined: boolean;
@@ -247,7 +248,7 @@ export default function HomePage() {
         </div>
 
         <div className="flex min-h-0 items-center lg:min-h-[560px]">
-          <section className="surface-card w-full p-6 sm:p-7">
+          <section aria-busy={loading} className="surface-card w-full p-6 sm:p-7">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-ink-faint">Session Entry</p>
@@ -268,6 +269,8 @@ export default function HomePage() {
                       <p className="text-sm font-medium text-ink">{displayMe.nickname}</p>
                     </div>
                   </div>
+                ) : loading ? (
+                  <HomeIdentitySkeleton />
                 ) : null}
               </div>
             </div>
@@ -382,7 +385,16 @@ export default function HomePage() {
             <div className="mt-5 space-y-2 text-xs">
               <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
                 当前已加入/创建房间数：
-                <span className="ml-1 font-semibold text-ink-soft">{roomCount}/10</span>
+                {loading ? (
+                  <Skeleton
+                    width={30}
+                    height={12}
+                    radius="full"
+                    className="ml-1 inline-block align-middle"
+                  />
+                ) : (
+                  <span className="ml-1 font-semibold text-ink-soft">{roomCount}/10</span>
+                )}
               </div>
               <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
                 <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />

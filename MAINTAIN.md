@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.68 加载与空状态规范（REQ-202610-0476 / ui-13）
+
+### Scope
+- Standardize loading and empty states across the UI revamp: skeleton screens for room lists, message flow and member panels; a shared empty-state component with illustration, copy and optional action.
+- Replace the room page's isolated full-screen spinner with a three-column skeleton shell.
+- Wire empty states into room groups, message flow, members and approvals; add an identity skeleton and count skeleton on the home page.
+
+### Changes
+- Added `src/components/ui/skeleton.tsx`: `Skeleton`, `SkeletonText`, `SkeletonAvatar`, `RoomListSkeleton`, `MessageListSkeleton`, `MemberListSkeleton`, `HomeIdentitySkeleton`, `RoomPageSkeleton`.
+- Added `src/components/ui/empty-state.tsx`: shared `EmptyState` with `rooms/messages/members/approvals/generic` line-art illustrations, title/description/action slots and a compact mode for side panels.
+- `src/app/globals.css`: added token-only `.skeleton` styles with a transform-only shimmer (`skeleton-sweep`) and `prefers-reduced-motion` fallback.
+- `src/app/page.tsx`: identity card now uses `HomeIdentitySkeleton` while bootstrapping; room count uses a skeleton; the entry card exposes `aria-busy`.
+- `src/app/room/[roomCode]/page.tsx`: initial load renders `RoomPageSkeleton`; room groups, empty chat, members and approvals use `EmptyState`; empty-chat action focuses the composer textarea.
+- `src/lib/i18n/messages.ts`: added `loading.*` and `empty.*` keys (zh/en parity).
+- Added `vitest.config.ts`, `vitest.setup.ts`, `src/components/ui/skeleton.test.tsx` and `src/components/ui/empty-state.test.tsx` (11 tests); added `test` / `test:watch` scripts.
+- Added `docs/design-system-loading-empty.md`.
+
+### Regression Checklist
+- `npm test`: 2 files / 11 tests green.
+- `npx tsc --noEmit`: 0 error.
+- `npm run lint`: 0 error.
+- `npm run build`: Next.js production build green.
+- Visual smoke: temporary preview route checked at 1440×900 / 390×844 in dark and light themes; no horizontal overflow; reduced-motion fallback implemented in CSS.
+
+### Versioning / History
+- Updated `package.json` / `package-lock.json` and `APP_VERSION` (constants) to `0.1.68`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
 
 ### Scope
