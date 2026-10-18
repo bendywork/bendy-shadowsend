@@ -38,7 +38,7 @@
 ## 4. 视觉与交互
 
 - 黑白灰语义令牌：分段控件沿用 `.segmented`，开关使用反色 `--ds-action-*`，无新增彩色强调色。
-- 开关滑块仅动画 `transform` / `background-color`，分段项过渡使用动效令牌；`prefers-reduced-motion` 由全局安全网覆盖。
+- 开关滑块仅动画 `transform`，分段项过渡使用动效令牌；`prefers-reduced-motion` 由全局安全网关闭过渡。
 - 触控目标：分段项最小高度 36px，开关 42×24px，满足移动端可点按。
 - 焦点：分段项与开关均有 `:focus-visible` 2px 焦点环；Popover 内 Tab 不逃逸。
 - 面板宽度 `max-w-md`，窄屏下由 Popover 的 `w-full` + 页面内边距保证不横向溢出。
