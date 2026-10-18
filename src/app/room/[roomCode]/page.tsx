@@ -1,17 +1,18 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { AttachmentCard, type AttachmentCardData } from "@/components/chat/attachment-card";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -60,6 +61,7 @@ type PendingMessage = {
   createdAt: string;
   content: string;
   attachments: PendingAttachment[];
+  files: File[];
   progress: number;
   status: "sending" | "failed";
   error?: string;
@@ -80,13 +82,7 @@ type NoticeEditorImage = {
   file?: File;
 };
 
-const isPreviewable = (a: { previewType: AttachmentItem["previewType"] }) =>
-  a.previewType === "IMAGE" || a.previewType === "VIDEO";
 const fmt = (v: string) => new Date(v).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const hasInlinePreview = (a: {
-  previewType: AttachmentItem["previewType"];
-  previewUrl?: string | null;
-}) => isPreviewable(a) && Boolean(a.previewUrl);
 const guessPreviewType = (mimeType: string): AttachmentItem["previewType"] => {
   if (mimeType.startsWith("image/")) return "IMAGE";
   if (mimeType.startsWith("video/")) return "VIDEO";
@@ -214,72 +210,7 @@ function RoomLinks({
   );
 }
 
-function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
-  const [loading, setLoading] = useState(false);
-  const t = useT();
-  async function open() {
-    setLoading(true);
-    try {
-      const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
-      window.open(p.url, "_blank", "noopener,noreferrer");
-    } catch (e) {
-      toastError(e, t("toast.downloadFailed"), t);
-    } finally { setLoading(false); }
-  }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
-}
-
-type BubbleAttachment = {
-  id: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  previewType: AttachmentItem["previewType"];
-  previewUrl?: string | null;
-};
-
-function MessageAttachmentCard({
-  attachment,
-  onOpenImage,
-  action,
-}: {
-  attachment: BubbleAttachment;
-  onOpenImage: (url: string | null | undefined, fileName: string) => void;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-panel/80 p-2.5">
-      {hasInlinePreview(attachment) ? (
-        <div className="mb-2 overflow-hidden rounded-lg border border-line bg-media">
-          {attachment.previewType === "IMAGE" ? (
-            <img
-              src={attachment.previewUrl ?? ""}
-              alt={attachment.fileName}
-              className="max-h-[360px] w-full cursor-zoom-in object-contain"
-              loading="lazy"
-              onDoubleClick={() => onOpenImage(attachment.previewUrl, attachment.fileName)}
-            />
-          ) : attachment.previewType === "VIDEO" ? (
-            <video
-              src={attachment.previewUrl ?? ""}
-              controls
-              preload="metadata"
-              className="max-h-[360px] w-full"
-            />
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm text-ink-soft">{attachment.fileName}</p>
-          <p className="text-xs text-ink-faint">{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</p>
-        </div>
-        {action ?? null}
-      </div>
-    </div>
-  );
-}
+type BubbleAttachment = AttachmentCardData;
 
 function MessageBubble({
   own,
@@ -296,8 +227,7 @@ function MessageBubble({
   copied,
   labels,
   attachments,
-  renderAttachmentAction,
-  onOpenImage,
+  renderAttachmentCard,
   footerSlot,
 }: {
   own: boolean;
@@ -314,8 +244,7 @@ function MessageBubble({
   copied: boolean;
   labels: { copy: string; copied: string; expand: string; collapse: string };
   attachments: BubbleAttachment[];
-  renderAttachmentAction?: (attachment: BubbleAttachment) => ReactNode;
-  onOpenImage: (url: string | null | undefined, fileName: string) => void;
+  renderAttachmentCard?: (attachment: BubbleAttachment) => ReactNode;
   footerSlot?: ReactNode;
 }) {
   return (
@@ -369,14 +298,15 @@ function MessageBubble({
 
         {attachments.length ? (
           <div className="mt-3 space-y-2">
-            {attachments.map((attachment) => (
-              <MessageAttachmentCard
-                key={attachment.id}
-                attachment={attachment}
-                onOpenImage={onOpenImage}
-                action={renderAttachmentAction?.(attachment)}
-              />
-            ))}
+            {attachments.map((attachment) =>
+              renderAttachmentCard ? (
+                <Fragment key={attachment.id}>
+                  {renderAttachmentCard(attachment)}
+                </Fragment>
+              ) : (
+                <AttachmentCard key={attachment.id} attachment={attachment} />
+              ),
+            )}
           </div>
         ) : null}
 
@@ -1183,6 +1113,13 @@ export default function RoomPage() {
     return readByOthers ? "read" : "sent";
   }
 
+  async function downloadAttachment(attachment: { id: string }) {
+    const payload = await apiFetch<DownloadPayload>(
+      `/api/rooms/${roomCode}/attachments/${attachment.id}/download`,
+    );
+    window.open(payload.url, "_blank", "noopener,noreferrer");
+  }
+
   function openImageViewer(url: string | null | undefined, fileName: string) {
     if (!url) return;
     setImageViewer({
@@ -1262,6 +1199,16 @@ export default function RoomPage() {
     }
   }
 
+  function retryPendingMessage(message: PendingMessage) {
+    if (message.status !== "failed") return;
+    updatePendingMessage(message.localId, {
+      status: "sending",
+      progress: 0,
+      error: undefined,
+    });
+    void runSend(message.localId, message.content, message.files);
+  }
+
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const content = text.trim();
@@ -1288,6 +1235,7 @@ export default function RoomPage() {
         createdAt: new Date().toISOString(),
         content,
         attachments: pendingAttachments,
+        files: sendingFiles,
         progress: 0,
         status: "sending",
       },
@@ -2211,8 +2159,18 @@ export default function RoomPage() {
                   copied={Boolean(copiedTextKeys[copyKey])}
                   labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
                   attachments={m.attachments}
-                  renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} label={t("chat.download")} />}
-                  onOpenImage={openImageViewer}
+                  renderAttachmentCard={(a) => (
+                    <AttachmentCard
+                      attachment={a}
+                      onPreview={
+                        a.previewType === "IMAGE"
+                          ? () => openImageViewer(a.previewUrl, a.fileName)
+                          : undefined
+                      }
+                      onDownload={() => downloadAttachment(a)}
+                      onError={(message) => toast.error(message)}
+                    />
+                  )}
                 />
               );
             })}
@@ -2250,9 +2208,29 @@ export default function RoomPage() {
                   copied={Boolean(copiedTextKeys[copyKey])}
                   labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
                   attachments={message.attachments}
-                  onOpenImage={openImageViewer}
+                  renderAttachmentCard={(a) => (
+                    <AttachmentCard
+                      attachment={a}
+                      status={message.status === "failed" ? "failed" : "uploading"}
+                      progress={message.progress}
+                      errorMessage={message.error}
+                      onPreview={
+                        a.previewType === "IMAGE"
+                          ? () => openImageViewer(a.previewUrl, a.fileName)
+                          : undefined
+                      }
+                      onRetry={
+                        message.status === "failed"
+                          ? () => retryPendingMessage(message)
+                          : undefined
+                      }
+                      onError={(text) => toast.error(text)}
+                    />
+                  )}
                   footerSlot={
-                    message.status === "failed" && message.error ? (
+                    message.status === "failed" &&
+                    message.error &&
+                    message.attachments.length === 0 ? (
                       <p className="mt-2 text-xs text-danger">{message.error}</p>
                     ) : null
                   }

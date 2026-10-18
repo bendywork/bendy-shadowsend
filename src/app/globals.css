@@ -641,6 +641,279 @@ textarea[aria-invalid="true"]:focus {
   font-weight: 500;
 }
 
+/* Attachment card — chat message files (REQ-202610-0482 / ui-19). */
+.attachment-card {
+  --attachment-icon-size: 40px;
+  --attachment-name-size: 13px;
+  --attachment-meta-size: 11px;
+  overflow: hidden;
+  border: 1px solid var(--ds-line-subtle);
+  border-radius: var(--ds-radius-lg);
+  background: color-mix(in srgb, var(--ds-surface-card) 86%, transparent);
+  transition:
+    border-color var(--ds-duration-base) var(--ds-ease-standard),
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.attachment-card:hover {
+  border-color: var(--ds-line);
+  background: var(--ds-surface-card);
+  box-shadow: var(--ds-shadow-xs);
+}
+
+.attachment-card--failed {
+  border-color: var(--ds-danger-border);
+  background: var(--ds-danger-soft);
+}
+
+.attachment-card__media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--ds-line-subtle);
+  background: var(--ds-media-backdrop);
+}
+
+.attachment-card__media-button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.attachment-card__media-button:disabled {
+  cursor: default;
+}
+
+.attachment-card__media img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+}
+
+.attachment-card__video {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  background: var(--ds-media-backdrop);
+}
+
+.attachment-card__preview-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  width: 100%;
+  min-height: 96px;
+  color: var(--ds-ink-muted);
+  font-size: var(--attachment-meta-size);
+}
+
+.attachment-card__preview-fallback svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
+}
+
+.attachment-card__body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+.attachment-card__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--attachment-icon-size);
+  height: var(--attachment-icon-size);
+  border: 1px solid var(--ds-line-subtle);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-elevated);
+  color: var(--ds-ink-soft);
+}
+
+.attachment-card__icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
+}
+
+.attachment-card__info {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-top: 1px;
+}
+
+.attachment-card__name {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ds-ink);
+  font-size: var(--attachment-name-size);
+  font-weight: 500;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  margin: 1px 0 0;
+  color: var(--ds-ink-faint);
+  font-size: var(--attachment-meta-size);
+  line-height: 16px;
+}
+
+.attachment-card__dot {
+  opacity: 0.7;
+}
+
+.attachment-card__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-space-1);
+}
+
+.attachment-card__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 var(--ds-space-2);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  color: var(--ds-ink-soft);
+  font-size: var(--attachment-meta-size);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    border-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    opacity var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.attachment-card__action:hover:not(:disabled) {
+  border-color: var(--ds-line-strong);
+  background: var(--ds-surface-elevated);
+  color: var(--ds-ink);
+}
+
+.attachment-card__action:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+.attachment-card__action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.attachment-card__action svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.75;
+}
+
+.attachment-card__action--retry {
+  border-color: var(--ds-danger-border);
+  color: var(--ds-danger);
+}
+
+.attachment-card__action--retry:hover:not(:disabled) {
+  border-color: var(--ds-danger-border);
+  background: var(--ds-danger-soft);
+  color: var(--ds-danger);
+}
+
+.attachment-card__progress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin-top: var(--ds-space-2);
+}
+
+.attachment-card__progress {
+  position: relative;
+  flex: 1 1 auto;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-surface-elevated-strong);
+}
+
+.attachment-card__progress-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ds-action-bg);
+  transform-origin: left center;
+  transition: transform var(--ds-duration-fast) linear;
+}
+
+.attachment-card__progress-text {
+  flex: 0 0 auto;
+  color: var(--ds-ink-muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.attachment-card__error {
+  margin: var(--ds-space-1) 0 0;
+  color: var(--ds-danger);
+  font-size: var(--attachment-meta-size);
+  line-height: 16px;
+}
+
+@keyframes attachment-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.attachment-card__spinner {
+  animation: attachment-spin 1s linear infinite;
+}
+
+@media (max-width: 480px) {
+  .attachment-card__body {
+    flex-wrap: wrap;
+  }
+
+  .attachment-card__actions {
+    width: 100%;
+    justify-content: flex-start;
+    padding-left: calc(var(--attachment-icon-size) + var(--ds-space-3));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attachment-card,
+  .attachment-card__action,
+  .attachment-card__progress-bar {
+    transition: none;
+  }
+
+  .attachment-card__spinner {
+    animation: none;
+  }
+}
+
 .tooltip-bubble {
   position: absolute;
   left: 50%;

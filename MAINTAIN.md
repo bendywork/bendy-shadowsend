@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 附件卡片重构（REQ-202610-0482 / ui-19，阶段二）
+
+### Scope
+- 聊天页附件从「内联预览 + 下载按钮」重构为统一卡片：文件类型图标、类型/大小元信息、预览/下载动作、上传进度与失败态共用一套结构。
+- 与 up-05 上传重构衔接：乐观消息复用同一卡片展示进度，失败后保留文件并可重试。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/attachment.ts` (new): `AttachmentKind` 与 MIME/扩展名双通道识别、类型文案 key 映射、`isPreviewableAttachment`；MIME 优先于扩展名。
+- `src/components/chat/attachment-card.tsx` (new): `AttachmentCard` 统一卡片，支持 `ready` / `uploading` / `failed` 三态；图片按钮预览、视频原生播放、预览失败占位、下载 loading/错误行内提示、上传进度条与重试。
+- `src/app/room/[roomCode]/page.tsx`: 删除 `FileAction` / `MessageAttachmentCard` 旧实现，消息气泡统一通过 `renderAttachmentCard` 注入卡片；已发送消息接图片查看器与签名下载；乐观消息传进度/错误并接 `retryPendingMessage`（保留 `File[]` 重新发送）。
+- `src/app/globals.css`: 新增 `.attachment-card*` 语义化样式与响应式/`prefers-reduced-motion` 规则；进度只用 `transform: scaleX()`。
+- `src/lib/i18n/messages.ts`: 新增 zh/en 附件类型、预览/下载、上传进度、失败与重试文案（编译期 en 对齐校验）。
+- `vitest.config.ts` / `vitest.setup.ts`: Vitest 切换 jsdom + Testing Library，补齐 `@/*` 别名与 jest-dom matchers；新增 `@testing-library/react`、`@testing-library/jest-dom`、`jsdom` 开发依赖。
+- `src/lib/attachment.test.ts` (new): 18 条纯函数单测（扩展名、MIME 映射、MIME 优先、类型 key、预览判定）。
+- `src/components/chat/attachment-card.test.tsx` (new): 9 条组件测试（元信息、下载、上传进度/夹取、失败重试、图片预览、预览失败降级、下载错误上报）。
+- `docs/design-system-attachments.md` (new): 卡片结构、状态机、类型映射、up-05 衔接、可访问性与验收清单。
+
+### Regression Checklist
+- `npm test` green: 51/51 tests (5 files).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
