@@ -18,7 +18,9 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FieldError } from "@/components/ui/field-error";
+import { getDangerActionKey, getDangerConfirmCopy } from "@/lib/confirm-dialog";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
@@ -47,6 +49,11 @@ type RoomMenuState = {
   top: number;
   left: number;
 };
+type ConfirmRequest =
+  | { kind: "kick"; member: RoomMemberItem }
+  | { kind: "transfer"; member: RoomMemberItem }
+  | { kind: "leave"; room: RoomTreeItem }
+  | { kind: "dissolve" };
 type PendingAttachment = {
   id: string;
   fileName: string;
@@ -544,6 +551,8 @@ export default function RoomPage() {
   const [roomNameInput, setRoomNameInput] = useState("");
   const [openRoomMenu, setOpenRoomMenu] = useState<RoomMenuState | null>(null);
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
+  const confirmInFlightRef = useRef(false);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
   const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
@@ -579,6 +588,33 @@ export default function RoomPage() {
   const navVisible = !navCollapsed;
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
   const pollingEnabled = Boolean(snap && !snap.waitingApproval);
+
+  const confirmCopy = useMemo(() => {
+    if (!confirmRequest) return null;
+    const subjectName =
+      confirmRequest.kind === "kick" || confirmRequest.kind === "transfer"
+        ? confirmRequest.member.user.nickname
+        : confirmRequest.kind === "leave"
+          ? confirmRequest.room.name
+          : null;
+    return getDangerConfirmCopy(confirmRequest.kind, subjectName, t);
+  }, [confirmRequest, t]);
+
+  const confirmTargetId = (() => {
+    if (!confirmRequest) return undefined;
+    switch (confirmRequest.kind) {
+      case "kick":
+      case "transfer":
+        return confirmRequest.member.id;
+      case "leave":
+        return confirmRequest.room.roomCode;
+      default:
+        return undefined;
+    }
+  })();
+  const confirmPending = confirmRequest
+    ? action === getDangerActionKey(confirmRequest.kind, confirmTargetId)
+    : false;
 
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([apiFetch<BootstrapPayload>("/api/bootstrap"), apiFetch<RoomSnapshot>(`/api/rooms/${roomCode}`)]);
@@ -1299,18 +1335,17 @@ export default function RoomPage() {
     void runSend(localId, content, sendingFiles);
   }
   async function kick(m: RoomMemberItem) {
-    if (!window.confirm(`确认将 ${m.user.nickname} 移出房间吗？`)) return;
     setAction(`kick-${m.id}`);
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) });
       await refresh();
       toast.success(t("toast.memberRemoved", { name: m.user.nickname }));
-    } catch (err) { toastError(err, t("toast.memberRemoveFailed"), t); }
+      return true;
+    } catch (err) { toastError(err, t("toast.memberRemoveFailed"), t); return false; }
     finally { setAction(null); }
   }
 
   async function transferOwner(m: RoomMemberItem) {
-    if (!window.confirm(`确认将房主身份转让给 ${m.user.nickname} 吗？转让后你将变为普通成员。`)) return;
     setAction(`transfer-${m.id}`);
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/transfer`, {
@@ -1319,8 +1354,10 @@ export default function RoomPage() {
       });
       await refresh();
       toast.success(t("toast.ownerTransferred", { name: m.user.nickname }));
+      return true;
     } catch (err) {
       toastError(err, t("toast.transferFailed"), t);
+      return false;
     } finally {
       setAction(null);
     }
@@ -1436,8 +1473,7 @@ export default function RoomPage() {
   }
 
   async function leaveRoom(target: RoomTreeItem) {
-    if (target.role !== "MEMBER") return;
-    if (!window.confirm(`确认退出房间「${target.name}」吗？`)) return;
+    if (target.role !== "MEMBER") return false;
 
     setOpenRoomMenu(null);
     setAction(`leave-${target.roomCode}`);
@@ -1462,12 +1498,14 @@ export default function RoomPage() {
           localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
           router.push("/");
         }
-        return;
+        return true;
       }
 
       toast.success(t("toast.leftRoom", { name: target.name }));
+      return true;
     } catch (leaveError) {
       toastError(leaveError, t("toast.leaveRoomFailed"), t);
+      return false;
     } finally {
       setAction(null);
     }
@@ -1674,7 +1712,6 @@ export default function RoomPage() {
   }
 
   async function dissolve() {
-    if (!window.confirm("确认解散当前房间？解散后成员将全部退出。")) return;
     setAction("dissolve");
     try {
       const beforeSortedRooms = sortRooms([...rooms.created, ...rooms.joined]);
@@ -1696,7 +1733,7 @@ export default function RoomPage() {
       if (remainingRooms.length === 0) {
         localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
         router.push("/");
-        return;
+        return true;
       }
 
       const nextIndex =
@@ -1712,9 +1749,55 @@ export default function RoomPage() {
         localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
         router.push("/");
       }
+      return true;
     }
-    catch (err) { toastError(err, t("toast.dissolveFailed"), t); }
+    catch (err) { toastError(err, t("toast.dissolveFailed"), t); return false; }
     finally { setAction(null); }
+  }
+
+  function requestKick(member: RoomMemberItem) {
+    setOpenMemberMenuId(null);
+    setConfirmRequest({ kind: "kick", member });
+  }
+
+  function requestTransfer(member: RoomMemberItem) {
+    setOpenMemberMenuId(null);
+    setConfirmRequest({ kind: "transfer", member });
+  }
+
+  function requestLeave(target: RoomTreeItem) {
+    setOpenRoomMenu(null);
+    setConfirmRequest({ kind: "leave", room: target });
+  }
+
+  function requestDissolve() {
+    setConfirmRequest({ kind: "dissolve" });
+  }
+
+  async function confirmDangerAction() {
+    const request = confirmRequest;
+    if (!request || confirmInFlightRef.current) return;
+    confirmInFlightRef.current = true;
+    try {
+      let succeeded = false;
+      switch (request.kind) {
+        case "kick":
+          succeeded = await kick(request.member);
+          break;
+        case "transfer":
+          succeeded = await transferOwner(request.member);
+          break;
+        case "leave":
+          succeeded = await leaveRoom(request.room);
+          break;
+        case "dissolve":
+          succeeded = await dissolve();
+          break;
+      }
+      if (succeeded) setConfirmRequest(null);
+    } finally {
+      confirmInFlightRef.current = false;
+    }
   }
 
   async function updateRoomName() {
@@ -2160,7 +2243,7 @@ export default function RoomPage() {
                   <IconButton
                     aria-label={t("header.dissolve")}
                     danger
-                    onClick={dissolve}
+                    onClick={requestDissolve}
                     disabled={action === "dissolve"}
                   >
                     {action === "dissolve" ? (
@@ -2437,7 +2520,7 @@ export default function RoomPage() {
                           >
                             <button
                               type="button"
-                              aria-label="成员操作"
+                              aria-label={t("members.actions")}
                               aria-haspopup="menu"
                               aria-expanded={openMemberMenuId === m.id}
                               onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
@@ -2451,25 +2534,23 @@ export default function RoomPage() {
                                   type="button"
                                   role="menuitem"
                                   onClick={() => {
-                                    setOpenMemberMenuId(null);
-                                    void transferOwner(m);
+                                    requestTransfer(m);
                                   }}
                                   disabled={action === `transfer-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
+                                  className="menu-item menu-item--danger"
                                 >
-                                  <Crown className="h-3 w-3" /> 房主转让
+                                  <Crown className="h-3 w-3" /> {t("members.transfer")}
                                 </button>
                                 <button
                                   type="button"
                                   role="menuitem"
                                   onClick={() => {
-                                    setOpenMemberMenuId(null);
-                                    void kick(m);
+                                    requestKick(m);
                                   }}
                                   disabled={action === `kick-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
+                                  className="menu-item menu-item--danger"
                                 >
-                                  <UserMinus className="h-3 w-3" /> 移除房间
+                                  <UserMinus className="h-3 w-3" /> {t("members.remove")}
                                 </button>
                               </div>
                             ) : null}
@@ -2651,12 +2732,12 @@ export default function RoomPage() {
               type="button"
               role="menuitem"
               onClick={() => {
-                void leaveRoom(openRoomMenu.room);
+                requestLeave(openRoomMenu.room);
               }}
               disabled={action === `leave-${openRoomMenu.room.roomCode}`}
-              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
+              className="menu-item menu-item--danger"
             >
-              退出房间
+              {t("nav.leaveRoom")}
             </button>
           </div>,
           document.body,
@@ -2965,6 +3046,25 @@ export default function RoomPage() {
             </div>
           </section>
         </div>
+      ) : null}
+
+      {confirmCopy ? (
+        <ConfirmDialog
+          open
+          eyebrow={confirmCopy.eyebrow}
+          title={confirmCopy.title}
+          description={confirmCopy.description}
+          confirmLabel={confirmCopy.confirmLabel}
+          cancelLabel={confirmCopy.cancelLabel}
+          pendingLabel={confirmCopy.pendingLabel}
+          pending={confirmPending}
+          onConfirm={() => {
+            void confirmDangerAction();
+          }}
+          onCancel={() => {
+            if (!confirmPending) setConfirmRequest(null);
+          }}
+        />
       ) : null}
 
       {imageViewer ? (

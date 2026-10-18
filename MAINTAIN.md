@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 危险操作确认体系（REQ-202610-0491 / ui-28）
+
+### Scope
+- Replace all four `window.confirm` calls (kick / transfer ownership / leave room / dissolve) with one custom danger-confirmation dialog.
+- Unify danger semantics and copy: danger eyebrow, question title, consequence + irreversibility description, verb-based action label, pending label.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/ui/confirm-dialog.tsx` (new): `ConfirmDialog` portal shell with scroll lock, Esc / backdrop close, focus trap and focus restore; `ConfirmDialogContent` pure display layer using `role="alertdialog"`, `aria-modal`, `aria-labelledby` / `aria-describedby`, `aria-busy`; initial focus on cancel; all close paths disabled while pending.
+- `src/lib/confirm-dialog.ts` (new): `DangerActionKind`, `getDangerConfirmCopy` and `getDangerActionKey`; centralizes copy keys and action-key mapping for the four dangerous actions.
+- `src/app/room/[roomCode]/page.tsx`: removed all `window.confirm`; added `ConfirmRequest` state and `requestKick` / `requestTransfer` / `requestLeave` / `requestDissolve`; action functions now return success and keep the dialog open on failure; `confirmInFlightRef` prevents double submits.
+- `src/app/confirm-dialog.css` (new): danger dialog tokens-only styling, semantic danger mark, ≤480px stacked actions with 44px targets, reduced-motion support.
+- `src/lib/i18n/messages.ts`: added zh/en `confirm.*` keys (eyebrow, cancel, four titles/descriptions/actions/pending labels).
+- `src/lib/confirm-dialog.test.ts` (new): 9 tests for copy interpolation, English contract, uniqueness and action-key mapping.
+- `src/components/ui/confirm-dialog.test.tsx` (new): 4 SSR tests for alertdialog semantics, action order, pending state and default tone.
+- `vitest.config.ts`: include `src/**/*.test.{ts,tsx}`.
+- `docs/design-system-confirm-dialog.md` (new): anatomy, copy spec, interaction, tokens, accessibility and acceptance checklist.
+
+### Regression Checklist
+- `npm test`: 5 files / 37 tests green.
+- `npm run lint`: 0 errors.
+- `npx tsc --noEmit`: 0 errors.
+- `npm run build`: Next.js 16.2.1 production build green.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
