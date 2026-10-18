@@ -368,6 +368,10 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 视觉验收清单与截图基线（REQ-202610-0509 / ui-46）：新增 `docs/visual-acceptance-checklist.md`，覆盖双主题 × 三断点矩阵、页面/状态清单、黑白灰色彩纪律、全平台真机/模拟器项、缺陷分级与验收记录模板；新增 `docs/visual-baseline/README.md` 与 `manifest.template.json`，定义 `<page>--<theme>--<width>x<height>.png` 命名、采集环境与 manifest 哈希校验规则。
+- 新增 `scripts/visual-baseline.mjs` / `scripts/visual-baseline-lib.mjs`：基于 `playwright-core` + 固定 mock fixture 采集 18 张基础截图（3 页面 × 2 主题 × 3 视口），支持 9 视口扩展、`--dry-run`、manifest 生成与校验；新增 12 条 `node:test`。
+- 新增 `scripts/visual-audit.mjs`：静态检查 Tailwind 彩色工具类、硬编码彩色值、旧强调色 `#0a84ff`/`#0071e3`、`!important`、浅色主题块越权声明、主按钮反色与 4.5:1、二维码 7:1；新增 12 条测试；`package.json` 增加 `visual:baseline` / `visual:audit` / `test:visual`。
+- 头像色池改为纯中性灰（移除 zinc 色偏），满足 dc-02「除语义状态色外无彩色残留」；版本同步至 `0.1.69`。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

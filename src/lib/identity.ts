@@ -3,16 +3,17 @@ import type { User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { USER_COOKIE_NAME } from "@/lib/constants";
 
+// 纯中性灰头像色池：dc-02 要求除语义状态色外不得出现彩色残留。
 const colorPool = [
-  "#3f3f46",
-  "#52525b",
-  "#71717a",
-  "#a1a1aa",
-  "#27272a",
+  "#3f3f3f",
+  "#525252",
+  "#717171",
+  "#a1a1a1",
+  "#272727",
   "#404040",
   "#737373",
-  "#6b6b73",
-  "#4b4b52",
+  "#6b6b6b",
+  "#4b4b4b",
 ];
 
 const adjectivePool = [

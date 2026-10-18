@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "baselineVersion": "0.0.0",
+  "capturedAt": "1970-01-01T00:00:00.000Z",
+  "baseUrl": "http://127.0.0.1:3000",
+  "commit": null,
+  "environment": {},
+  "entries": []
+}

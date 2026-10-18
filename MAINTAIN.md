@@ -3,6 +3,36 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 视觉验收清单与截图基线（REQ-202610-0509 / ui-46）
+
+### Scope
+- 建立可复用的双主题 × 三断点视觉验收口径与截图基线，补齐 dc-02 黑白灰色彩纪律与 dc-04 全平台适配的验收项。
+- Docs/tooling-only iteration — no runtime UI behavior change.
+
+### Changes
+- `docs/visual-acceptance-checklist.md` (new): 环境前提、主题/断点矩阵、页面与状态覆盖、dc-02 双主题检查、黑白灰纪律、mobile/tablet/desktop 检查、全平台真机/模拟器矩阵（ui-48）、截图基线规范、自动审计、18 项回归执行表、P0/P1/P2 缺陷分级与验收记录模板。
+- `docs/visual-baseline/README.md` (new): 基线目录、命名、采集环境、mock fixture 边界、manifest 字段、评审与更新流程、并行 UI 分支合并后的重采要求。
+- `docs/visual-baseline/manifest.template.json` (new): manifest schema 空模板。
+- `scripts/visual-baseline-lib.mjs` (new): 主题/断点/9 视口常量、`getBreakpoint`、`buildBaselineEntries`（默认 18 项）、文件名与 manifest 校验、CLI 参数解析（无 I/O，便于单测）。
+- `scripts/visual-baseline.mjs` (new): Playwright Chromium 采集器；固定 mock API fixture（首页/房间/404）、`localStorage["tb:theme"]` 预设、实际 `data-theme` 校验、SHA-256/字节数写入 manifest；支持 `CHROMIUM_PATH`、`--chromium-path`、`--dry-run`、`--no-mock`、`--full-page`。
+- `scripts/visual-audit.mjs` (new): 静态审计彩色 Tailwind 工具类、硬编码彩色 hex/rgb、旧强调色、`!important`、浅色主题块只允许 `--ds-*`、主按钮反色方向与 4.5:1、二维码 7:1。
+- `scripts/visual-baseline.test.mjs` / `scripts/visual-audit.test.mjs` (new): 各 12 条 `node:test`，覆盖矩阵、命名、manifest、参数解析、颜色解析、对比度与仓库零违规。
+- `src/lib/identity.ts`: 头像色池由 zinc 偏色改为纯中性灰，避免 dc-02 彩色残留。
+- `package.json`: 新增 `test:visual` / `visual:baseline` / `visual:audit`；新增 devDependency `playwright-core`；版本升至 `0.1.69`。
+
+### Regression Checklist
+- `npm test` green.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+- `npm run test:visual` green: 24/24.
+- `npm run visual:audit` green: 0 violation.
+- `npm run visual:baseline -- --dry-run` prints 18 entries.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
