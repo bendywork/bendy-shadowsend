@@ -1,15 +1,15 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
+import { ArrowDown, Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES, MESSAGE_PAGE_SIZE } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -23,6 +23,8 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { getOldestMessageAt, hasMoreHistoryAfterPage, MAX_MESSAGES_IN_MEMORY, mergeMessagePages } from "@/lib/message-scroll";
+import { useMessageScroll } from "@/components/chat/use-message-scroll";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -94,7 +96,6 @@ const guessPreviewType = (mimeType: string): AttachmentItem["previewType"] => {
 };
 const FAST_POLL_INTERVAL_MS = 1200;
 const SNAPSHOT_SYNC_INTERVAL_MS = 15_000;
-const MAX_MESSAGES_IN_MEMORY = 220;
 const MESSAGE_COLLAPSE_CHAR_THRESHOLD = 1200;
 const MESSAGE_COLLAPSE_PREVIEW_MAX = 1600;
 const MESSAGE_COLLAPSE_PREVIEW_MIN = 360;
@@ -136,25 +137,20 @@ function withStableAttachmentPreviewUrls(
 function mergeIncomingMessages(
   prev: RoomSnapshot,
   incoming: MessageItem[],
+  maxMessages?: number,
 ) {
   if (incoming.length === 0) return prev;
 
-  const existingIds = new Set(prev.messages.map((message) => message.id));
-  const uniqueIncoming = incoming.filter((message) => !existingIds.has(message.id));
+  const merged = mergeMessagePages(prev.messages, incoming, maxMessages);
+  const unchanged =
+    merged.length === prev.messages.length &&
+    merged.every((message, index) => message.id === prev.messages[index]?.id);
 
-  if (uniqueIncoming.length === 0) {
-    return prev;
-  }
-
-  const merged = [...prev.messages, ...uniqueIncoming];
-  const trimmed =
-    merged.length > MAX_MESSAGES_IN_MEMORY
-      ? merged.slice(-MAX_MESSAGES_IN_MEMORY)
-      : merged;
+  if (unchanged) return prev;
 
   return withStableAttachmentPreviewUrls(prev, {
     ...prev,
-    messages: trimmed,
+    messages: merged,
   });
 }
 
@@ -533,6 +529,9 @@ export default function RoomPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const [showNoticeEditor, setShowNoticeEditor] = useState(false);
   const [noticeText, setNoticeText] = useState("");
@@ -563,7 +562,10 @@ export default function RoomPage() {
   const [joinInviteToken, setJoinInviteToken] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const snapRef = useRef<RoomSnapshot | null>(null);
+  const loadingOlderRef = useRef(false);
+  const hasMoreHistoryRef = useRef(false);
+  const historyInitializedRef = useRef(false);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
   const floatingRoomMenuRef = useRef<HTMLDivElement | null>(null);
@@ -580,10 +582,108 @@ export default function RoomPage() {
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
   const pollingEnabled = Boolean(snap && !snap.waitingApproval);
 
+  useLayoutEffect(() => {
+    snapRef.current = snap;
+  }, [snap]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (loadingOlderRef.current || !hasMoreHistoryRef.current) return;
+
+    const current = snapRef.current;
+    const oldestAt = current ? getOldestMessageAt(current.messages) : null;
+    if (!current || !oldestAt) return;
+
+    loadingOlderRef.current = true;
+    setLoadingOlderMessages(true);
+    setHistoryError(null);
+
+    try {
+      const payload = await apiFetch<MessageListPayload>(
+        `/api/rooms/${roomCode}/messages?before=${encodeURIComponent(oldestAt)}`,
+      );
+      const more = hasMoreHistoryAfterPage(payload.messages.length);
+      hasMoreHistoryRef.current = more;
+      setHasMoreHistory(more);
+
+      if (payload.messages.length > 0) {
+        setSnap((prev) =>
+          prev && prev.room.roomCode === current.room.roomCode
+            ? withStableAttachmentPreviewUrls(prev, {
+                ...prev,
+                messages: mergeMessagePages(prev.messages, payload.messages),
+              })
+            : prev,
+        );
+      }
+    } catch (error) {
+      const message = resolveErrorMessage(error, t("toast.historyLoadFailed"), t);
+      setHistoryError(message);
+      toast.error(message);
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlderMessages(false);
+    }
+  }, [roomCode, t]);
+
+  const handleLoadOlder = useCallback(() => {
+    void loadOlderMessages();
+  }, [loadOlderMessages]);
+
+  const {
+    scrollRef,
+    contentRef,
+    newMessageCount,
+    firstUnreadId,
+    isAwayFromBottom,
+    jumpToLatest,
+    isNearBottomRef,
+    handleScroll,
+  } = useMessageScroll({
+    conversationKey: roomCode,
+    messages: snap?.messages ?? [],
+    pendingCount: pendingMessages.length,
+    selfId: snap?.me.id ?? null,
+    hasMoreHistory,
+    loadingOlder: loadingOlderMessages,
+    onLoadOlder: handleLoadOlder,
+  });
+
+  useEffect(() => {
+    latestMessageAtRef.current = null;
+    snapRef.current = null;
+    loadingOlderRef.current = false;
+    hasMoreHistoryRef.current = false;
+    historyInitializedRef.current = false;
+    setHasMoreHistory(false);
+    setHistoryError(null);
+    setLoadingOlderMessages(false);
+  }, [roomCode]);
+
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([apiFetch<BootstrapPayload>("/api/bootstrap"), apiFetch<RoomSnapshot>(`/api/rooms/${roomCode}`)]);
-    latestMessageAtRef.current = s.messages.at(-1)?.createdAt ?? null;
-    setBoot(b); setSnap((prev) => withStableAttachmentPreviewUrls(prev, s)); setLoadError(null);
+    const snapshotLatest = s.messages.at(-1)?.createdAt ?? null;
+    const previousLatest = latestMessageAtRef.current;
+    if (!previousLatest || (snapshotLatest && Date.parse(snapshotLatest) > Date.parse(previousLatest))) {
+      latestMessageAtRef.current = snapshotLatest;
+    }
+
+    if (!historyInitializedRef.current) {
+      historyInitializedRef.current = true;
+      const more = s.messages.length >= MESSAGE_PAGE_SIZE;
+      hasMoreHistoryRef.current = more;
+      setHasMoreHistory(more);
+    }
+
+    setBoot(b);
+    setSnap((prev) => {
+      if (!prev || prev.room.roomCode !== s.room.roomCode) {
+        return withStableAttachmentPreviewUrls(prev, s);
+      }
+
+      const merged = mergeMessagePages(prev.messages, s.messages);
+      return withStableAttachmentPreviewUrls(prev, { ...s, messages: merged });
+    });
+    setLoadError(null);
     if (s.announcement.showToMe) setShowNoticePopup(true);
   }, [roomCode]);
 
@@ -597,9 +697,17 @@ export default function RoomPage() {
     }
 
     latestMessageAtRef.current = payload.messages.at(-1)?.createdAt ?? after ?? null;
-    setSnap((prev) => (prev ? mergeIncomingMessages(prev, payload.messages) : prev));
+    setSnap((prev) =>
+      prev
+        ? mergeIncomingMessages(
+            prev,
+            payload.messages,
+            isNearBottomRef.current ? MAX_MESSAGES_IN_MEMORY : undefined,
+          )
+        : prev,
+    );
     setLoadError(null);
-  }, [roomCode]);
+  }, [isNearBottomRef, roomCode]);
 
   useEffect(() => {
     let alive = true;
@@ -618,8 +726,6 @@ export default function RoomPage() {
     const snapshotSync = window.setInterval(() => { void refresh().catch((e) => toastError(e, t("toast.roomSyncFailed"), t)); }, SNAPSHOT_SYNC_INTERVAL_MS);
     return () => { window.clearInterval(hb); window.clearInterval(messagePoll); window.clearInterval(snapshotSync); };
   }, [roomCode, pollingEnabled, pollLatestMessages, refresh, t]);
-
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
   useEffect(() => {
     if (!showQr || !joinLink) return;
@@ -1247,7 +1353,11 @@ export default function RoomPage() {
       setPendingMessages((prev) => prev.filter((item) => item.localId !== localId));
       setSnap((prev) => {
         if (!prev) return prev;
-        return mergeIncomingMessages(prev, [result.message]);
+        return mergeIncomingMessages(
+          prev,
+          [result.message],
+          isNearBottomRef.current ? MAX_MESSAGES_IN_MEMORY : undefined,
+        );
       });
       latestMessageAtRef.current = result.message.createdAt;
       // Extra sync after a previously failed send, to keep UI and server state aligned.
@@ -2076,7 +2186,7 @@ export default function RoomPage() {
           </div>
         </aside>
 
-        <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
+        <section className="order-1 flex h-[100dvh] max-h-[100dvh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:max-h-none xl:min-h-0">
           <header className="space-y-3 border-b border-line-subtle px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -2175,91 +2285,164 @@ export default function RoomPage() {
             <AdCarousel items={snap.adBoard.items} />
           </header>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
-            {snap.messages.length === 0 && pendingMessages.length === 0 ? (
-              <div className="rounded-xl border border-line-subtle bg-panel/50 px-4 py-6 text-center text-sm text-ink-faint">
-                {t("chat.empty")}
+          <div className="relative min-h-0 flex-1">
+            <div
+              ref={scrollRef}
+              onScroll={handleScroll}
+              className="h-full overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4"
+            >
+              <div ref={contentRef} className="space-y-4">
+                {loadingOlderMessages ? (
+                  <div className="flex items-center justify-center gap-2 py-1 text-xs text-ink-faint">
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    <span>{t("chat.loadingHistory")}</span>
+                  </div>
+                ) : historyError ? (
+                  <div className="flex items-center justify-center gap-2 py-1 text-xs text-ink-faint">
+                    <span>{historyError}</span>
+                    <button
+                      type="button"
+                      onClick={handleLoadOlder}
+                      className="font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-soft"
+                    >
+                      {t("chat.retryHistory")}
+                    </button>
+                  </div>
+                ) : hasMoreHistory ? (
+                  <div className="flex justify-center py-1">
+                    <button
+                      type="button"
+                      onClick={handleLoadOlder}
+                      className="rounded-full border border-line bg-panel/70 px-3 py-1 text-xs text-ink-muted transition-ui hover:border-line-strong hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-soft"
+                    >
+                      {t("chat.loadHistory")}
+                    </button>
+                  </div>
+                ) : snap.messages.length > 0 ? (
+                  <p className="py-1 text-center text-[11px] text-ink-faint">
+                    {t("chat.noMoreHistory")}
+                  </p>
+                ) : null}
+
+                {snap.messages.length === 0 && pendingMessages.length === 0 ? (
+                  <div className="rounded-xl border border-line-subtle bg-panel/50 px-4 py-6 text-center text-sm text-ink-faint">
+                    {t("chat.empty")}
+                  </div>
+                ) : null}
+
+                {snap.messages.map((m) => {
+                  const isOwnMessage = m.sender.id === snap.me.id;
+                  const deliveryState = getMessageDeliveryState(m);
+                  const expanded = Boolean(expandedMessageIds[m.id]);
+                  const collapsed = isMessageCollapsed(m.content, expanded);
+                  const copyKey = `message-${m.id}`;
+                  return (
+                    <Fragment key={m.id}>
+                      {m.id === firstUnreadId ? (
+                        <div
+                          role="separator"
+                          aria-label={t("chat.newMessagesDivider")}
+                          className="flex items-center gap-2 py-0.5"
+                        >
+                          <span className="h-px flex-1 bg-action-border" />
+                          <span className="text-[11px] font-medium text-action">
+                            {t("chat.newMessagesDivider")}
+                          </span>
+                          <span className="h-px flex-1 bg-action-border" />
+                        </div>
+                      ) : null}
+                      <div data-message-id={m.id}>
+                        <MessageBubble
+                          own={isOwnMessage}
+                          avatarInitial={m.sender.avatarInitial}
+                          avatarColor={m.sender.avatarColor}
+                          nickname={m.sender.nickname}
+                          createdAt={m.createdAt}
+                          metaSlot={
+                            isOwnMessage && deliveryState === "sent" ? (
+                              <Check className="h-3.5 w-3.5 text-ink-soft" />
+                            ) : isOwnMessage && deliveryState === "read" ? (
+                              <CheckCheck className="h-3.5 w-3.5 text-ink-soft" />
+                            ) : null
+                          }
+                          content={m.content}
+                          collapsed={collapsed}
+                          visibleContent={collapsed ? `${getCollapsedPreviewText(m.content)}...` : m.content}
+                          onToggleExpand={() => setExpandedMessageIds((prev) => ({ ...prev, [m.id]: !expanded }))}
+                          onCopy={() => void copyMessageText(m.content, copyKey)}
+                          copied={Boolean(copiedTextKeys[copyKey])}
+                          labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
+                          attachments={m.attachments}
+                          renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} label={t("chat.download")} />}
+                          onOpenImage={openImageViewer}
+                        />
+                      </div>
+                    </Fragment>
+                  );
+                })}
+
+                {pendingMessages.map((message) => {
+                  const expanded = Boolean(expandedPendingMessageIds[message.localId]);
+                  const collapsed = isMessageCollapsed(message.content, expanded);
+                  const copyKey = `pending-${message.localId}`;
+                  return (
+                    <div key={message.localId} data-message-id={`pending-${message.localId}`}>
+                      <MessageBubble
+                        own
+                        avatarInitial={snap.me.avatarInitial}
+                        avatarColor={snap.me.avatarColor}
+                        nickname={snap.me.nickname}
+                        createdAt={message.createdAt}
+                        metaSlot={
+                          message.status === "sending" ? (
+                            <>
+                              <LoaderCircle className="h-3.5 w-3.5 animate-spin text-ink-soft" />
+                              <span>{message.progress}%</span>
+                            </>
+                          ) : (
+                            <>
+                              <X className="h-3.5 w-3.5 text-danger" />
+                              <span>{t("chat.sendFailed")}</span>
+                            </>
+                          )
+                        }
+                        content={message.content}
+                        collapsed={collapsed}
+                        visibleContent={collapsed ? `${getCollapsedPreviewText(message.content)}...` : message.content}
+                        onToggleExpand={() => setExpandedPendingMessageIds((prev) => ({ ...prev, [message.localId]: !expanded }))}
+                        onCopy={() => void copyMessageText(message.content, copyKey)}
+                        copied={Boolean(copiedTextKeys[copyKey])}
+                        labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
+                        attachments={message.attachments}
+                        onOpenImage={openImageViewer}
+                        footerSlot={
+                          message.status === "failed" && message.error ? (
+                            <p className="mt-2 text-xs text-danger">{message.error}</p>
+                          ) : null
+                        }
+                      />
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+
+            <p className="sr-only" aria-live="polite">
+              {newMessageCount > 0 ? t("chat.newMessages", { count: newMessageCount }) : ""}
+            </p>
+
+            {isAwayFromBottom ? (
+              <button
+                type="button"
+                onClick={jumpToLatest}
+                className="absolute bottom-4 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-action-border bg-action px-4 py-2 text-xs font-semibold text-action-fg shadow-lg transition-ui hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-soft"
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+                {newMessageCount > 0
+                  ? t("chat.newMessages", { count: newMessageCount })
+                  : t("chat.jumpToLatest")}
+              </button>
             ) : null}
-
-            {snap.messages.map((m) => {
-              const isOwnMessage = m.sender.id === snap.me.id;
-              const deliveryState = getMessageDeliveryState(m);
-              const expanded = Boolean(expandedMessageIds[m.id]);
-              const collapsed = isMessageCollapsed(m.content, expanded);
-              const copyKey = `message-${m.id}`;
-              return (
-                <MessageBubble
-                  key={m.id}
-                  own={isOwnMessage}
-                  avatarInitial={m.sender.avatarInitial}
-                  avatarColor={m.sender.avatarColor}
-                  nickname={m.sender.nickname}
-                  createdAt={m.createdAt}
-                  metaSlot={
-                    isOwnMessage && deliveryState === "sent" ? (
-                      <Check className="h-3.5 w-3.5 text-ink-soft" />
-                    ) : isOwnMessage && deliveryState === "read" ? (
-                      <CheckCheck className="h-3.5 w-3.5 text-ink-soft" />
-                    ) : null
-                  }
-                  content={m.content}
-                  collapsed={collapsed}
-                  visibleContent={collapsed ? `${getCollapsedPreviewText(m.content)}...` : m.content}
-                  onToggleExpand={() => setExpandedMessageIds((prev) => ({ ...prev, [m.id]: !expanded }))}
-                  onCopy={() => void copyMessageText(m.content, copyKey)}
-                  copied={Boolean(copiedTextKeys[copyKey])}
-                  labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
-                  attachments={m.attachments}
-                  renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} label={t("chat.download")} />}
-                  onOpenImage={openImageViewer}
-                />
-              );
-            })}
-
-            {pendingMessages.map((message) => {
-              const expanded = Boolean(expandedPendingMessageIds[message.localId]);
-              const collapsed = isMessageCollapsed(message.content, expanded);
-              const copyKey = `pending-${message.localId}`;
-              return (
-                <MessageBubble
-                  key={message.localId}
-                  own
-                  avatarInitial={snap.me.avatarInitial}
-                  avatarColor={snap.me.avatarColor}
-                  nickname={snap.me.nickname}
-                  createdAt={message.createdAt}
-                  metaSlot={
-                    message.status === "sending" ? (
-                      <>
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin text-ink-soft" />
-                        <span>{message.progress}%</span>
-                      </>
-                    ) : (
-                      <>
-                        <X className="h-3.5 w-3.5 text-danger" />
-                        <span>{t("chat.sendFailed")}</span>
-                      </>
-                    )
-                  }
-                  content={message.content}
-                  collapsed={collapsed}
-                  visibleContent={collapsed ? `${getCollapsedPreviewText(message.content)}...` : message.content}
-                  onToggleExpand={() => setExpandedPendingMessageIds((prev) => ({ ...prev, [message.localId]: !expanded }))}
-                  onCopy={() => void copyMessageText(message.content, copyKey)}
-                  copied={Boolean(copiedTextKeys[copyKey])}
-                  labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
-                  attachments={message.attachments}
-                  onOpenImage={openImageViewer}
-                  footerSlot={
-                    message.status === "failed" && message.error ? (
-                      <p className="mt-2 text-xs text-danger">{message.error}</p>
-                    ) : null
-                  }
-                />
-              );
-            })}
-            <div ref={endRef} />
           </div>
 
           <form ref={composerFormRef} onSubmit={send} className="border-t border-line-subtle p-3 sm:p-4">

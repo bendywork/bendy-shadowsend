@@ -368,6 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 消息滚动行为优化（REQ-202610-0493 / ui-30）：新增 `src/lib/message-scroll.ts` 与 `useMessageScroll`，实现首次进入定位最新消息、接近底部时自动跟随、阅读历史时按首个可见消息锚定并显示「N 条新消息」浮动按钮/分隔线；消息接口 `before` 游标接入顶部历史分页，加载前后保持视口位置，快照同步不再覆盖已加载历史；图片加载/消息展开通过 `ResizeObserver` 兜底；移动端聊天区改为 `100dvh` 内部滚动。新增 `docs/design-system-message-scroll.md` 与 12 条滚动/分页单测（合计 36 条）。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

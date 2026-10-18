@@ -3,6 +3,30 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 消息滚动行为优化（REQ-202610-0493 / ui-30）
+
+### Scope
+- 新消息自动定位、阅读历史时滚动锚定、历史分页加载平滑；移动端聊天区改为视口内滚动容器。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/message-scroll.ts` (new): scroll thresholds, distance metrics, oldest cursor, page-continuation check, message merge/dedupe/sort, appended-message detection, auto-scroll decision and anchor offset.
+- `src/components/chat/use-message-scroll.ts` (new): scroll state machine with first-load positioning, near-bottom auto-scroll, unread counter + first-unread divider, anchor capture/restore, `ResizeObserver` for late layout shifts, reduced-motion handling and fill-viewport history loading.
+- `src/app/room/[roomCode]/page.tsx`: `before` cursor pagination, snapshot merge that preserves loaded history, `data-message-id` markers, top history loader/retry/end state, new-message divider and floating “N new messages / jump to latest” button; removed the old unconditional `scrollIntoView` effect.
+- `src/lib/i18n/messages.ts`: added zh/en keys for new-message count, jump to latest, history loading/retry/end, divider and history failure.
+- `docs/design-system-message-scroll.md` (new): behavior matrix, constants, anchoring/pagination details and acceptance checklist.
+- `src/lib/message-scroll.test.ts` (new): 12 unit tests for thresholds, pagination, merge/dedupe/trim, unread suffix detection, auto-scroll decisions and anchor math.
+
+### Regression Checklist
+- `npm test` green: 36/36 tests.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
