@@ -69,6 +69,11 @@ export type AttachmentItem = {
   previewType: PreviewType;
   previewUrl?: string | null;
   createdAt: string;
+  chunked: boolean;
+  totalChunks?: number;
+  chunkSize?: number;
+  integrity: "sha256" | "none";
+  canRepair: boolean;
 };
 
 export type MessageItem = {

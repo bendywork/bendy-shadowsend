@@ -38,7 +38,11 @@ export type AttachmentChunk = {
   index: number;
   url: string;
   sizeBytes: number;
+  /** Lower-case SHA-256 hex digest of the exact chunk bytes. */
+  sha256?: string;
 };
+
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/i;
 
 export type AttachmentChunkManifest = {
   uploadId?: string;
@@ -134,6 +138,7 @@ export function parseAttachmentChunkManifest(
 
   const normalizedChunks: AttachmentChunk[] = [];
   let chunkTotal = 0;
+  let hashedChunks = 0;
 
   for (let position = 0; position < chunks.length; position += 1) {
     const chunk = chunks[position];
@@ -145,6 +150,15 @@ export function parseAttachmentChunkManifest(
       typeof chunk.url !== "string"
     ) {
       return null;
+    }
+
+    let sha256: string | undefined;
+    if (chunk.sha256 !== undefined) {
+      if (typeof chunk.sha256 !== "string" || !SHA256_HEX_PATTERN.test(chunk.sha256)) {
+        return null;
+      }
+      sha256 = chunk.sha256.toLowerCase();
+      hashedChunks += 1;
     }
 
     if (
@@ -169,7 +183,12 @@ export function parseAttachmentChunkManifest(
       index: position,
       url: chunk.url,
       sizeBytes: chunk.sizeBytes,
+      ...(sha256 ? { sha256 } : {}),
     });
+  }
+
+  if (hashedChunks > 0 && hashedChunks !== normalizedChunks.length) {
+    return null;
   }
 
   if (sizeBytes !== undefined) {

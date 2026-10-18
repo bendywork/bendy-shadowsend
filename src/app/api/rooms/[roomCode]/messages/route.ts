@@ -92,7 +92,9 @@ export async function GET(
     );
 
     const response = jsonOk({
-      messages: messagesWithPreview.map(mapClientMessage),
+      messages: messagesWithPreview.map((message) =>
+        mapClientMessage(message, user.id),
+      ),
     });
 
     return applyUserCookie(response, cookieToSet);
@@ -200,7 +202,7 @@ export async function POST(
     );
 
     const response = jsonOk({
-      message: mapClientMessage(messageWithPreview),
+      message: mapClientMessage(messageWithPreview, user.id),
     });
 
     return applyUserCookie(response, cookieToSet);

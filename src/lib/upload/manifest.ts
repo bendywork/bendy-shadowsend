@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api";
 import { UPLOAD_MAX_CHUNKS } from "@/lib/upload/constants";
+import { normalizeSha256 } from "@/lib/upload/hash";
 import { createChunkPlan } from "@/lib/upload/plan";
 import { isAllowedRemoteUrl } from "@/lib/upload/remote/urls";
 import type {
@@ -12,6 +13,7 @@ export type UploadChunkInput = {
   index: number;
   url: string;
   sizeBytes: number;
+  sha256?: string;
 };
 
 function assertChunkShape(
@@ -73,10 +75,20 @@ export function buildUploadManifest(
       throw new ApiError(400, "分片大小与上传会话不一致", "UPLOAD_CHUNK_SIZE_MISMATCH");
     }
 
+    const sha256 = normalizeSha256(chunk.sha256);
+    if (!sha256) {
+      throw new ApiError(
+        400,
+        "分片缺少有效的 SHA-256 校验值",
+        "UPLOAD_CHUNK_HASH_INVALID",
+      );
+    }
+
     return {
       index: chunk.index,
       url: chunk.url,
       sizeBytes: chunk.sizeBytes,
+      sha256,
     };
   });
 

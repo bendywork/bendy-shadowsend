@@ -3,6 +3,42 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.71 接收端分片合并下载与完整性校验（REQ-202610-0750 / up-10）
+
+### Scope
+- 在 up-04 合并端点与 up-08 `chunkManifest` 落库之上，补齐接收端可靠性闭环：逐片 SHA-256、明确的分片错误、单片补传、大文件下载进度。
+- 不新增数据库表；补传只更新 `MessageAttachment.chunkManifest`（首片同时更新 `s3Key`）。
+
+### Changes
+- `src/lib/upload/hash.ts`（新增）：SHA-256 格式归一化、manifest 完整性判定。
+- `src/lib/upload/types.ts` / `manifest.ts`：`UploadChunkDescriptor` 增加可选 `sha256`；完成上传强制每片提供有效 SHA-256，大小写归一化。
+- `src/app/api/rooms/[roomCode]/upload/sessions/chunk/route.ts`：读取分片字节时计算 SHA-256 并在响应中返回。
+- `src/app/api/rooms/[roomCode]/upload/sessions/complete/route.ts`：chunks schema 接受 `sha256`，由 `buildUploadManifest` 强制校验。
+- `src/lib/upload/merge.ts`：合并流逐片计算并复核 SHA-256（`MERGE_CHUNK_HASH_MISMATCH`）；新增 `verifyMergedManifest` 逐片完整性报告；错误 details 携带 `chunkIndex` / 期望与实际哈希；`assertMergeManifest` 要求哈希全有或全无。
+- `src/lib/api.ts` / `upload/errors.ts`：`ApiError` 支持 `details`，错误响应透传分片定位信息。
+- `src/lib/attachment-storage.ts` / `validators.ts`：`chunkManifest` 支持并校验 `sha256`（64 位十六进制、全有或全无）。
+- `src/lib/attachment-merge.ts`（新增）：持久化附件 → `UploadManifest` 转换、服务/存储映射、总大小一致性校验。
+- `src/lib/attachment-access.ts`（新增）：房间成员 + 附件读取的统一访问守卫。
+- 下载路由：分片附件返回 `{ url, chunked, totalChunks, chunkSize, integrity }`，`?raw=1` 307 到合并端点；合并响应新增 `X-Merge-*` 头。
+- 新增 `GET /attachments/[attachmentId]/integrity`：按 `indexes` 检查分片，返回失败片、期望/实际大小与哈希、`canRepair`。
+- 新增 `POST /attachments/[attachmentId]/repair`：仅原上传者、multipart 单片、来源校验 + 限流、大小与 SHA-256 校验，更新 manifest 后返回新 `mergeUrl`。
+- `src/lib/serializers.ts` / `types/chat.ts`：附件新增 `chunked` / `totalChunks` / `chunkSize` / `integrity` / `canRepair`，消息接口按当前用户计算补传权限。
+- `src/lib/client.ts`：`ApiRequestError` 透传 `details`；`apiFetch` 对 `FormData` 不再强制 JSON Content-Type。
+- `src/lib/attachment-download.ts`（新增）：流式下载 + 进度、长度校验、失败分片候选推导、完整性查询、补传调用。
+- `src/app/room/[roomCode]/page.tsx`：下载按钮显示百分比、分片/SHA-256 徽标、补传对话框并在补传成功后自动重试。
+- `src/lib/i18n/messages.ts`：新增中英文下载进度、校验、补传文案。
+- `docs/upload-merge-integrity.md`（新增）；`docs/upload-merge-download.md`、`README.md` 同步。
+
+### Regression Checklist
+- `npm test` green: 145/145 tests（18 files）。
+- `npm run lint` green（0 errors / 0 warnings）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- `package.json`、`package-lock.json`、`APP_VERSION` 保持 `0.1.71`。
+- 新增本条目与 README 更新记录。
+
 ## 2026-10-18: v0.1.70 接收方合并下载（REQ-202610-0513 / up-04）
 
 ### Scope

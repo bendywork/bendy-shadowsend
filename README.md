@@ -79,6 +79,7 @@ Copy-Item .env.example .env
 >
 > - `POST /api/rooms/[roomCode]/upload/forward`：≤4MB 文件单请求转发；
 > - `POST /api/rooms/[roomCode]/upload/sessions` → `/sessions/chunk` → `/sessions/complete`：4MB/片分片编排；
+> - 分片附件下载：`GET /attachments/[id]/download` 返回合并地址与分片元数据，`GET /attachments/merge` 流式拼接；每片 SHA-256 在合并时复核，`GET /attachments/[id]/integrity` 定位损坏片，`POST /attachments/[id]/repair` 支持原上传者补传单片（详见 `docs/upload-merge-integrity.md`）；
 > - 旧 S3/DUFS 配置在本阶段仍保留原链路，上传 UI 切换与旧配置旁路由后续 up-05/up-07 完成。
 >
 > 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
@@ -379,6 +380,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.71` 接收端分片合并下载与完整性校验（REQ-202610-0750 / up-10）：分片上传响应返回服务端计算的 SHA-256，完成上传强制每片携带哈希；分片附件下载改为返回合并地址与分片元数据，合并流逐片复核 SHA-256；新增 `GET /attachments/[id]/integrity` 完整性检查（支持按分片索引）与 `POST /attachments/[id]/repair` 单片补传（仅原上传者、来源校验、限流、大小/哈希校验）；前端新增流式下载进度、失败分片定位与补传对话框；历史无哈希 manifest 继续按 `integrity: "none"` 兼容；新增 `docs/upload-merge-integrity.md` 与 20 条单测（总计 145 条）。
 - `0.1.70` 接收方合并下载（REQ-202610-0513 / up-04）：`/upload/sessions/complete` 在 manifest 外新增 `mergeToken` 与 `mergeUrl`；新增 `GET /api/rooms/[roomCode]/attachments/merge`，按清单顺序拉取第三方分片并以 `ReadableStream` 流式拼接，逐片校验长度/实际字节数/域名，`Content-Disposition` 一键保存原文件名；令牌使用 HMAC-SHA256 签名 + deflate 压缩、绑定房间与成员身份、总长 ≤16KB；新增 `docs/upload-merge-download.md` 与 21 条单测。
 - `0.1.69` 上传服务端转发与分片编排（REQ-202610-0512 / up-03）：新增 `/upload/forward` 单请求转发与 `/upload/sessions` → `/sessions/chunk` → `/sessions/complete` 分片编排；4MB/片、单请求 ≤4.5MB、sang ≤100MB / pic.sl.al ≤200MB；无状态 HMAC 会话（2 小时）、来源校验、180 次/分钟限流、2GB/日配额、同服务最多 3 次重试；新增 `docs/upload-relay-architecture.md` 与 46 条单测。
 - `0.1.69` 附件存储模型适配（REQ-202610-0517 / up-08）：`AttachmentStorage` 枚举新增 `SANG`、`PIC_SL`，`s3Key` 复用为远端标识 / URL；新增可空 `chunkManifest` JSONB 列保存分片清单（片数 / 片大小 / 各片远端标识），一次迁移完成、不新增表、不删列；新增 `src/lib/attachment-storage.ts` 统一存储值、URL 白名单、manifest 校验与读取路由，下载 / 预览 / 公告图片路由兼容远端直链，分片附件暂返回 `409` 待 up-10 合并下载。

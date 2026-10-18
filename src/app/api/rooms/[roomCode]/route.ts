@@ -215,7 +215,9 @@ export async function GET(
         createdAt: requestItem.createdAt.toISOString(),
         user: requestItem.user,
       })),
-      messages: messagesWithPreview.map(mapClientMessage),
+      messages: messagesWithPreview.map((message) =>
+        mapClientMessage(message, user.id),
+      ),
       stats: {
         roomOnline: stats.roomOnline,
         totalOnline: stats.totalOnline,

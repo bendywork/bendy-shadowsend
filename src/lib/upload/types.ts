@@ -36,6 +36,8 @@ export type UploadChunkDescriptor = {
   index: number;
   url: string;
   sizeBytes: number;
+  /** Lower-case SHA-256 hex digest of the exact chunk bytes. */
+  sha256?: string;
 };
 
 export type UploadManifest = {

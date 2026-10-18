@@ -10,7 +10,14 @@ import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
-import { apiFetch, formatBytes } from "@/lib/client";
+import { ApiRequestError, apiFetch, formatBytes } from "@/lib/client";
+import {
+  AttachmentDownloadError,
+  checkAttachmentIntegrity,
+  downloadAttachment,
+  downloadErrorFailedIndexes,
+  repairAttachmentChunk,
+} from "@/lib/attachment-download";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
@@ -37,7 +44,6 @@ type DirectUploadPreparePayload = {
   method: "PUT";
   headers?: Record<string, string>;
 };
-type DownloadPayload = { url: string };
 type MessageListPayload = { messages: MessageItem[] };
 type ImageViewerState = { url: string; fileName: string };
 type JoinResult = { joined: boolean; waitingApproval?: boolean; roomCode?: string };
@@ -214,19 +220,258 @@ function RoomLinks({
   );
 }
 
+type ChunkRepairTarget = { index: number; expectedBytes: number };
+
+function ChunkRepairDialog({
+  roomCode,
+  attachment,
+  target,
+  onClose,
+  onRepaired,
+}: {
+  roomCode: string;
+  attachment: AttachmentItem;
+  target: ChunkRepairTarget;
+  onClose: () => void;
+  onRepaired: () => void;
+}) {
+  const t = useT();
+  const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!file) {
+      setError(t("chat.repair.selectFile"));
+      return;
+    }
+    if (file.size !== target.expectedBytes) {
+      setError(
+        t("chat.repair.sizeMismatch", {
+          size: formatBytes(target.expectedBytes),
+        }),
+      );
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      await repairAttachmentChunk({
+        roomCode,
+        attachmentId: attachment.id,
+        index: target.index,
+        file,
+      });
+      toast.success(t("chat.repair.success"));
+      onRepaired();
+    } catch (repairError) {
+      if (
+        repairError instanceof ApiRequestError &&
+        repairError.code === "REPAIR_CHUNK_HASH_MISMATCH"
+      ) {
+        setError(t("chat.repair.wrongFile"));
+      } else if (
+        repairError instanceof ApiRequestError &&
+        repairError.code === "REPAIR_FORBIDDEN"
+      ) {
+        setError(t("chat.repair.onlyUploader"));
+      } else {
+        setError(toastError(repairError, t("chat.repair.failed"), t));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-overlay-strong p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !submitting) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="chunk-repair-title"
+        className="w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 id="chunk-repair-title" className="text-base font-semibold text-ink">
+              {t("chat.repair.title")}
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+              {t("chat.repair.description", {
+                name: attachment.fileName,
+                index: target.index + 1,
+                size: formatBytes(target.expectedBytes),
+              })}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            aria-label={t("common.close")}
+            className="rounded-md border border-line p-1 text-ink-soft hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form className="mt-4 space-y-3" onSubmit={submit} noValidate>
+          <input
+            ref={inputRef}
+            type="file"
+            className="sr-only"
+            onChange={(event) => {
+              setFile(event.target.files?.[0] ?? null);
+              setError(null);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={submitting}
+            className="flex w-full items-center gap-2 rounded-xl border border-dashed border-line bg-panel/70 px-3 py-3 text-left text-sm text-ink-soft transition-ui hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border disabled:opacity-60"
+          >
+            <FileText className="h-4 w-4 shrink-0 text-ink-faint" />
+            <span className="min-w-0 truncate">
+              {file
+                ? t("chat.repair.fileSelected", { name: file.name })
+                : t("chat.repair.selectFile")}
+            </span>
+          </button>
+
+          {error ? (
+            <p role="alert" className="text-xs text-danger">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-soft hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border disabled:opacity-50"
+            >
+              {t("chat.repair.cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !file}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-canvas hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border disabled:opacity-50"
+            >
+              {submitting ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
+              {submitting ? t("chat.repair.uploading") : t("chat.repair.submit")}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
 function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [repairTarget, setRepairTarget] = useState<ChunkRepairTarget | null>(null);
   const t = useT();
-  async function open() {
+
+  const open = useCallback(async () => {
     setLoading(true);
+    setProgress(attachment.chunked ? 0 : null);
     try {
-      const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
-      window.open(p.url, "_blank", "noopener,noreferrer");
-    } catch (e) {
-      toastError(e, t("toast.downloadFailed"), t);
-    } finally { setLoading(false); }
-  }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
+      const result = await downloadAttachment({
+        roomCode,
+        attachmentId: attachment.id,
+        fileName: attachment.fileName,
+        onProgress: (value) => setProgress(value.percent),
+      });
+      if (result.mode === "streamed") {
+        toast.success(
+          attachment.integrity === "sha256"
+            ? t("chat.download.completeVerified")
+            : t("chat.download.complete"),
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof AttachmentDownloadError &&
+        error.code === "DOWNLOAD_CANCELLED"
+      ) {
+        return;
+      }
+
+      const failedIndexes = downloadErrorFailedIndexes(error);
+      if (attachment.chunked && failedIndexes.length > 0) {
+        try {
+          const report = await checkAttachmentIntegrity(
+            roomCode,
+            attachment.id,
+            failedIndexes,
+          );
+          const failure = report.failures[0];
+          if (failure) {
+            toast.error(
+              t("chat.download.chunkFailed", { index: failure.index + 1 }),
+            );
+            if (report.canRepair) {
+              setRepairTarget({
+                index: failure.index,
+                expectedBytes: failure.expectedSize,
+              });
+            }
+            return;
+          }
+        } catch (checkError) {
+          toastError(checkError, t("chat.download.interrupted"), t);
+          return;
+        }
+      }
+
+      toastError(error, t("toast.downloadFailed"), t);
+    } finally {
+      setLoading(false);
+      setProgress(null);
+    }
+  }, [attachment, roomCode, t]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => void open()}
+        disabled={loading}
+        className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft transition-ui hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border disabled:opacity-50"
+      >
+        {loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+        {loading && progress !== null
+          ? t("chat.download.progress", { percent: progress })
+          : label}
+      </button>
+      {repairTarget ? (
+        <ChunkRepairDialog
+          roomCode={roomCode}
+          attachment={attachment}
+          target={repairTarget}
+          onClose={() => setRepairTarget(null)}
+          onRepaired={() => {
+            setRepairTarget(null);
+            void open();
+          }}
+        />
+      ) : null}
+    </>
+  );
 }
 
 type BubbleAttachment = {
@@ -236,6 +481,9 @@ type BubbleAttachment = {
   sizeBytes: number;
   previewType: AttachmentItem["previewType"];
   previewUrl?: string | null;
+  chunked?: boolean;
+  totalChunks?: number;
+  integrity?: "sha256" | "none";
 };
 
 function MessageAttachmentCard({
@@ -247,6 +495,7 @@ function MessageAttachmentCard({
   onOpenImage: (url: string | null | undefined, fileName: string) => void;
   action?: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="rounded-xl border border-line bg-panel/80 p-2.5">
       {hasInlinePreview(attachment) ? (
@@ -273,7 +522,17 @@ function MessageAttachmentCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm text-ink-soft">{attachment.fileName}</p>
-          <p className="text-xs text-ink-faint">{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</p>
+          <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-ink-faint">
+            <span>{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</span>
+            {attachment.chunked ? (
+              <span>· {t("chat.download.chunked", { count: attachment.totalChunks ?? 0 })}</span>
+            ) : null}
+            {attachment.chunked && attachment.integrity === "sha256" ? (
+              <span className="rounded-full border border-success/40 px-1.5 py-0.5 text-[10px] text-success">
+                {t("chat.download.verified")}
+              </span>
+            ) : null}
+          </p>
         </div>
         {action ?? null}
       </div>

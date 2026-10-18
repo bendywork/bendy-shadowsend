@@ -1,5 +1,8 @@
 # 接收方合并下载（REQ-202610-0513 / up-04）
 
+> up-10 已在本端点之上补齐 SHA-256 完整性校验、完整性检查与单片补传，详见
+> `docs/upload-merge-integrity.md`。本文保留 up-04 的原始设计说明。
+
 ## 1. 范围
 
 本迭代在 up-03 的转发/分片编排之上，补齐「接收方合并下载端点」：
@@ -79,6 +82,9 @@ ReadableStream 逐片 enqueue → 浏览器下载为原文件名
 | `Content-Disposition` | `attachment; filename="…"; filename*=UTF-8''…` |
 | `Cache-Control` | `private, no-store` |
 | `X-Content-Type-Options` | `nosniff` |
+| `X-Merge-Integrity` | `sha256` / `none`（up-10） |
+| `X-Merge-Total-Chunks` | 分片总数（up-10） |
+| `X-Merge-Chunk-Size` | 每片字节数（up-10） |
 
 - 失败：统一 `{ ok: false, error: { code, message } }` JSON；若分片在响应开始后失败，流会被 `error` 终止，浏览器将下载标记为失败。
 
@@ -134,8 +140,8 @@ payload：
 
 ## 7. 已知边界
 
-- **未落库**：本迭代不写 `MessageAttachment`，`mergeUrl` 由 complete 响应返回；持久化在 up-08 完成。
-- **无哈希校验**：当前只校验片数/顺序/大小/域名；SHA-256 完整性校验与缺失补传属于 up-10。
+- **已落库**：up-08 起分片清单写入 `MessageAttachment.chunkManifest`，`mergeUrl` 由下载元数据接口重新签发。
+- **已补哈希**：up-10 起完成上传强制每片 SHA-256，合并时逐片复核；完整性检查与单片补传见 `docs/upload-merge-integrity.md`。
 - **无断点续传**：合并下载每次从头开始；上传侧并发/续传属于 up-11。
 - **第三方可用性**：分片直链由第三方提供，无 SLA；失败时返回明确 502，不做跨服务回退（dc-06）。
 - **令牌不可单独撤销**：只能通过轮换密钥整体失效；如需单文件撤销，需在 up-08 落库后增加状态位。

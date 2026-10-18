@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 
 import {
@@ -8,6 +8,7 @@ import {
   UPLOAD_MAX_CHUNKS,
   UPLOAD_REMOTE_TIMEOUT_MS,
 } from "@/lib/upload/constants";
+import { manifestIntegrity, normalizeSha256 } from "@/lib/upload/hash";
 import { createChunkPlan, sanitizeUploadFileName } from "@/lib/upload/plan";
 import { isAllowedRemoteUrl } from "@/lib/upload/remote/urls";
 import type { UploadManifest } from "@/lib/upload/types";
@@ -21,12 +22,14 @@ const MERGE_MAX_REDIRECTS = 3;
 export class MergeDownloadError extends Error {
   code: string;
   status: number;
+  details?: unknown;
 
-  constructor(code: string, message: string, status = 400) {
+  constructor(code: string, message: string, status = 400, details?: unknown) {
     super(message);
     this.name = "MergeDownloadError";
     this.code = code;
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -135,6 +138,10 @@ function assertChunkAt(
   if (!isAllowedRemoteUrl(manifest.service, chunk.url)) {
     throw new MergeDownloadError("MERGE_MANIFEST_INVALID", "分片地址不受信任");
   }
+
+  if (chunk.sha256 !== undefined && !normalizeSha256(chunk.sha256)) {
+    throw new MergeDownloadError("MERGE_MANIFEST_INVALID", "分片 SHA-256 校验值无效");
+  }
 }
 
 function assertManifestChunks(manifest: UploadManifest): void {
@@ -171,6 +178,14 @@ function assertManifestChunks(manifest: UploadManifest): void {
 
   for (let position = 0; position < manifest.chunks.length; position += 1) {
     assertChunkAt(manifest, manifest.chunks[position], position, plan.lastChunkBytes);
+  }
+
+  const hashedChunks = manifest.chunks.filter((chunk) => chunk.sha256 !== undefined);
+  if (hashedChunks.length > 0 && hashedChunks.length !== manifest.chunks.length) {
+    throw new MergeDownloadError(
+      "MERGE_MANIFEST_INVALID",
+      "分片 SHA-256 校验值必须完整提供",
+    );
   }
 }
 
@@ -345,6 +360,7 @@ async function requestChunk(
       "MERGE_CHUNK_FETCH_FAILED",
       `分片 ${index + 1} 下载失败`,
       502,
+      { chunkIndex: index },
     );
   }
 }
@@ -353,6 +369,7 @@ function resolveRedirect(
   response: Response,
   currentUrl: string,
   service: UploadManifest["service"],
+  index: number,
 ): string | null {
   if (response.status < 300 || response.status >= 400) {
     return null;
@@ -360,18 +377,24 @@ function resolveRedirect(
 
   const location = response.headers.get("location");
   if (!location) {
-    throw new MergeDownloadError("MERGE_CHUNK_REDIRECT_INVALID", "分片重定向地址无效", 502);
+    throw new MergeDownloadError("MERGE_CHUNK_REDIRECT_INVALID", "分片重定向地址无效", 502, {
+      chunkIndex: index,
+    });
   }
 
   let nextUrl: string;
   try {
     nextUrl = new URL(location, currentUrl).toString();
   } catch {
-    throw new MergeDownloadError("MERGE_CHUNK_REDIRECT_INVALID", "分片重定向地址无效", 502);
+    throw new MergeDownloadError("MERGE_CHUNK_REDIRECT_INVALID", "分片重定向地址无效", 502, {
+      chunkIndex: index,
+    });
   }
 
   if (!isAllowedRemoteUrl(service, nextUrl)) {
-    throw new MergeDownloadError("MERGE_CHUNK_URL_INVALID", "分片地址不受信任", 502);
+    throw new MergeDownloadError("MERGE_CHUNK_URL_INVALID", "分片地址不受信任", 502, {
+      chunkIndex: index,
+    });
   }
 
   return nextUrl;
@@ -388,7 +411,7 @@ async function fetchChunk(
 
   for (let hop = 0; hop <= MERGE_MAX_REDIRECTS; hop += 1) {
     const response = await requestChunk(currentUrl, index, fetchImpl, signal);
-    const nextUrl = resolveRedirect(response, currentUrl, manifest.service);
+    const nextUrl = resolveRedirect(response, currentUrl, manifest.service, index);
 
     if (nextUrl) {
       currentUrl = nextUrl;
@@ -400,11 +423,14 @@ async function fetchChunk(
         "MERGE_CHUNK_HTTP_ERROR",
         `分片 ${index + 1} 下载失败（HTTP ${response.status}）`,
         502,
+        { chunkIndex: index, status: response.status },
       );
     }
 
     if (response.url && !isAllowedRemoteUrl(manifest.service, response.url)) {
-      throw new MergeDownloadError("MERGE_CHUNK_URL_INVALID", "分片地址不受信任", 502);
+      throw new MergeDownloadError("MERGE_CHUNK_URL_INVALID", "分片地址不受信任", 502, {
+        chunkIndex: index,
+      });
     }
 
     const contentLength = response.headers.get("content-length");
@@ -413,6 +439,11 @@ async function fetchChunk(
         "MERGE_CHUNK_LENGTH_MISMATCH",
         `分片 ${index + 1} 长度与清单不一致`,
         502,
+        {
+          chunkIndex: index,
+          expectedSize: chunk.sizeBytes,
+          actualSize: Number(contentLength),
+        },
       );
     }
 
@@ -423,16 +454,18 @@ async function fetchChunk(
     "MERGE_CHUNK_REDIRECT_LIMIT",
     `分片 ${index + 1} 重定向次数过多`,
     502,
+    { chunkIndex: index },
   );
 }
 
-async function pumpChunk(
-  controller: ReadableStreamDefaultController<Uint8Array>,
+async function readChunkBytes(
   response: Response,
   chunk: UploadManifest["chunks"][number],
   index: number,
-): Promise<void> {
+  onBytes?: (value: Uint8Array) => void,
+): Promise<{ received: number; sha256: string }> {
   const reader = response.body!.getReader();
+  const hash = createHash("sha256");
   let received = 0;
 
   try {
@@ -448,9 +481,12 @@ async function pumpChunk(
           "MERGE_CHUNK_SIZE_MISMATCH",
           `分片 ${index + 1} 大小与清单不一致`,
           502,
+          { chunkIndex: index, expectedSize: chunk.sizeBytes, actualSize: received },
         );
       }
-      controller.enqueue(value);
+
+      hash.update(value);
+      onBytes?.(value);
     }
   } catch (error) {
     if (error instanceof MergeDownloadError) {
@@ -460,6 +496,7 @@ async function pumpChunk(
       "MERGE_CHUNK_READ_FAILED",
       `分片 ${index + 1} 读取失败`,
       502,
+      { chunkIndex: index },
     );
   } finally {
     reader.releaseLock();
@@ -470,8 +507,151 @@ async function pumpChunk(
       "MERGE_CHUNK_SIZE_MISMATCH",
       `分片 ${index + 1} 大小与清单不一致`,
       502,
+      { chunkIndex: index, expectedSize: chunk.sizeBytes, actualSize: received },
     );
   }
+
+  const actualSha256 = hash.digest("hex");
+  const expectedSha256 = normalizeSha256(chunk.sha256);
+  if (expectedSha256 && actualSha256 !== expectedSha256) {
+    throw new MergeDownloadError(
+      "MERGE_CHUNK_HASH_MISMATCH",
+      `分片 ${index + 1} SHA-256 校验失败`,
+      502,
+      {
+        chunkIndex: index,
+        expectedSha256,
+        actualSha256,
+      },
+    );
+  }
+
+  return { received, sha256: actualSha256 };
+}
+
+async function pumpChunk(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  response: Response,
+  chunk: UploadManifest["chunks"][number],
+  index: number,
+): Promise<void> {
+  await readChunkBytes(response, chunk, index, (value) => {
+    controller.enqueue(value);
+  });
+}
+
+export type MergeIntegrityFailure = {
+  index: number;
+  code: string;
+  message: string;
+  expectedSize: number;
+  actualSize?: number;
+  expectedSha256?: string;
+  actualSha256?: string;
+};
+
+export type MergeIntegrityReport = {
+  valid: boolean;
+  integrity: "sha256" | "none";
+  totalChunks: number;
+  checkedChunks: number;
+  failures: MergeIntegrityFailure[];
+};
+
+export type VerifyMergedManifestOptions = OpenMergedStreamOptions & {
+  indexes?: number[];
+};
+
+function toIntegrityFailure(
+  manifest: UploadManifest,
+  index: number,
+  error: unknown,
+): MergeIntegrityFailure {
+  const chunk = manifest.chunks[index];
+  const base = {
+    index,
+    expectedSize: chunk.sizeBytes,
+    expectedSha256: normalizeSha256(chunk.sha256) ?? undefined,
+  };
+
+  if (error instanceof MergeDownloadError) {
+    const details = (error.details ?? {}) as {
+      actualSize?: number;
+      actualSha256?: string;
+    };
+
+    return {
+      ...base,
+      code: error.code,
+      message: error.message,
+      actualSize: details.actualSize,
+      actualSha256: details.actualSha256,
+    };
+  }
+
+  return {
+    ...base,
+    code: "MERGE_CHUNK_READ_FAILED",
+    message: `分片 ${index + 1} 校验失败`,
+  };
+}
+
+export async function verifyMergedManifest(
+  manifest: UploadManifest,
+  options: VerifyMergedManifestOptions = {},
+): Promise<MergeIntegrityReport> {
+  assertMergeManifest(manifest);
+
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? UPLOAD_REMOTE_TIMEOUT_MS;
+  const requested =
+    options.indexes && options.indexes.length > 0
+      ? options.indexes
+      : Array.from({ length: manifest.totalChunks }, (_, index) => index);
+  const indexes = Array.from(new Set(requested)).sort((left, right) => left - right);
+
+  for (const index of indexes) {
+    if (
+      !Number.isSafeInteger(index) ||
+      index < 0 ||
+      index >= manifest.totalChunks
+    ) {
+      throw new MergeDownloadError(
+        "MERGE_VERIFY_INDEX_INVALID",
+        "校验分片索引超出范围",
+        400,
+        { chunkIndex: index },
+      );
+    }
+  }
+
+  const failures: MergeIntegrityFailure[] = [];
+
+  for (const index of indexes) {
+    const controller = new AbortController();
+    const signal = combineSignals([
+      controller.signal,
+      options.signal,
+      AbortSignal.timeout(timeoutMs),
+    ]);
+
+    try {
+      const response = await fetchChunk(manifest, index, fetchImpl, signal);
+      await readChunkBytes(response, manifest.chunks[index], index);
+    } catch (error) {
+      failures.push(toIntegrityFailure(manifest, index, error));
+    } finally {
+      controller.abort();
+    }
+  }
+
+  return {
+    valid: failures.length === 0,
+    integrity: manifestIntegrity(manifest.chunks),
+    totalChunks: manifest.totalChunks,
+    checkedChunks: indexes.length,
+    failures,
+  };
 }
 
 export async function openMergedStream(

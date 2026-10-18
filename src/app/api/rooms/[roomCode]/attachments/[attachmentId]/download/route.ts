@@ -1,15 +1,19 @@
 ﻿import { RoomStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
+import { buildAttachmentMergeManifest } from "@/lib/attachment-merge";
 import {
   isAllowedRemoteAttachmentUrl,
   resolveAttachmentReadMode,
 } from "@/lib/attachment-storage";
 import { fetchDufsFile } from "@/lib/dufs";
+import { getUploadSessionSecret } from "@/lib/env";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { createDownloadUrl } from "@/lib/s3";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
+import { manifestIntegrity } from "@/lib/upload/hash";
+import { buildMergeUrl, signMergeToken } from "@/lib/upload/merge";
 
 type Params = {
   roomCode: string;
@@ -47,6 +51,7 @@ export async function GET(
         s3Key: true,
         fileName: true,
         mimeType: true,
+        sizeBytes: true,
         storage: true,
         chunkManifest: true,
       },
@@ -63,11 +68,33 @@ export async function GET(
     );
 
     if (readMode === "chunked") {
-      throw new ApiError(
-        409,
-        "分片附件需合并下载，当前版本尚未接入",
-        "CHUNKED_DOWNLOAD_PENDING",
-      );
+      const manifest = buildAttachmentMergeManifest(attachment);
+      const secret = getUploadSessionSecret();
+      if (!secret) {
+        throw new ApiError(503, "合并下载密钥未配置", "MERGE_SECRET_MISSING");
+      }
+
+      const token = signMergeToken({ roomId: room.id, manifest }, secret);
+      const mergeUrl = buildMergeUrl(roomCode, token);
+
+      if (raw) {
+        return applyUserCookie(
+          NextResponse.redirect(new URL(mergeUrl, request.url), 307),
+          cookieToSet,
+        );
+      }
+
+      const response = jsonOk({
+        url: mergeUrl,
+        fileName: manifest.fileName,
+        mimeType: manifest.mimeType,
+        sizeBytes: manifest.sizeBytes,
+        chunked: true,
+        totalChunks: manifest.totalChunks,
+        chunkSize: manifest.chunkSize,
+        integrity: manifestIntegrity(manifest.chunks),
+      });
+      return applyUserCookie(response, cookieToSet);
     }
 
     if (readMode === "remote") {

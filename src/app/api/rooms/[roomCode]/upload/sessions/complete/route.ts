@@ -24,6 +24,11 @@ const completeSchema = z.object({
         index: z.number().int().min(0),
         url: z.string().url(),
         sizeBytes: z.number().int().positive(),
+        sha256: z
+          .string()
+          .trim()
+          .regex(/^[a-f0-9]{64}$/i, "SHA-256 must be 64 hex characters")
+          .optional(),
       }),
     )
     .max(UPLOAD_MAX_CHUNKS),

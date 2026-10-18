@@ -8,6 +8,7 @@ import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 import { normalizeUploadError } from "@/lib/upload/errors";
+import { manifestIntegrity } from "@/lib/upload/hash";
 import {
   buildContentDisposition,
   openMergedStream,
@@ -60,6 +61,9 @@ export async function GET(
         "Content-Disposition": buildContentDisposition(payload.manifest.fileName),
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
+        "X-Merge-Integrity": manifestIntegrity(payload.manifest.chunks),
+        "X-Merge-Total-Chunks": String(payload.manifest.totalChunks),
+        "X-Merge-Chunk-Size": String(payload.manifest.chunkSize),
       },
     });
 

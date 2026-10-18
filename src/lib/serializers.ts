@@ -5,6 +5,10 @@
   RoomRole,
 } from "@prisma/client";
 import { decryptText } from "@/lib/encryption";
+import {
+  parseAttachmentChunkManifest,
+  type RemoteAttachmentStorage,
+} from "@/lib/attachment-storage";
 import type { MessageWithRelations } from "@/lib/room-service";
 
 export type ClientUser = {
@@ -23,6 +27,11 @@ export type ClientAttachment = {
   previewType: PreviewType;
   previewUrl?: string | null;
   createdAt: string;
+  chunked: boolean;
+  totalChunks?: number;
+  chunkSize?: number;
+  integrity: "sha256" | "none";
+  canRepair: boolean;
 };
 
 export type ClientMessage = {
@@ -50,7 +59,52 @@ function toClientSizeBytes(sizeBytes: number | bigint) {
   return typeof sizeBytes === "bigint" ? Number(sizeBytes) : sizeBytes;
 }
 
-export function mapClientMessage(message: MessageWithRelations): ClientMessage {
+type AttachmentWithRelations = MessageWithRelations["attachments"][number];
+
+function mapClientAttachment(
+  attachment: AttachmentWithRelations,
+  viewerId?: string,
+): ClientAttachment {
+  const storage = attachment.storage;
+  const manifest =
+    storage === "SANG" || storage === "PIC_SL"
+      ? parseAttachmentChunkManifest(
+          attachment.chunkManifest,
+          storage as RemoteAttachmentStorage,
+        )
+      : null;
+  const hashes = manifest?.chunks.filter((chunk) => chunk.sha256) ?? [];
+  const integrity =
+    manifest && hashes.length === manifest.chunks.length ? "sha256" : "none";
+
+  return {
+    id: attachment.id,
+    fileName: attachment.fileName,
+    mimeType: attachment.mimeType,
+    sizeBytes: toClientSizeBytes(attachment.sizeBytes),
+    storage,
+    previewType: attachment.previewType,
+    previewUrl:
+      (
+        attachment as typeof attachment & {
+          previewUrl?: string | null;
+        }
+      ).previewUrl ?? null,
+    createdAt: attachment.createdAt.toISOString(),
+    chunked: manifest !== null,
+    totalChunks: manifest?.totalChunks,
+    chunkSize: manifest?.chunkSize,
+    integrity,
+    canRepair: Boolean(
+      manifest && viewerId && attachment.uploaderId === viewerId,
+    ),
+  };
+}
+
+export function mapClientMessage(
+  message: MessageWithRelations,
+  viewerId?: string,
+): ClientMessage {
   return {
     id: message.id,
     roomId: message.roomId,
@@ -63,20 +117,8 @@ export function mapClientMessage(message: MessageWithRelations): ClientMessage {
       avatarInitial: message.sender.avatarInitial,
       avatarColor: message.sender.avatarColor,
     },
-    attachments: message.attachments.map((attachment) => ({
-      id: attachment.id,
-      fileName: attachment.fileName,
-      mimeType: attachment.mimeType,
-      sizeBytes: toClientSizeBytes(attachment.sizeBytes),
-      storage: attachment.storage,
-      previewType: attachment.previewType,
-      previewUrl:
-        (
-          attachment as typeof attachment & {
-            previewUrl?: string | null;
-          }
-        ).previewUrl ?? null,
-      createdAt: attachment.createdAt.toISOString(),
-    })),
+    attachments: message.attachments.map((attachment) =>
+      mapClientAttachment(attachment, viewerId),
+    ),
   };
 }

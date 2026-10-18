@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { NextRequest } from "next/server";
 
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
@@ -88,6 +90,7 @@ export async function POST(
       service: session.service,
     });
     const body = new Uint8Array(await uploaded.arrayBuffer());
+    const sha256 = createHash("sha256").update(body).digest("hex");
 
     const result =
       session.service === "sang"
@@ -108,6 +111,7 @@ export async function POST(
       index: chunkIndex,
       url: result.url,
       sizeBytes: uploaded.size,
+      sha256,
     });
 
     return applyUserCookie(response, context.cookieToSet);

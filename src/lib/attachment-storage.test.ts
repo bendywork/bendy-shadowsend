@@ -265,3 +265,46 @@ describe("attachment read mode", () => {
     expect(resolveAttachmentReadMode("DUFS", validManifest())).toBe("dufs");
   });
 });
+
+describe("attachment chunk hashes", () => {
+  const digest = "c".repeat(64);
+
+  function hashedManifest() {
+    const manifest = validManifest();
+    return {
+      ...manifest,
+      chunks: manifest.chunks.map((chunk) => ({
+        ...chunk,
+        sha256: chunk.index === 0 ? digest.toUpperCase() : digest,
+      })),
+    };
+  }
+
+  it("normalizes SHA-256 digests to lower case", () => {
+    const manifest = parseAttachmentChunkManifest(hashedManifest(), "SANG");
+
+    expect(manifest?.chunks[0].sha256).toBe(digest);
+    expect(manifest?.chunks[1].sha256).toBe(digest);
+  });
+
+  it("rejects malformed or partially hashed manifests", () => {
+    const malformed = hashedManifest();
+    malformed.chunks[0] = { ...malformed.chunks[0], sha256: "xyz" };
+    expect(parseAttachmentChunkManifest(malformed, "SANG")).toBeNull();
+
+    const base = hashedManifest();
+    const partial = {
+      ...base,
+      chunks: [
+        base.chunks[0],
+        {
+          index: 1,
+          url: base.chunks[1].url,
+          sizeBytes: base.chunks[1].sizeBytes,
+        },
+        base.chunks[2],
+      ],
+    };
+    expect(parseAttachmentChunkManifest(partial, "SANG")).toBeNull();
+  });
+});

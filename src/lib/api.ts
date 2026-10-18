@@ -3,11 +3,18 @@
 export class ApiError extends Error {
   status: number;
   code: string;
+  details?: unknown;
 
-  constructor(status: number, message: string, code = "BAD_REQUEST") {
+  constructor(
+    status: number,
+    message: string,
+    code = "BAD_REQUEST",
+    details?: unknown,
+  ) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -31,6 +38,7 @@ export function jsonError(error: unknown) {
         error: {
           message: error.message,
           code: error.code,
+          ...(error.details !== undefined ? { details: error.details } : {}),
         },
       },
       { status: error.status },

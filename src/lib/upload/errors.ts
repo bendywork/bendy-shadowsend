@@ -6,7 +6,7 @@ import { UploadSessionError } from "@/lib/upload/session";
 
 export function normalizeUploadError(error: unknown): unknown {
   if (error instanceof MergeDownloadError) {
-    return new ApiError(error.status, error.message, error.code);
+    return new ApiError(error.status, error.message, error.code, error.details);
   }
 
   if (error instanceof UploadSessionError) {

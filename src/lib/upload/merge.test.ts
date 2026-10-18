@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,11 +14,16 @@ import {
   openMergedStream,
   signMergeToken,
   verifyMergeToken,
+  verifyMergedManifest,
 } from "@/lib/upload/merge";
 import type { UploadManifest } from "@/lib/upload/types";
 
 const secret = "merge-test-secret-0123456789";
 const chunk = UPLOAD_CHUNK_SIZE_BYTES;
+
+function sha256(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
 
 function makeManifest(overrides: Partial<UploadManifest> = {}): UploadManifest {
   return {
@@ -352,6 +359,80 @@ describe("openMergedStream", () => {
     await expect(
       openMergedStream(makeManifest(), { fetchImpl }),
     ).rejects.toThrowError(/地址不受信任/);
+  });
+
+  it("streams a chunk whose SHA-256 matches the manifest", async () => {
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    const manifest = makeSingleChunkManifest();
+    manifest.chunks[0] = { ...manifest.chunks[0], sha256: sha256(bytes) };
+    const fetchImpl = vi.fn(async () =>
+      responseWith([bytes], { headers: { "content-length": "5" } }),
+    );
+
+    const stream = await openMergedStream(manifest, { fetchImpl });
+    const merged = new Uint8Array(await new Response(stream).arrayBuffer());
+
+    expect(Array.from(merged)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("errors the stream when a chunk SHA-256 does not match", async () => {
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    const manifest = makeSingleChunkManifest();
+    manifest.chunks[0] = { ...manifest.chunks[0], sha256: sha256(new Uint8Array([9])) };
+    const fetchImpl = vi.fn(async () =>
+      responseWith([bytes], { headers: { "content-length": "5" } }),
+    );
+
+    const stream = await openMergedStream(manifest, { fetchImpl });
+    await expect(new Response(stream).arrayBuffer()).rejects.toThrowError(/SHA-256/);
+  });
+});
+
+describe("verifyMergedManifest", () => {
+  it("reports per-chunk failures without aborting the whole check", async () => {
+    const first = new Uint8Array(chunk).fill(1);
+    const second = new Uint8Array([6, 7, 8, 9, 10]);
+    const manifest = makeManifest();
+    manifest.chunks[0] = { ...manifest.chunks[0], sha256: sha256(first) };
+    manifest.chunks[1] = {
+      ...manifest.chunks[1],
+      sha256: sha256(new Uint8Array([0])),
+    };
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/a")
+        ? responseWith([first], { headers: { "content-length": String(chunk) } })
+        : responseWith([second], { headers: { "content-length": "5" } }),
+    );
+
+    const report = await verifyMergedManifest(manifest, { fetchImpl });
+
+    expect(report.valid).toBe(false);
+    expect(report.integrity).toBe("sha256");
+    expect(report.checkedChunks).toBe(2);
+    expect(report.failures).toHaveLength(1);
+    expect(report.failures[0]).toMatchObject({
+      index: 1,
+      code: "MERGE_CHUNK_HASH_MISMATCH",
+      actualSha256: sha256(second),
+    });
+  });
+
+  it("checks only the requested chunk indexes", async () => {
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    const manifest = makeManifest();
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      void input;
+      return responseWith([bytes], { headers: { "content-length": "5" } });
+    });
+
+    const report = await verifyMergedManifest(manifest, {
+      fetchImpl,
+      indexes: [1],
+    });
+
+    expect(report.checkedChunks).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0][0])).toContain("/b");
   });
 });
 

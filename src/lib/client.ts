@@ -4,6 +4,7 @@
   error?: {
     message: string;
     code?: string;
+    details?: unknown;
   };
 };
 
@@ -15,12 +16,17 @@
 export class ApiRequestError extends Error {
   readonly status?: number;
   readonly code?: string;
+  readonly details?: unknown;
 
-  constructor(message: string, options?: { status?: number; code?: string }) {
+  constructor(
+    message: string,
+    options?: { status?: number; code?: string; details?: unknown },
+  ) {
     super(message);
     this.name = "ApiRequestError";
     this.status = options?.status;
     this.code = options?.code;
+    this.details = options?.details;
   }
 }
 
@@ -28,12 +34,15 @@ export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit):
   const method = init?.method ?? "GET";
   const url = typeof input === "string" ? input : input.toString();
 
+  const isFormData =
+    typeof FormData !== "undefined" && init?.body instanceof FormData;
+
   let response: Response;
   try {
     response = await fetch(input, {
       ...init,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(init?.headers ?? {}),
       },
       cache: "no-store",
@@ -95,6 +104,7 @@ export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit):
     throw new ApiRequestError(payload?.error?.message ?? "请求失败", {
       status: response.status,
       code: payload?.error?.code ?? `HTTP_${response.status}`,
+      details: payload?.error?.details,
     });
   }
 

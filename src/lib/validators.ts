@@ -23,6 +23,12 @@ const chunkDescriptorSchema = z.object({
     .min(1)
     .max(MAX_REMOTE_ATTACHMENT_URL_LENGTH),
   sizeBytes: z.number().int().positive(),
+  sha256: z
+    .string()
+    .trim()
+    .regex(/^[a-f0-9]{64}$/i, "SHA-256 must be 64 hex characters")
+    .transform((value) => value.toLowerCase())
+    .optional(),
 });
 
 const chunkManifestSchema = z.object({
