@@ -9,6 +9,12 @@ import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 import { createAttachmentPreviewUrl, uploadObject } from "@/lib/s3";
+import { uploadToSang } from "@/lib/sang";
+import {
+  SANG_SINGLE_REQUEST_MAX_BYTES,
+  isImageFile,
+  resolveImageMimeType,
+} from "@/lib/upload-rules";
 
 const keyId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
 const proxyUploadLimitBytes = MAX_PROXY_UPLOAD_BYTES;
@@ -53,6 +59,23 @@ export async function POST(
       throw new ApiError(400, "File size must be greater than 0", "INVALID_FILE_SIZE");
     }
 
+    const fileName = sanitizeFileName(uploaded.name || `upload-${Date.now()}`);
+    const rawMimeType = uploaded.type?.trim() || "application/octet-stream";
+    const isImage = isImageFile(fileName, rawMimeType);
+    const mimeType = isImage
+      ? resolveImageMimeType(fileName, rawMimeType)
+      : rawMimeType;
+
+    if (isImage && uploaded.size > SANG_SINGLE_REQUEST_MAX_BYTES) {
+      throw new ApiError(
+        413,
+        `图片单次上传最大 ${Math.floor(
+          SANG_SINGLE_REQUEST_MAX_BYTES / 1024 / 1024,
+        )}MB，更大的图片请使用分片上传`,
+        "IMAGE_TOO_LARGE_FOR_SANG",
+      );
+    }
+
     if (uploaded.size > proxyUploadLimitBytes) {
       throw new ApiError(
         413,
@@ -61,11 +84,31 @@ export async function POST(
       );
     }
 
-    const fileName = sanitizeFileName(uploaded.name || `upload-${Date.now()}`);
-    const mimeType = uploaded.type?.trim() || "application/octet-stream";
     const suffix = keyId();
     const content = new Uint8Array(await uploaded.arrayBuffer());
-    const isImage = mimeType.startsWith("image/");
+
+    if (isImage) {
+      // REQ-202610-0510：图片主路径统一走 file.sang.pub 服务端封装。
+      // dc-06：失败时仅做同服务有限重试，不跨存储回退。
+      const result = await uploadToSang({
+        fileName,
+        mimeType,
+        body: content,
+        sizeBytes: uploaded.size,
+      });
+
+      const response = jsonOk({
+        s3Key: result.url,
+        fileName,
+        mimeType,
+        sizeBytes: uploaded.size,
+        storage: AttachmentStorage.SANG,
+        previewUrl: result.url,
+      });
+
+      return applyUserCookie(response, cookieToSet);
+    }
+
     const dufsConfigured = isDufsConfigured();
     const s3Configured = isS3Configured();
 
@@ -73,39 +116,7 @@ export async function POST(
     let previewUrl: string | null = null;
     let storage: AttachmentStorage = AttachmentStorage.S3;
 
-    if (isImage) {
-      // 图片优先走 Dufs，失败则回退到 S3
-      if (dufsConfigured) {
-        try {
-          key = `img-${room.id}-${Date.now()}-${suffix}-${fileName}`;
-          const uploadedToDufs = await uploadImageToDufs({
-            path: key,
-            body: content,
-            contentType: mimeType,
-          });
-          storage = AttachmentStorage.DUFS;
-          previewUrl = uploadedToDufs.publicUrl;
-        } catch (dufsError) {
-          console.error("[upload] Dufs upload failed, falling back to S3", dufsError);
-        }
-      }
-
-      if (!previewUrl) {
-        if (!s3Configured) {
-          if (!dufsConfigured) {
-            throw new ApiError(503, "图片上传失败：DUFS 未配置", "DUFS_NOT_CONFIGURED");
-          }
-          throw new ApiError(502, "图片上传失败：DUFS 不可用且 S3 未配置", "IMAGE_UPLOAD_FAILED");
-        }
-        key = `rooms/${room.id}/${Date.now()}-${suffix}-${fileName}`;
-        await uploadObject({
-          key,
-          contentType: mimeType,
-          body: content,
-        });
-        storage = AttachmentStorage.S3;
-      }
-    } else if (s3Configured) {
+    if (s3Configured) {
       key = `rooms/${room.id}/${Date.now()}-${suffix}-${fileName}`;
       await uploadObject({
         key,

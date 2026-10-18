@@ -5,6 +5,12 @@ import {
   MAX_ATTACHMENT_SIZE_BYTES,
   MAX_MESSAGE_TEXT_CHARS,
 } from "@/lib/constants";
+import { isAllowedSangUrl } from "@/lib/upload-rules";
+
+const sangUrlRefinement = {
+  message: "SANG 附件必须使用 file.sang.pub 返回的 URL",
+  path: ["s3Key"],
+};
 
 export const gateCodeSchema = z
   .string()
@@ -62,9 +68,14 @@ export const sendMessageSchema = z.object({
           .int()
           .positive()
           .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
-        s3Key: z.string().trim().min(1).max(512),
-        storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
-      }),
+        s3Key: z.string().trim().min(1).max(2048),
+        storage: z.enum(["S3", "DUFS", "SANG"]).optional().default("S3"),
+      }).refine(
+        (attachment) =>
+          attachment.storage !== "SANG" ||
+          isAllowedSangUrl(attachment.s3Key),
+        sangUrlRefinement,
+      ),
     )
     .optional()
     .default([]),
@@ -110,7 +121,7 @@ export const updateRoomJoinPolicySchema = z.object({
 });
 
 const announcementImagePayloadSchema = z.object({
-  s3Key: z.string().trim().min(1).max(512),
+  s3Key: z.string().trim().min(1).max(2048),
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().min(1).max(120),
   sizeBytes: z
@@ -118,8 +129,11 @@ const announcementImagePayloadSchema = z.object({
     .int()
     .positive()
     .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
-  storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
-});
+  storage: z.enum(["S3", "DUFS", "SANG"]).optional().default("S3"),
+}).refine(
+  (image) => image.storage !== "SANG" || isAllowedSangUrl(image.s3Key),
+  sangUrlRefinement,
+);
 
 export const roomAnnouncementSchema = z.object({
   text: z

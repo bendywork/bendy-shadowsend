@@ -53,6 +53,14 @@ export async function GET(
 
     const raw = request.nextUrl.searchParams.get("raw") === "1";
 
+    if (attachment.storage === AttachmentStorage.SANG) {
+      const response = raw
+        ? NextResponse.redirect(attachment.s3Key, 307)
+        : jsonOk({ url: attachment.s3Key });
+
+      return applyUserCookie(response, cookieToSet);
+    }
+
     if (attachment.storage === AttachmentStorage.DUFS) {
       if (raw) {
         const upstream = await fetchDufsFile(attachment.s3Key);

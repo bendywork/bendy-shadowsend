@@ -21,6 +21,7 @@ const baseSchema = z.object({
   DUFS_PUBLIC_BASE_URL: z.string().url().optional(),
   DUFS_PATH_PREFIX: z.string().optional(),
   DUFS_AUTH: z.string().optional(),
+  SANG_UPLOAD_URL: z.string().url().optional(),
   OSS_PREVIEW_RPC_URL: z.string().url().optional(),
   OSS_PREVIEW_BUCKET_NAME: z.string().optional(),
   OSS_PREVIEW_COOKIE: z.string().optional(),
@@ -53,6 +54,10 @@ export const env = {
     publicBaseUrl: parsed.data.DUFS_PUBLIC_BASE_URL,
     pathPrefix: parsed.data.DUFS_PATH_PREFIX,
     auth: parsed.data.DUFS_AUTH,
+  },
+  sang: {
+    uploadUrl:
+      parsed.data.SANG_UPLOAD_URL ?? "https://file.sang.pub/api/upload",
   },
   ossPreview: {
     rpcUrl: parsed.data.OSS_PREVIEW_RPC_URL,

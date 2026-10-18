@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { parseJsonBody } from "@/lib/route";
 import { createAttachmentPreviewUrl, createUploadUrl } from "@/lib/s3";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
+import { isImageFile } from "@/lib/upload-rules";
 import { uploadPrepareSchema } from "@/lib/validators";
 
 const keyId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
@@ -41,6 +42,14 @@ export async function POST(
     }
 
     await assertRoomMember(room.id, user.id);
+
+    if (isImageFile(payload.fileName, payload.mimeType)) {
+      throw new ApiError(
+        400,
+        "图片上传已切换为服务端中转（file.sang.pub），请使用 /upload 接口",
+        "IMAGE_UPLOAD_USE_PROXY",
+      );
+    }
 
     if (!isS3Configured()) {
       throw new ApiError(

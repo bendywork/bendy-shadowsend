@@ -48,6 +48,13 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
           }
 
           try {
+            if (attachment.storage === AttachmentStorage.SANG) {
+              return {
+                ...attachment,
+                previewUrl: attachment.s3Key,
+              };
+            }
+
             if (attachment.storage === AttachmentStorage.DUFS) {
               if (options?.roomCode) {
                 return {

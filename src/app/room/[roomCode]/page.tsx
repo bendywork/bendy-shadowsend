@@ -9,7 +9,8 @@ import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
+import { SANG_SINGLE_REQUEST_MAX_BYTES, isImageFile, resolveImageMimeType } from "@/lib/upload-rules";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -915,11 +916,23 @@ export default function RoomPage() {
             fileType: file.type,
             fileSize: file.size,
           });
+
+          let serverMessage: string | undefined;
+          try {
+            const parsed = JSON.parse(xhr.responseText) as {
+              error?: { message?: string };
+            };
+            serverMessage = parsed.error?.message;
+          } catch {
+            // Keep the generic message below.
+          }
+
           reject(
             new Error(
-              t("toast.uploadTooLarge", {
-                max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
-              }),
+              serverMessage ??
+                t("toast.uploadTooLarge", {
+                  max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
+                }),
             ),
           );
           return;
@@ -1004,7 +1017,7 @@ export default function RoomPage() {
       formData.append("totalChunks", String(totalChunks));
       formData.append("totalBytes", String(file.size));
       formData.append("fileName", file.name);
-      formData.append("mimeType", file.type);
+      formData.append("mimeType", resolveImageMimeType(file.name, file.type));
       if (dufsPath) {
         formData.append("dufsPath", dufsPath);
       }
@@ -1135,6 +1148,16 @@ export default function RoomPage() {
   }
 
   async function upload(file: File, onProgress?: (percent: number) => void) {
+    // REQ-202610-0510：图片主路径统一经服务端转发到 file.sang.pub。
+    // 受 Vercel 单请求 4.5MB 限制，超过 4MB 的图片暂走 DUFS 分片（up-04 接入分片后替换）。
+    if (isImageFile(file.name, file.type)) {
+      if (file.size <= SANG_SINGLE_REQUEST_MAX_BYTES) {
+        return uploadByProxy(file, onProgress);
+      }
+
+      return uploadByChunkedProxy(file, onProgress);
+    }
+
     try {
       return await uploadDirectToS3(file, onProgress);
     } catch (directUploadError) {
@@ -1152,10 +1175,6 @@ export default function RoomPage() {
             max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
           }),
         );
-      }
-
-      if (file.type.startsWith("image/") && file.size >= CHUNKED_UPLOAD_THRESHOLD_BYTES) {
-        return uploadByChunkedProxy(file, onProgress);
       }
 
       return uploadByProxy(file, onProgress);
