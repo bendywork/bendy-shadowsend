@@ -1,0 +1,47 @@
+/* ============================================================
+   长消息折叠 / 复制反馈（REQ-202610-0485 / ui-22）
+
+   · 展开/收起只做 opacity + transform，不触发布局。
+   · 复制按钮的 copied / failed 状态由 Tailwind 语义类表达，
+     这里只补键盘焦点与按下反馈。
+   ============================================================ */
+
+.message-text-reveal {
+  animation: message-text-reveal 180ms cubic-bezier(0.2, 0, 0, 1) both;
+  transform-origin: top center;
+}
+
+@keyframes message-text-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-state="copied"],
+[data-state="failed"] {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+[data-state="copied"]:active,
+[data-state="failed"]:active {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-text-reveal {
+    animation: none;
+  }
+
+  [data-state="copied"]:active,
+  [data-state="failed"]:active {
+    transform: none;
+  }
+}

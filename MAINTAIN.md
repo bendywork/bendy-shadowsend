@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 长消息折叠与复制交互优化（REQ-202610-0485 / ui-22）
+
+### Scope
+- 长消息折叠阈值从单一 1200 字符改为「600 字符或 12 行」双阈值，预览改为 240–420 字符窗口（行折叠时取前 8 行），优先在段落/换行/句末标点处截断，避免切断单词与 emoji。
+- 展开/收起增加 180ms 的 opacity + translateY 入场动效，仅用户操作时触发，`prefers-reduced-motion` 下关闭。
+- 复制入口统一为 `copyTextToClipboard`：Clipboard API 失败时回退 textarea + execCommand；按钮新增「复制失败」危险态，成功/失败状态保持 2 秒，并保留 Toast 与 `aria-live` 反馈。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/message-collapse.ts` (new): `shouldCollapseMessage` / `getMessageCollapseState`，双阈值判定、边界优先预览、代理对保护与剩余字数计算。
+- `src/lib/clipboard.ts` (new): `copyTextToClipboard`，异步剪贴板优先、execCommand 回退、失败返回 false 不抛出。
+- `src/app/room/[roomCode]/page.tsx`: 移除页面内联折叠常量与截断函数，接入共享纯函数；复制状态改为 `copied | failed` 并统一 2 秒重置；邀请链接复制复用同一入口；消息气泡新增 `canToggleExpand` / `expandHint` / `copyState` 与展开动效 token。
+- `src/app/message-actions.css` (new): `.message-text-reveal` 仅动 opacity/transform 的 180ms 动画、复制按钮状态过渡与 reduced-motion 回退；在 `layout.tsx` 引入。
+- `src/lib/i18n/messages.ts`: 新增 `chat.copyFailed`、`chat.expandWithCount`，清理 `chat.copied` 的 emoji。
+- `src/lib/message-collapse.test.ts` (new): 10 条折叠规则测试。
+- `src/lib/clipboard.test.ts` (new): 5 条复制回退测试。
+- `docs/design-system-message-actions.md` (new): 折叠规则、动效、复制反馈、可访问性与验收清单。
+
+### Regression Checklist
+- `npm test` green: 5 files / 39 tests.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

@@ -368,6 +368,8 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 长消息折叠与复制交互优化（REQ-202610-0485 / ui-22）：折叠阈值改为「超过 600 字符或 12 行」，预览窗口 240–420 字符（行折叠取前 8 行），优先在段落/换行/句末标点处截断并保护 emoji；展开/收起增加 180ms opacity + translateY 动效（reduced-motion 关闭）；复制统一走 `copyTextToClipboard`（Clipboard API 失败回退 execCommand），按钮新增「复制失败」危险态，成功/失败状态保持 2 秒并保留 Toast 与 `aria-live` 反馈。
+- 新增 `src/lib/message-collapse.ts`、`src/lib/clipboard.ts`、`src/app/message-actions.css` 与 `docs/design-system-message-actions.md`；新增 15 条单测（折叠 10 + 复制 5，合计 39 条）；`package.json` / `package-lock.json` / `src/lib/constants.ts` 版本同步至 `0.1.69`。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。
