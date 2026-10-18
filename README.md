@@ -368,6 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 动效规范（REQ-202610-0498 / ui-35）：`globals.css` 补齐 `--ds-duration-instant`、`--ds-ease-in`、`--ds-ease-linear`，并修正 Tailwind `--transition-duration-*` / `--ease-*` 命名空间映射（原 `--duration-*` 未生成工具类）；新增 `src/lib/motion.ts` 统一 JS 时长刻度与 `prefersReducedMotion` / `getScrollBehavior`，消息自动滚动、侧栏定位与广告轮播（280ms，与 `--ds-duration-slow` 对齐）接入；重写 `prefers-reduced-motion` 块，折叠全部时长令牌并加全局动画安全网；新增 16 条动效契约单测与 `docs/design-system-motion.md`。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

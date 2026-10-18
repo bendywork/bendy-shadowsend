@@ -22,6 +22,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
+import { MOTION_DURATIONS_MS, getScrollBehavior } from "@/lib/motion";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
@@ -99,7 +100,7 @@ const MESSAGE_COLLAPSE_CHAR_THRESHOLD = 1200;
 const MESSAGE_COLLAPSE_PREVIEW_MAX = 1600;
 const MESSAGE_COLLAPSE_PREVIEW_MIN = 360;
 const AD_CAROUSEL_INTERVAL_MS = 4200;
-const AD_CAROUSEL_SLIDE_MS = 320;
+const AD_CAROUSEL_SLIDE_MS = MOTION_DURATIONS_MS.slow;
 const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 function withStableAttachmentPreviewUrls(
@@ -403,7 +404,7 @@ function SwitchBtn({
       disabled={disabled}
       onClick={onToggle}
       className={clsx(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-ui duration-base",
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-ui",
         checked
           ? "border-action-border bg-action/50"
           : "border-line-strong bg-elevated-strong",
@@ -414,7 +415,7 @@ function SwitchBtn({
     >
       <span
         className={clsx(
-          "inline-block h-5 w-5 rounded-full shadow-sm transition-transform duration-base",
+          "inline-block h-5 w-5 rounded-full shadow-sm transition-transform duration-base ease-standard",
           checked ? "translate-x-5 bg-action-fg" : "translate-x-0.5 bg-ink-soft",
         )}
       />
@@ -619,7 +620,7 @@ export default function RoomPage() {
     return () => { window.clearInterval(hb); window.clearInterval(messagePoll); window.clearInterval(snapshotSync); };
   }, [roomCode, pollingEnabled, pollLatestMessages, refresh, t]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: getScrollBehavior(), block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
   useEffect(() => {
     if (!showQr || !joinLink) return;
@@ -1193,7 +1194,7 @@ export default function RoomPage() {
 
   function scrollToPanel(target: "rooms" | "members") {
     const panelRef = target === "rooms" ? roomsPanelRef : membersPanelRef;
-    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    panelRef.current?.scrollIntoView({ behavior: getScrollBehavior(), block: "start" });
   }
 
   async function runSend(localId: string, content: string, sendingFiles: File[]) {
@@ -2006,7 +2007,7 @@ export default function RoomPage() {
                   aria-expanded={!createdCollapsed}
                   className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-ink-faint hover:text-ink-soft"
                 >
-                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !createdCollapsed && "rotate-90")} />
+                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform duration-fast ease-standard", !createdCollapsed && "rotate-90")} />
                   <span className="truncate">{t("nav.group.created")}</span>
                   <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.created.length}</span>
                 </button>
@@ -2033,7 +2034,7 @@ export default function RoomPage() {
                   aria-expanded={!joinedCollapsed}
                   className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-ink-faint hover:text-ink-soft"
                 >
-                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !joinedCollapsed && "rotate-90")} />
+                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform duration-fast ease-standard", !joinedCollapsed && "rotate-90")} />
                   <span className="truncate">{t("nav.group.joined")}</span>
                   <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.joined.length}</span>
                 </button>

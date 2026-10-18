@@ -98,13 +98,18 @@
   --ds-shadow-md: 0 10px 30px rgb(0 0 0 / 0.42);
   --ds-shadow-lg: 0 24px 64px rgb(0 0 0 / 0.52);
 
-  /* 10 · Motion */
+  /* 10 · Motion — single duration/easing scale (REQ-202610-0498 / ui-35).
+     Numeric durations are mirrored in src/lib/motion.ts for JS-driven motion;
+     src/lib/motion.test.ts fails when the two drift apart. */
+  --ds-duration-instant: 0ms;
   --ds-duration-fast: 120ms;
   --ds-duration-base: 180ms;
   --ds-duration-slow: 280ms;
   --ds-duration-slower: 420ms;
   --ds-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ds-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ds-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ds-ease-linear: linear;
 
   /* 11 · Overlays & special surfaces */
   --ds-overlay: rgb(0 0 0 / 0.4);
@@ -225,12 +230,15 @@
   --shadow-md: var(--ds-shadow-md);
   --shadow-lg: var(--ds-shadow-lg);
 
-  --duration-fast: var(--ds-duration-fast);
-  --duration-base: var(--ds-duration-base);
-  --duration-slow: var(--ds-duration-slow);
-  --duration-slower: var(--ds-duration-slower);
+  --transition-duration-instant: var(--ds-duration-instant);
+  --transition-duration-fast: var(--ds-duration-fast);
+  --transition-duration-base: var(--ds-duration-base);
+  --transition-duration-slow: var(--ds-duration-slow);
+  --transition-duration-slower: var(--ds-duration-slower);
   --ease-standard: var(--ds-ease-standard);
   --ease-out: var(--ds-ease-out);
+  --ease-in: var(--ds-ease-in);
+  --ease-linear: var(--ds-ease-linear);
 }
 
 * {
@@ -819,7 +827,33 @@ textarea[aria-invalid="true"]:focus {
   display: none;
 }
 
+/* Reduced-motion contract (REQ-202610-0498 / ui-35).
+   1. Collapse the shared duration scale so every token-driven transition and
+      Tailwind duration utility resolves instantly.
+   2. Keep a universal safety net for motion added without tokens.
+   3. JS-driven scrolling asks src/lib/motion.ts for `auto` instead of `smooth`. */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-duration-instant: 0ms;
+    --ds-duration-fast: 0ms;
+    --ds-duration-base: 0ms;
+    --ds-duration-slow: 0ms;
+    --ds-duration-slower: 0ms;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
   .toast-card,
   .popover-panel--in {
     animation: none;

@@ -3,6 +3,30 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 动效规范（REQ-202610-0498 / ui-35）
+
+### Scope
+- 将全站动效时长/缓动收敛为单一令牌刻度，并让 `prefers-reduced-motion` 同时覆盖 CSS 过渡与 JS 程序化滚动。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/app/globals.css`: 动效令牌新增 `--ds-duration-instant`、`--ds-ease-in`、`--ds-ease-linear`，并映射到 Tailwind 的 `--transition-duration-*` / `--ease-*` 命名空间（修正原先 `--duration-*` 映射未生成工具类的问题）；重写 reduced-motion 块，折叠全部时长令牌，追加 `animation` / `transition` 全局安全网与 `html { scroll-behavior: auto }`。
+- `src/lib/motion.ts` (new): `MOTION_DURATIONS_MS` 与 CSS 刻度同步；`prefersReducedMotion` 对缺失/抛错的 `matchMedia` 安全回退；`getScrollBehavior` 在减动效时返回 `auto`。
+- `src/app/room/[roomCode]/page.tsx`: 消息自动滚动与移动端侧栏定位改用 `getScrollBehavior()`；广告轮播滑动等待改用 `MOTION_DURATIONS_MS.slow`（280ms，与 `--ds-duration-slow` 对齐，原先 320ms 与 CSS 不一致）；开关滑块与折叠箭头补齐 token 时长/缓动。
+- `src/lib/motion.test.ts` (new): 16 条契约测试，覆盖时长刻度顺序、CSS 令牌同步、Tailwind `--transition-duration-*` 映射、缓动令牌、全部 CSS 动效声明的令牌化、减动效媒体查询、`matchMedia` 回退与滚动行为。
+- `docs/design-system-motion.md` (new): 令牌表、使用规则、减动效 CSS/JS 契约、测试与验收清单。
+
+### Regression Checklist
+- `npm test`: 4 个测试文件 40/40 通过。
+- `npm run lint`: 0 error。
+- `npx tsc --noEmit`: 0 error。
+- `npm run build`: Next.js 16.2.1 生产构建通过。
+- 无头 Chromium 冒烟（构建 CSS）：常规模式过渡 `180ms`；`prefers-reduced-motion` 下过渡 `0.01ms`、Toast/Popover 动画关闭、spinner 单次瞬时。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
