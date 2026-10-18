@@ -3,6 +3,31 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.67 发布 Tag 规范（REQ-202610-1374）
+
+### Scope
+- 将「每次发布推送必须发布对应 tag」固化为项目强制规范：正常版本 `<version>-ver`，修复版本 `<version>-fix-<次数>-ver`；本项目部署在 Vercel，所有 tag 以 `-ver` 结尾。
+- 新增发布 tag 工具、测试与文档，版本升至 `0.1.67`。Docs/tooling-only iteration — no runtime behavior change.
+
+### Changes
+- 新增 `scripts/release-tag.mjs`：读取 `package.json` 版本，支持正常发布、`--fix [n]` 修复发布（自动取同版本下一个序号）、`--dry-run`、`--check`、`--branch`、`--remote`、`--no-push`；发布前校验分支、工作区、远端同步与 tag 重名。
+- 新增 `scripts/release-tag.test.mjs`：覆盖正常/修复 tag 命名、非法版本与次数、自动修复序号、参数解析（`node --test`）。
+- 新增 `docs/release-tagging.md`：强制规则、命名格式、操作流程、工具参数、验收清单。
+- `AGENTS.md`：新增「发布 Tag（强制规范）」段落，要求每次发布推送同步发布 `-ver` tag。
+- `README.md`：版本号管理新增「发布 Tag（强制）」流程与示例；更新记录新增 v0.1.67 条目。
+- `package.json`：新增 `release:tag` 与 `test:release-tag` 脚本；版本升至 `0.1.67`。
+- `src/lib/constants.ts`：通过 `scripts/sync-version.js` 同步为 `0.1.67`。
+
+### Regression Checklist
+- `node --test scripts/release-tag.test.mjs` 全绿。
+- `node scripts/release-tag.mjs --dry-run --branch <发布分支>` 输出正确 tag 名称且不落盘。
+- `npm run lint` + `npm run build` 通过（无运行时改动）。
+- 发布后验证：`git tag --points-at HEAD` 含 `0.1.67-ver`；`git ls-remote --tags origin` 可见该 tag；Vercel 线上 `/api/bootstrap` 版本为 `0.1.67`。
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.67`.
+- Feature commit `73258ff`; added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-13: v0.1.64 决策回写（7 项决策结论同步路线图与需求卡，REQ-202610-0463）
 
 ### Scope
