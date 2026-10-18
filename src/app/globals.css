@@ -118,6 +118,11 @@
   /* 12 · Ambient wash (neutral, replaces colored glow) */
   --ds-ambient-a: rgb(255 255 255 / 0.035);
   --ds-ambient-b: rgb(255 255 255 / 0.02);
+
+  /* 13 · Control sizing — shared by text and icon buttons */
+  --ds-control-sm: 32px;
+  --ds-control-md: 40px;
+  --ds-danger-hover: #e0443a;
 }
 
 :root[data-theme="light"] {
@@ -165,6 +170,11 @@
   --ds-overlay-strong: rgb(17 17 19 / 0.5);
   --ds-ambient-a: rgb(17 17 19 / 0.03);
   --ds-ambient-b: rgb(17 17 19 / 0.018);
+
+  /* Control sizing keeps the same physical rhythm across themes. */
+  --ds-control-sm: 32px;
+  --ds-control-md: 40px;
+  --ds-danger-hover: #b21f27;
 }
 
 /* Expose the semantic tokens to Tailwind utilities (bg-canvas, text-ink…). */
@@ -344,106 +354,143 @@ button {
   box-shadow: 0 0 0 3px var(--ds-action-soft);
 }
 
-/* Primary action is inverted per theme (dc-02). */
-.btn-primary {
-  background: var(--ds-action-bg);
-  color: var(--ds-action-fg);
+/* ============================================================
+   Button system — one base, four variants, two sizes.
+   primary  inverted action (dc-02)
+   secondary elevated neutral
+   ghost    text-only low emphasis
+   danger   semantic red, reserved for destructive actions
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  height: var(--ds-control-md);
+  padding: 0 var(--ds-space-4);
   border: 1px solid transparent;
   border-radius: var(--ds-radius-md);
-  box-shadow: var(--ds-shadow-xs);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
   transition:
     background-color var(--ds-duration-base) var(--ds-ease-standard),
+    border-color var(--ds-duration-base) var(--ds-ease-standard),
+    color var(--ds-duration-base) var(--ds-ease-standard),
     box-shadow var(--ds-duration-base) var(--ds-ease-standard),
     transform var(--ds-duration-fast) var(--ds-ease-standard),
     opacity var(--ds-duration-base) var(--ds-ease-standard);
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--ds-action-bg-hover);
-}
-
-.btn-primary:active:not(:disabled) {
+.btn:active:not(:disabled) {
   transform: translateY(0.5px);
 }
 
-.btn-primary:disabled {
-  opacity: 0.55;
+.btn:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-.btn-secondary {
-  background: var(--ds-surface-elevated);
-  color: var(--ds-ink);
-  border: 1px solid var(--ds-line-subtle);
-  border-radius: var(--ds-radius-md);
-  transition:
-    background-color var(--ds-duration-base) var(--ds-ease-standard),
-    border-color var(--ds-duration-base) var(--ds-ease-standard),
-    transform var(--ds-duration-fast) var(--ds-ease-standard);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--ds-surface-elevated-hover);
-}
-
-.btn-secondary:active:not(:disabled) {
-  transform: translateY(0.5px);
-}
-
-.btn-secondary:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn-ghost {
-  background: transparent;
-  color: var(--ds-ink-soft);
-  border: 1px solid transparent;
-  border-radius: var(--ds-radius-md);
-  transition:
-    background-color var(--ds-duration-base) var(--ds-ease-standard),
-    color var(--ds-duration-base) var(--ds-ease-standard);
-}
-
-.btn-ghost:hover:not(:disabled) {
-  background: var(--ds-action-soft);
-  color: var(--ds-ink);
-}
-
-.btn-danger {
-  background: var(--ds-danger-soft);
-  color: var(--ds-danger);
-  border: 1px solid var(--ds-danger-border);
-  border-radius: var(--ds-radius-md);
-  transition:
-    background-color var(--ds-duration-base) var(--ds-ease-standard),
-    border-color var(--ds-duration-base) var(--ds-ease-standard);
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ds-danger) 20%, transparent);
-}
-
-.btn-sm {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.btn--sm {
   gap: var(--ds-space-1);
-  height: 32px;
+  height: var(--ds-control-sm);
   padding: 0 var(--ds-space-3);
+  border-radius: var(--ds-radius-sm);
   font-size: 12px;
   font-weight: 500;
 }
 
-.btn-md {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--ds-space-2);
-  height: 40px;
+.btn--md {
+  height: var(--ds-control-md);
   padding: 0 var(--ds-space-4);
   font-size: 14px;
   font-weight: 600;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--primary {
+  background: var(--ds-action-bg);
+  color: var(--ds-action-fg);
+  box-shadow: var(--ds-shadow-xs);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--ds-action-bg-hover);
+}
+
+.btn--secondary {
+  background: var(--ds-surface-elevated);
+  color: var(--ds-ink);
+  border-color: var(--ds-line-subtle);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--ds-surface-elevated-hover);
+  border-color: var(--ds-line);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--ds-ink-soft);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+}
+
+.btn--danger {
+  background: var(--ds-danger);
+  color: var(--ds-action-fg);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--ds-danger-hover);
+}
+
+.btn--icon {
+  width: var(--ds-control-md);
+  padding: 0;
+}
+
+.btn--icon.btn--sm {
+  width: var(--ds-control-sm);
+}
+
+.btn__spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  animation: ds-spin 0.8s linear infinite;
+}
+
+.btn--sm .btn__spinner {
+  width: 12px;
+  height: 12px;
+}
+
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .icon-btn {
+    transition: none;
+  }
+
+  .btn__spinner {
+    animation-duration: 1.6s;
+  }
 }
 
 .segmented {
@@ -472,22 +519,36 @@ button {
   background: var(--ds-action-soft);
 }
 
-/* Icon-only button (header actions, theme / language toggles). */
+/* Icon-only button — same heights and radii as the text button sizes. */
 .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--ds-radius-md);
+  width: var(--ds-control-md);
+  height: var(--ds-control-md);
+  padding: 0;
   border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
   background: transparent;
   color: var(--ds-ink-muted);
+  cursor: pointer;
   transition:
     background-color var(--ds-duration-fast) var(--ds-ease-standard),
     color var(--ds-duration-fast) var(--ds-ease-standard),
     border-color var(--ds-duration-fast) var(--ds-ease-standard),
-    transform var(--ds-duration-fast) var(--ds-ease-standard);
+    transform var(--ds-duration-fast) var(--ds-ease-standard),
+    opacity var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.icon-btn--sm {
+  width: var(--ds-control-sm);
+  height: var(--ds-control-sm);
+  border-radius: var(--ds-radius-sm);
+}
+
+.icon-btn--md {
+  width: var(--ds-control-md);
+  height: var(--ds-control-md);
 }
 
 .icon-btn:hover:not(:disabled) {
@@ -500,19 +561,23 @@ button {
 }
 
 .icon-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .icon-btn--active {
   background: var(--ds-action-soft);
   color: var(--ds-ink);
-  border-color: var(--ds-action-border);
 }
 
 .icon-btn--danger:hover:not(:disabled) {
   color: var(--ds-danger);
   background: var(--ds-danger-soft);
+}
+
+.icon-btn .btn__spinner {
+  width: 16px;
+  height: 16px;
 }
 
 /* Floating panels & tooltips. */

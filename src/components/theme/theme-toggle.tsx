@@ -55,7 +55,13 @@ function applyTheme(mode: ThemeMode) {
   window.dispatchEvent(new CustomEvent("tb-theme-change", { detail: mode }));
 }
 
-export function ThemeToggle({ className }: { className?: string }) {
+export function ThemeToggle({
+  className,
+  size = "sm",
+}: {
+  className?: string;
+  size?: "sm" | "md";
+}) {
   const t = useT();
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
@@ -69,6 +75,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   return (
     <Tooltip label={label}>
       <IconButton
+        size={size}
         aria-label={label}
         onClick={() => setStoredTheme(theme === "dark" ? "light" : "dark")}
         className={className}

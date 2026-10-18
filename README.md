@@ -366,6 +366,12 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-18
+
+- `0.1.66` 按钮体系规范化（REQ-202610-0466 / ui-02）：新增 `.btn` 基类 + 四级语义（primary/secondary/ghost/danger）× 两档尺寸（sm 32px / md 40px）+ `loading`/`disabled` 态；主按钮按 dc-02 反色，彩色仅保留危险与语义状态。
+- 新增 `Button` 组件（`variant`/`size`/`loading`/`icon`/`block`，loading 自动禁用并输出 `aria-busy`），重写 `IconButton`（`size`/`active`/`danger`/`loading`）；首页与房间页全部动作按钮迁移到统一体系。
+- 房间头部将公告/设置/解散收敛进「更多」菜单，成员与房间列表操作改用 `.menu-panel`/`.menu-item`；新增 `docs/design-system-buttons.md` 与 Vitest 单测（7 项）。
+
 ### 2026-10-17
 
 - `0.1.65` 设计令牌体系重建（REQ-202610-0464 / ui-01）：`globals.css` 重建 10 级中性灰 primitive ramp 与语义 surface/line/ink/action 令牌，补齐圆角、4px 间距、阴影、动效时长/缓动及 success/warning/danger 状态色；全部令牌经 `@theme inline` 暴露为 Tailwind 工具类。

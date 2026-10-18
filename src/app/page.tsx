@@ -3,12 +3,13 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
+import { DoorOpen, PlusCircle, Shield, Sparkles } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Button } from "@/components/ui/button";
 
 type JoinResult = {
   joined: boolean;
@@ -326,18 +327,17 @@ export default function HomePage() {
                   />
                 </label>
 
-                <button
+                <Button
                   type="submit"
-                  disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  variant="primary"
+                  size="md"
+                  block
+                  loading={submitting}
+                  disabled={loading}
+                  icon={<DoorOpen className="h-4 w-4" />}
                 >
-                  {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <DoorOpen className="h-4 w-4" />
-                  )}
                   进入房间
-                </button>
+                </Button>
               </form>
             ) : (
               <form className="space-y-4" onSubmit={handleCreate}>
@@ -364,18 +364,17 @@ export default function HomePage() {
                   />
                 </label>
 
-                <button
+                <Button
                   type="submit"
-                  disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  variant="primary"
+                  size="md"
+                  block
+                  loading={submitting}
+                  disabled={loading}
+                  icon={<Sparkles className="h-4 w-4" />}
                 >
-                  {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
                   创建并进入
-                </button>
+                </Button>
               </form>
             )}
 

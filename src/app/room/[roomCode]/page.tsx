@@ -13,6 +13,7 @@ import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS,
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
@@ -192,16 +193,16 @@ function RoomLinks({
               <p className="mt-1 truncate font-mono text-[11px] text-ink-faint">{r.roomCode}</p>
             </Link>
             {r.role === "MEMBER" ? (
-              <button
-                type="button"
+              <IconButton
+                size="sm"
                 aria-label="房间操作"
                 aria-haspopup="menu"
                 data-room-menu-trigger={r.id}
                 onClick={(event) => onToggleMenu(r, event.currentTarget)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
+                className="shrink-0"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
-              </button>
+              </IconButton>
             ) : null}
           </div>
         </div>
@@ -221,7 +222,18 @@ function FileAction({ roomCode, attachment, label }: { roomCode: string; attachm
       alert(e instanceof Error ? e.message : "打开失败");
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      onClick={open}
+      loading={loading}
+      icon={<Download className="h-3 w-3" />}
+    >
+      {label}
+    </Button>
+  );
 }
 
 type BubbleAttachment = {
@@ -336,27 +348,19 @@ function MessageBubble({
           <div className="space-y-2">
             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-ink">{visibleContent}</p>
             <div className="flex flex-wrap items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant={copied ? "secondary" : "ghost"}
+                size="sm"
                 onClick={onCopy}
-                className={clsx(
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-ui",
-                  copied
-                    ? "border-action-border bg-action-soft text-ink"
-                    : "border-line text-ink-soft hover:bg-elevated",
-                )}
+                icon={<Copy className="h-3 w-3" />}
               >
-                <Copy className="h-3 w-3" />
                 {copied ? labels.copied : labels.copy}
-              </button>
+              </Button>
               {content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
-                <button
-                  type="button"
-                  onClick={onToggleExpand}
-                  className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11px] text-ink-soft hover:bg-elevated"
-                >
+                <Button type="button" variant="ghost" size="sm" onClick={onToggleExpand}>
                   {collapsed ? labels.expand : labels.collapse}
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
@@ -540,6 +544,7 @@ export default function RoomPage() {
   const [roomNameInput, setRoomNameInput] = useState("");
   const [openRoomMenu, setOpenRoomMenu] = useState<RoomMenuState | null>(null);
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
   const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
@@ -555,6 +560,7 @@ export default function RoomPage() {
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
   const floatingRoomMenuRef = useRef<HTMLDivElement | null>(null);
   const memberMenuRef = useRef<HTMLDivElement | null>(null);
+  const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
   const membersPanelRef = useRef<HTMLElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
@@ -684,6 +690,26 @@ export default function RoomPage() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [openMemberMenuId]);
+
+  useEffect(() => {
+    if (!headerMenuOpen) return;
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target && headerMenuRef.current?.contains(target)) return;
+      setHeaderMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setHeaderMenuOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [headerMenuOpen]);
 
   useEffect(() => {
     if (isOwner) return;
@@ -1821,7 +1847,7 @@ export default function RoomPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-sm text-ink-soft">{error}</p>
-        <Link href="/" className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft">
+        <Link href="/" className="btn btn--secondary btn--md">
           返回首页
         </Link>
       </main>
@@ -1837,7 +1863,7 @@ export default function RoomPage() {
           <Clock3 className="mx-auto h-8 w-8 text-ink-soft" />
           <h1 className="mt-4 text-xl font-semibold text-ink">等待房主审批</h1>
           <p className="mt-2 text-sm text-ink-muted">你曾被移出该房间，再次加入需要房主审批。</p>
-          <Link href="/" className="mt-6 inline-flex rounded-xl bg-elevated-strong px-4 py-2 text-sm text-ink">
+          <Link href="/" className="btn btn--primary btn--md mt-6">
             返回首页
           </Link>
         </section>
@@ -1934,16 +1960,16 @@ export default function RoomPage() {
                   <span className="truncate">{t("nav.group.created")}</span>
                   <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.created.length}</span>
                 </button>
-                <button
-                  type="button"
+                <IconButton
+                  size="sm"
                   aria-label={t("nav.create")}
                   title={t("nav.create")}
                   onClick={() => openRoomEntry("create")}
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
+                  className="shrink-0"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                </button>
+                </IconButton>
               </div>
               {!createdCollapsed ? (
                 <RoomLinks rooms={rooms.created} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
@@ -1961,16 +1987,16 @@ export default function RoomPage() {
                   <span className="truncate">{t("nav.group.joined")}</span>
                   <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.joined.length}</span>
                 </button>
-                <button
-                  type="button"
+                <IconButton
+                  size="sm"
                   aria-label={t("nav.join")}
                   title={t("nav.join")}
                   onClick={() => openRoomEntry("join")}
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
+                  className="shrink-0"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                </button>
+                </IconButton>
               </div>
               {!joinedCollapsed ? (
                 <RoomLinks rooms={rooms.joined} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
@@ -2016,27 +2042,32 @@ export default function RoomPage() {
                 <LanguageToggle />
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {navVisible ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => scrollToPanel("rooms")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
+                  className="xl:hidden"
                 >
                   {t("nav.rooms")}
-                </button>
+                </Button>
               ) : null}
               {membersVisible ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
+                  className="xl:hidden"
                 >
                   {t("members.list")}
-                </button>
+                </Button>
               ) : null}
               <Tooltip label={navVisible ? t("control.nav.hide") : t("control.nav.show")}>
                 <IconButton
+                  size="sm"
                   aria-label={navVisible ? t("control.nav.hide") : t("control.nav.show")}
                   active={navVisible}
                   onClick={toggleNavCollapsed}
@@ -2045,22 +2076,18 @@ export default function RoomPage() {
                 </IconButton>
               </Tooltip>
               <Tooltip label={t("header.invite")}>
-                <IconButton aria-label={t("header.invite")} onClick={copyLink}>
+                <IconButton size="sm" aria-label={t("header.invite")} onClick={copyLink}>
                   <Copy className="h-4 w-4" />
                 </IconButton>
               </Tooltip>
               <Tooltip label={t("header.qr")}>
-                <IconButton aria-label={t("header.qr")} onClick={() => setShowQr(true)}>
+                <IconButton size="sm" aria-label={t("header.qr")} onClick={() => setShowQr(true)}>
                   <QrCode className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip label={isOwner ? t("header.announcement.edit") : t("header.announcement.view")}>
-                <IconButton aria-label={t("header.announcement")} onClick={isOwner ? openNoticeEditor : openNoticeViewer}>
-                  <Megaphone className="h-4 w-4" />
                 </IconButton>
               </Tooltip>
               <Tooltip label={membersVisible ? t("control.members.hide") : t("control.members.show")}>
                 <IconButton
+                  size="sm"
                   aria-label={membersVisible ? t("control.members.hide") : t("control.members.show")}
                   active={membersVisible}
                   onClick={toggleMembersCollapsed}
@@ -2068,33 +2095,70 @@ export default function RoomPage() {
                   <Users className="h-4 w-4" />
                 </IconButton>
               </Tooltip>
-              {isOwner ? (
-                <Tooltip label={t("header.settings")}>
+              <div ref={headerMenuRef} className="relative">
+                <Tooltip label={t("header.more")}>
                   <IconButton
-                    aria-label={t("header.settings")}
-                    active={settingsOpen}
-                    onClick={() => setSettingsOpen(true)}
+                    size="sm"
+                    aria-label={t("header.more")}
+                    aria-haspopup="menu"
+                    aria-expanded={headerMenuOpen}
+                    active={headerMenuOpen}
+                    onClick={() => setHeaderMenuOpen((prev) => !prev)}
                   >
-                    <Settings2 className="h-4 w-4" />
+                    <MoreHorizontal className="h-4 w-4" />
                   </IconButton>
                 </Tooltip>
-              ) : null}
-              {isOwner ? (
-                <Tooltip label={action === "dissolve" ? t("header.dissolving") : t("header.dissolve")}>
-                  <IconButton
-                    aria-label={t("header.dissolve")}
-                    danger
-                    onClick={dissolve}
-                    disabled={action === "dissolve"}
-                  >
-                    {action === "dissolve" ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </IconButton>
-                </Tooltip>
-              ) : null}
+                {headerMenuOpen ? (
+                  <div role="menu" className="menu-panel absolute right-0 top-full z-30 mt-1 w-44">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="menu-item"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        if (isOwner) {
+                          openNoticeEditor();
+                        } else {
+                          openNoticeViewer();
+                        }
+                      }}
+                    >
+                      <Megaphone className="h-3.5 w-3.5" />
+                      {t("header.announcement")}
+                    </button>
+                    {isOwner ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="menu-item"
+                        onClick={() => {
+                          setHeaderMenuOpen(false);
+                          setSettingsOpen(true);
+                        }}
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                        {t("header.settings")}
+                      </button>
+                    ) : null}
+                    {isOwner ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="menu-item menu-item--danger"
+                        onClick={() => void dissolve()}
+                        disabled={action === "dissolve"}
+                      >
+                        {action === "dissolve" ? (
+                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        {action === "dissolve" ? t("header.dissolving") : t("header.dissolve")}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <AdCarousel items={snap.adBoard.items} />
             {hint ? <div className="rounded-lg border border-action-border bg-action-soft px-3 py-2 text-xs text-ink-soft">{hint}</div> : null}
@@ -2223,7 +2287,7 @@ export default function RoomPage() {
               />
               <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated">
+                  <label className="btn btn--secondary btn--sm cursor-pointer">
                     <Plus className="h-3.5 w-3.5" />
                     {t("composer.attach")}
                     <input
@@ -2238,29 +2302,26 @@ export default function RoomPage() {
                       }}
                     />
                   </label>
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={readClipboard}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated"
+                    icon={<Copy className="h-3.5 w-3.5" />}
                   >
-                    <Copy className="h-3.5 w-3.5" />
                     {t("composer.clipboard")}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     role="switch"
                     aria-checked={enterToSend}
+                    variant={enterToSend ? "secondary" : "ghost"}
+                    size="sm"
                     onClick={() => setEnterToSend((prev) => !prev)}
-                    className={clsx(
-                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition-ui",
-                      enterToSend
-                        ? "border-action-border bg-action-soft text-ink"
-                        : "border-line text-ink-soft hover:bg-elevated",
-                    )}
+                    icon={<CornerDownLeft className="h-3.5 w-3.5" />}
                   >
-                    <CornerDownLeft className="h-3.5 w-3.5" />
                     {t("composer.enterToSend")} · {enterToSend ? t("common.on") : t("common.off")}
-                  </button>
+                  </Button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <span
@@ -2275,14 +2336,15 @@ export default function RoomPage() {
                   >
                     {text.length}/{MAX_MESSAGE_TEXT_CHARS}
                   </span>
-                  <button
+                  <Button
                     type="submit"
+                    variant="primary"
+                    size="sm"
                     disabled={!text.trim() && files.length === 0}
-                    className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
+                    icon={<SendHorizonal className="h-3.5 w-3.5" />}
                   >
-                    <SendHorizonal className="h-3.5 w-3.5" />
                     {t("composer.send")}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -2303,8 +2365,8 @@ export default function RoomPage() {
                 </p>
                 <Tooltip label={t("members.collapse")}>
                   <IconButton
+                    size="sm"
                     aria-label={t("members.collapse")}
-                    className="h-7 w-7"
                     onClick={toggleMembersCollapsed}
                   >
                     <PanelRightClose className="h-4 w-4" />
@@ -2360,18 +2422,18 @@ export default function RoomPage() {
                             ref={openMemberMenuId === m.id ? memberMenuRef : null}
                             className="relative shrink-0"
                           >
-                            <button
-                              type="button"
+                            <IconButton
+                              size="sm"
                               aria-label="成员操作"
                               aria-haspopup="menu"
                               aria-expanded={openMemberMenuId === m.id}
+                              active={openMemberMenuId === m.id}
                               onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-action-border text-ink-soft hover:bg-elevated"
                             >
                               <MoreHorizontal className="h-4 w-4" />
-                            </button>
+                            </IconButton>
                             {openMemberMenuId === m.id ? (
-                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-line bg-panel p-1.5 shadow-lg">
+                              <div role="menu" className="menu-panel absolute right-0 top-full z-20 mt-1 w-32">
                                 <button
                                   type="button"
                                   role="menuitem"
@@ -2380,7 +2442,7 @@ export default function RoomPage() {
                                     void transferOwner(m);
                                   }}
                                   disabled={action === `transfer-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
+                                  className="menu-item"
                                 >
                                   <Crown className="h-3 w-3" /> 房主转让
                                 </button>
@@ -2392,7 +2454,7 @@ export default function RoomPage() {
                                     void kick(m);
                                   }}
                                   disabled={action === `kick-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
+                                  className="menu-item menu-item--danger"
                                 >
                                   <UserMinus className="h-3 w-3" /> 移除房间
                                 </button>
@@ -2426,22 +2488,26 @@ export default function RoomPage() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button
+                          <Button
                             type="button"
+                            variant="secondary"
+                            size="sm"
                             onClick={() => review(r, "approve")}
-                            disabled={action === `approve-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
+                            loading={action === `approve-${r.id}`}
+                            icon={<Check className="h-3 w-3" />}
                           >
-                            <Check className="h-3 w-3" /> {t("approvals.approve")}
-                          </button>
-                          <button
+                            {t("approvals.approve")}
+                          </Button>
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => review(r, "reject")}
-                            disabled={action === `reject-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
+                            loading={action === `reject-${r.id}`}
+                            icon={<X className="h-3 w-3" />}
                           >
-                            <X className="h-3 w-3" /> {t("approvals.reject")}
-                          </button>
+                            {t("approvals.reject")}
+                          </Button>
                         </div>
                       </div>
                     ))
@@ -2467,14 +2533,16 @@ export default function RoomPage() {
                         placeholder={t("settings.roomName.placeholder")}
                         className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
                       />
-                      <button
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="shrink-0"
                         onClick={updateRoomName}
-                        disabled={action === "room-name"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
+                        loading={action === "room-name"}
                       >
                         {action === "room-name" ? t("settings.saving") : t("settings.save")}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
@@ -2486,14 +2554,16 @@ export default function RoomPage() {
                         placeholder={t("settings.gateCode.placeholder")}
                         className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
                       />
-                      <button
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="shrink-0"
                         onClick={updateGateCode}
-                        disabled={action === "gate-code"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
+                        loading={action === "gate-code"}
                       >
                         {action === "gate-code" ? t("settings.saving") : t("settings.save")}
-                      </button>
+                      </Button>
                     </div>
                     <p className="mt-2 text-[11px] text-ink-faint">
                       {t("settings.gateCode.current", {
@@ -2554,7 +2624,7 @@ export default function RoomPage() {
           <div
             ref={floatingRoomMenuRef}
             role="menu"
-            className="fixed z-[90] w-24 rounded-md border border-line bg-panel p-1 shadow-lg"
+            className="menu-panel fixed z-[90] w-24"
             style={{ top: `${openRoomMenu.top}px`, left: `${openRoomMenu.left}px` }}
           >
             <button
@@ -2564,7 +2634,7 @@ export default function RoomPage() {
                 void leaveRoom(openRoomMenu.room);
               }}
               disabled={action === `leave-${openRoomMenu.room.roomCode}`}
-              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
+              className="menu-item menu-item--danger"
             >
               退出房间
             </button>
@@ -2585,13 +2655,13 @@ export default function RoomPage() {
                   当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
                 </p>
               </div>
-              <button
-                type="button"
+              <IconButton
+                size="sm"
+                aria-label={t("common.close")}
                 onClick={() => setRoomEntryMode(null)}
-                className="rounded-md border border-line p-1 text-ink-soft hover:bg-elevated"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </IconButton>
             </div>
 
             {roomEntryMode === "create" ? (
@@ -2617,14 +2687,17 @@ export default function RoomPage() {
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                   />
                 </label>
-                <button
+                <Button
                   type="submit"
-                  disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  variant="primary"
+                  size="md"
+                  block
+                  loading={roomEntrySubmitting}
+                  disabled={!canAddMoreRooms}
+                  icon={<Plus className="h-4 w-4" />}
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   创建并进入
-                </button>
+                </Button>
               </form>
             ) : (
               <form className="space-y-3" onSubmit={quickJoinRoom}>
@@ -2656,14 +2729,17 @@ export default function RoomPage() {
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                   />
                 </label>
-                <button
+                <Button
                   type="submit"
-                  disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  variant="primary"
+                  size="md"
+                  block
+                  loading={roomEntrySubmitting}
+                  disabled={!canAddMoreRooms}
+                  icon={<Plus className="h-4 w-4" />}
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   加入房间
-                </button>
+                </Button>
               </form>
             )}
           </section>
@@ -2675,13 +2751,13 @@ export default function RoomPage() {
           <section className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-ink">房间二维码</h3>
-              <button
-                type="button"
+              <IconButton
+                size="sm"
+                aria-label={t("common.close")}
                 onClick={() => setShowQr(false)}
-                className="rounded-md border border-line p-1 text-ink-soft"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </IconButton>
             </div>
             {qr ? (
               <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
@@ -2700,13 +2776,13 @@ export default function RoomPage() {
           <section className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-ink">配置公告</h3>
-              <button
-                type="button"
+              <IconButton
+                size="sm"
+                aria-label={t("common.close")}
                 onClick={closeNoticeEditor}
-                className="rounded-md border border-line p-1 text-ink-soft"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </IconButton>
             </div>
 
             <textarea
@@ -2775,28 +2851,21 @@ export default function RoomPage() {
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeNoticeEditor}
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft"
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={closeNoticeEditor}>
                 取消
-              </button>
-              <button
-                type="button"
-                onClick={previewNoticeDraft}
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft hover:bg-elevated"
-              >
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={previewNoticeDraft}>
                 预览
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="primary"
+                size="sm"
                 onClick={saveNotice}
-                disabled={action === "notice"}
-                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink disabled:opacity-60"
+                loading={action === "notice"}
               >
                 {action === "notice" ? "保存中..." : "保存公告"}
-              </button>
+              </Button>
             </div>
 
           </section>
@@ -2837,13 +2906,9 @@ export default function RoomPage() {
               </div>
             ) : null}
             <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={closeNoticePopup}
-                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink"
-              >
+              <Button type="button" variant="primary" size="sm" onClick={closeNoticePopup}>
                 {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
-              </button>
+              </Button>
             </div>
           </section>
         </div>
@@ -2860,13 +2925,9 @@ export default function RoomPage() {
           >
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="truncate text-xs text-ink-soft">{imageViewer.fileName}</p>
-              <button
-                type="button"
-                onClick={() => setImageViewer(null)}
-                className="rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated"
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={() => setImageViewer(null)}>
                 关闭
-              </button>
+              </Button>
             </div>
             <img
               src={imageViewer.url}

@@ -3,6 +3,38 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.66 按钮体系规范化（REQ-202610-0466 / ui-02）
+
+### Scope
+- Unify every action button under one system: four semantic variants (primary / secondary / ghost / danger), two sizes (sm 32px / md 40px), loading + disabled states, and one square icon-button spec.
+- Apply dc-02 to buttons: primary is inverted (dark theme = light surface + dark ink, light theme = dark surface + light ink); color is reserved for danger and semantic status.
+- Collapse low-frequency room actions (announcement / settings / dissolve) into a header "More" menu instead of a row of icon buttons.
+- Bump app version to `0.1.66`.
+
+### Changes
+- `src/app/globals.css`:
+  - Added `--ds-control-sm` / `--ds-control-md` / `--ds-danger-hover` tokens to both themes.
+  - Replaced the legacy `.btn-primary/secondary/ghost/danger` + `.btn-sm/md` helpers with `.btn` base + `.btn--{primary|secondary|ghost|danger}` × `.btn--{sm|md}` + `.btn--block` / `.btn--icon` / `.btn__spinner`.
+  - Rebuilt `.icon-btn` as `.icon-btn--{sm|md}` with `--active` / `--danger` states; both text and icon buttons share height, radius, focus ring and reduced-motion behaviour.
+- Added `src/components/ui/button.tsx`: `forwardRef` button with `variant`, `size`, `loading`, `icon`, `block`; loading auto-disables, sets `aria-busy` / `data-loading` and swaps the icon for a spinner.
+- Rewrote `src/components/ui/icon-button.tsx` on the same spec (`size`, `active`, `danger`, `loading`).
+- Migrated `src/app/page.tsx` and `src/app/room/[roomCode]/page.tsx`: join/create/send/save actions, composer toolbar, member approvals, settings saves, room-entry/QR/notice/image dialogs and back-home links now use `Button` / `IconButton` or the shared `.btn` classes.
+- Room header: announcement, settings and dissolve moved into a "More" (`MoreHorizontal`) menu; member-row and room-list actions use `.menu-panel` / `.menu-item` with `menu-item--danger` for destructive items.
+- `src/components/ui/popover.tsx` and `src/components/theme/theme-toggle.tsx` now use `IconButton size="sm"` to match the compact header rhythm.
+- `src/lib/i18n/messages.ts`: added `header.more` (zh/en).
+- Added `docs/design-system-buttons.md` (variants, sizes, states, usage rules, acceptance checklist).
+- Test infrastructure: `vitest.config.ts` (jsdom, `@` alias), `vitest.setup.ts`, `src/components/ui/button.test.tsx` (7 tests), and `npm test` script.
+
+### Regression Checklist
+- `npm run lint` green.
+- `npm test` green: 7/7 tests.
+- `npm run build` green.
+- Manual check: one primary action per view; icon buttons align at 32px in the header; loading buttons cannot be double-submitted; destructive actions are red and confirmed.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.66`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
 
 ### Scope
