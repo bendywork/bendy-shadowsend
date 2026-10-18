@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
+import { DoorOpenIcon, LoaderCircleIcon, PlusCircleIcon, ShieldIcon, SparklesIcon } from "@/components/ui/icons";
 import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
@@ -231,15 +231,15 @@ export default function HomePage() {
               />
             </div>
 
-            <h2 className="text-2xl font-semibold leading-tight tracking-tight text-zinc-100 sm:text-4xl">
+            <h2 className="type-display text-zinc-100">
               临时信息传递空间
             </h2>
 
-            <p className="max-w-md text-base leading-relaxed text-zinc-400 sm:text-lg">
+            <p className="type-subheading max-w-md font-normal text-zinc-400">
               房间 10 分钟无活跃自动销毁，信息短驻留、低负担。
             </p>
 
-            <p className="min-h-[2rem] font-mono text-base text-zinc-500 sm:text-lg">
+            <p className="type-subheading min-h-[2rem] font-mono font-normal text-zinc-500">
               {typedText}
               <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-zinc-500 align-middle sm:h-5" />
             </p>
@@ -250,22 +250,22 @@ export default function HomePage() {
           <section className="surface-card w-full p-6 sm:p-7">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-500">Session Entry</p>
-                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">临时笨迪</h1>
-                <p className="mt-1.5 text-sm text-zinc-400">加入或创建房间，消息仅在活跃期内保留。</p>
+                <p className="type-overline text-zinc-500">Session Entry</p>
+                <h1 className="type-title mt-2 text-zinc-100">临时笨迪</h1>
+                <p className="type-body-sm mt-1.5 text-zinc-400">加入或创建房间，消息仅在活跃期内保留。</p>
               </div>
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+              <div className="flex w-full flex-col items-end gap-2 sm:w-auto">
                 <ThemeToggle />
                 {displayMe ? (
                   <div className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2">
                     <Avatar
                       initial={displayMe.avatarInitial}
                       color={displayMe.avatarColor}
-                      className="h-10 w-10 text-sm"
+                      className="type-body h-10 w-10"
                     />
                     <div>
-                      <p className="text-xs text-zinc-500">当前身份</p>
-                      <p className="text-sm font-medium text-zinc-100">{displayMe.nickname}</p>
+                      <p className="type-caption text-zinc-500">当前身份</p>
+                      <p className="type-body font-medium text-zinc-100">{displayMe.nickname}</p>
                     </div>
                   </div>
                 ) : null}
@@ -277,64 +277,64 @@ export default function HomePage() {
                 type="button"
                 onClick={() => setTab("join")}
                 data-active={tab === "join"}
-                className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
+                className="segmented-item type-body flex flex-1 items-center justify-center gap-2 px-4 py-2 font-medium sm:flex-none"
               >
-                <DoorOpen className="h-4 w-4" /> 加入
+                <DoorOpenIcon /> 加入
               </button>
               <button
                 type="button"
                 onClick={() => setTab("create")}
                 data-active={tab === "create"}
-                className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
+                className="segmented-item type-body flex flex-1 items-center justify-center gap-2 px-4 py-2 font-medium sm:flex-none"
               >
-                <PlusCircle className="h-4 w-4" /> 创建
+                <PlusCircleIcon /> 创建
               </button>
             </div>
 
             {tab === "join" ? (
               <form className="space-y-4" onSubmit={handleJoin}>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">房间号（URL 随机码）</span>
+                  <span className="type-caption text-zinc-400">房间号（URL 随机码）</span>
                   <input
                     required
                     value={joinRoomCode}
                     onChange={(event) => setJoinRoomCode(event.target.value.trim())}
                     placeholder="例如：8DK1A2M7QX"
-                    className="field px-4 py-2.5 text-sm"
+                    className="field type-body px-4 py-2.5"
                   />
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">门禁码（可选，6 位数字）</span>
+                  <span className="type-caption text-zinc-400">门禁码（可选，6 位数字）</span>
                   <input
                     value={joinGateCode}
                     onChange={(event) =>
                       setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                     }
                     placeholder="如果房间设置了门禁码则必填"
-                    className="field px-4 py-2.5 text-sm"
+                    className="field type-body px-4 py-2.5"
                   />
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">邀请 Token（可选）</span>
+                  <span className="type-caption text-zinc-400">邀请 Token（可选）</span>
                   <input
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
                     placeholder="有邀请链接时自动填充"
-                    className="field px-4 py-2.5 text-sm"
+                    className="field type-body px-4 py-2.5"
                   />
                 </label>
 
                 <button
                   type="submit"
                   disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  className="btn-primary type-body inline-flex w-full items-center justify-center gap-2 px-4 py-3 font-semibold"
                 >
                   {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircleIcon className="animate-spin" />
                   ) : (
-                    <DoorOpen className="h-4 w-4" />
+                    <DoorOpenIcon />
                   )}
                   进入房间
                 </button>
@@ -342,61 +342,61 @@ export default function HomePage() {
             ) : (
               <form className="space-y-4" onSubmit={handleCreate}>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">房间名称</span>
+                  <span className="type-caption text-zinc-400">房间名称</span>
                   <input
                     required
                     value={createName}
                     onChange={(event) => setCreateName(event.target.value)}
                     placeholder="输入房间名"
-                    className="field px-4 py-2.5 text-sm"
+                    className="field type-body px-4 py-2.5"
                   />
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">门禁码（可选）</span>
+                  <span className="type-caption text-zinc-400">门禁码（可选）</span>
                   <input
                     value={createGateCode}
                     onChange={(event) =>
                       setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                     }
                     placeholder="不填则加入无需门禁码"
-                    className="field px-4 py-2.5 text-sm"
+                    className="field type-body px-4 py-2.5"
                   />
                 </label>
 
                 <button
                   type="submit"
                   disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  className="btn-primary type-body inline-flex w-full items-center justify-center gap-2 px-4 py-3 font-semibold"
                 >
                   {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircleIcon className="animate-spin" />
                   ) : (
-                    <Sparkles className="h-4 w-4" />
+                    <SparklesIcon />
                   )}
                   创建并进入
                 </button>
               </form>
             )}
 
-            <div className="mt-5 space-y-2 text-xs">
+            <div className="type-caption mt-5 space-y-2">
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400">
                 当前已加入/创建房间数：
-                <span className="ml-1 font-semibold text-zinc-200">{roomCount}/10</span>
+                <span className="type-numeric ml-1 font-semibold text-zinc-200">{roomCount}/10</span>
               </div>
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400">
-                <Shield className="mr-1 inline h-3.5 w-3.5 text-zinc-300" />
+                <ShieldIcon size="sm" className="mr-1 inline text-zinc-300" />
                 门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
               </div>
             </div>
 
             {info ? (
-              <p className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-300">
+              <p className="type-body-sm mt-4 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-zinc-300">
                 {info}
               </p>
             ) : null}
             {error ? (
-              <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+              <p className="type-body-sm mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-500">
                 {error}
               </p>
             ) : null}

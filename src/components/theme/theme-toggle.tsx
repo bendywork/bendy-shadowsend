@@ -1,8 +1,8 @@
 "use client";
 
-import { MoonStar, SunMedium } from "lucide-react";
 import { useEffect, useSyncExternalStore } from "react";
 import { IconButton } from "@/components/ui/icon-button";
+import { MoonStarIcon, SunMediumIcon } from "@/components/ui/icons";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useT } from "@/lib/i18n/context";
 
@@ -73,7 +73,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         onClick={() => setStoredTheme(theme === "dark" ? "light" : "dark")}
         className={className}
       >
-        {theme === "dark" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
+        {theme === "dark" ? <SunMediumIcon /> : <MoonStarIcon />}
       </IconButton>
     </Tooltip>
   );

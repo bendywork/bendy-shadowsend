@@ -10,7 +10,7 @@ export function Avatar({ initial, color, className }: AvatarProps) {
   return (
     <div
       className={clsx(
-        "inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white",
+        "type-caption inline-flex h-8 w-8 items-center justify-center rounded-full font-semibold text-white",
         className,
       )}
       style={{ backgroundColor: color }}

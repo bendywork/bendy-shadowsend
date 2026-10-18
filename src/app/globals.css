@@ -31,6 +31,40 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
+
+  /* Typography scale — ui-07. Mobile-first; display/title step up at sm. */
+  --type-display-size: 1.75rem; /* 28px */
+  --type-display-line: 2.25rem; /* 36px */
+  --type-display-tracking: -0.02em;
+  --type-title-size: 1.375rem; /* 22px */
+  --type-title-line: 1.875rem; /* 30px */
+  --type-title-tracking: -0.01em;
+  --type-heading-size: 1.125rem; /* 18px */
+  --type-heading-line: 1.75rem; /* 28px */
+  --type-heading-tracking: -0.005em;
+  --type-subheading-size: 1rem; /* 16px */
+  --type-subheading-line: 1.5rem; /* 24px */
+  --type-body-size: 0.875rem; /* 14px */
+  --type-body-line: 1.5rem; /* 24px */
+  --type-body-sm-size: 0.8125rem; /* 13px */
+  --type-body-sm-line: 1.25rem; /* 20px */
+  --type-caption-size: 0.75rem; /* 12px */
+  --type-caption-line: 1.125rem; /* 18px */
+  --type-micro-size: 0.6875rem; /* 11px */
+  --type-micro-line: 1rem; /* 16px */
+  --type-weight-regular: 400;
+  --type-weight-medium: 500;
+  --type-weight-semibold: 600;
+  --type-tracking-overline: 0.14em;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --type-display-size: 2.25rem; /* 36px */
+    --type-display-line: 2.75rem; /* 44px */
+    --type-title-size: 1.5rem; /* 24px */
+    --type-title-line: 2rem; /* 32px */
+  }
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -93,6 +127,9 @@ body {
     var(--bg-base);
   background-attachment: fixed;
   font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -112,6 +149,82 @@ input,
 textarea,
 button {
   font: inherit;
+}
+
+/* Typography utilities — ui-07. Use these instead of ad-hoc text / leading
+   utility classes. Weight is part of each level; an explicit font utility may
+   still override it (Tailwind utilities layer wins). */
+@layer components {
+  .type-display {
+    font-size: var(--type-display-size);
+    line-height: var(--type-display-line);
+    letter-spacing: var(--type-display-tracking);
+    font-weight: var(--type-weight-semibold);
+    text-wrap: balance;
+  }
+
+  .type-title {
+    font-size: var(--type-title-size);
+    line-height: var(--type-title-line);
+    letter-spacing: var(--type-title-tracking);
+    font-weight: var(--type-weight-semibold);
+    text-wrap: balance;
+  }
+
+  .type-heading {
+    font-size: var(--type-heading-size);
+    line-height: var(--type-heading-line);
+    letter-spacing: var(--type-heading-tracking);
+    font-weight: var(--type-weight-semibold);
+  }
+
+  .type-subheading {
+    font-size: var(--type-subheading-size);
+    line-height: var(--type-subheading-line);
+    font-weight: var(--type-weight-medium);
+  }
+
+  .type-body {
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-line);
+    letter-spacing: 0;
+    font-weight: var(--type-weight-regular);
+  }
+
+  .type-body-sm {
+    font-size: var(--type-body-sm-size);
+    line-height: var(--type-body-sm-line);
+    letter-spacing: 0;
+    font-weight: var(--type-weight-regular);
+  }
+
+  .type-caption {
+    font-size: var(--type-caption-size);
+    line-height: var(--type-caption-line);
+    letter-spacing: 0.01em;
+    font-weight: var(--type-weight-regular);
+  }
+
+  .type-micro {
+    font-size: var(--type-micro-size);
+    line-height: var(--type-micro-line);
+    letter-spacing: 0.02em;
+    font-weight: var(--type-weight-medium);
+  }
+
+  .type-overline {
+    font-size: var(--type-micro-size);
+    line-height: var(--type-micro-line);
+    letter-spacing: var(--type-tracking-overline);
+    font-weight: var(--type-weight-medium);
+    text-transform: uppercase;
+  }
+
+  /* 数字统一等宽：计数、时间、版本、进度、文件大小、房间码。 */
+  .type-numeric {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
 }
 ::-webkit-scrollbar {
   width: 8px;

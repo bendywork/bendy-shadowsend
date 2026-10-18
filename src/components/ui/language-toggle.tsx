@@ -18,7 +18,7 @@ export function LanguageToggle() {
         <button
           key={l}
           type="button"
-          className="segmented-item px-2 py-1 text-xs font-medium"
+          className="segmented-item type-caption px-2 py-1 font-medium"
           data-active={lang === l}
           aria-pressed={lang === l}
           onClick={() => setLang(l)}

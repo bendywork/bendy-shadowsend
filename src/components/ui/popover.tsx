@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { XIcon } from "@/components/ui/icons";
 
 // 轻量弹层面板：portal 渲染到 body（规避祖先 overflow 裁剪），
 // 半透明背景遮罩 + 居中卡片，点击遮罩或按 Esc 关闭。主题感知（.popover-panel）。
@@ -47,14 +47,14 @@ export function Popover({
       >
         {title ? (
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-[color:var(--text-primary)]">{title}</h3>
+            <h3 className="type-subheading text-[color:var(--text-primary)]">{title}</h3>
             <button
               type="button"
               onClick={onClose}
               aria-label={closeLabel}
               className="icon-btn h-7 w-7"
             >
-              <X className="h-4 w-4" />
+              <XIcon />
             </button>
           </div>
         ) : null}

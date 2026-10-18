@@ -8,7 +8,32 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import {
+  CheckCheckIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  CopyIcon,
+  CornerDownLeftIcon,
+  CrownIcon,
+  DownloadIcon,
+  FileTextIcon,
+  LoaderCircleIcon,
+  MegaphoneIcon,
+  MoreHorizontalIcon,
+  PanelLeftCloseIcon,
+  PanelLeftIcon,
+  PanelRightCloseIcon,
+  PlusIcon,
+  QrCodeIcon,
+  SendIcon,
+  SettingsIcon,
+  ShieldIcon,
+  TrashIcon,
+  UserMinusIcon,
+  UsersIcon,
+  XIcon,
+} from "@/components/ui/icons";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -167,11 +192,11 @@ function RoomLinks({
 }) {
   return (
     <div className="space-y-1">
-      {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">{emptyLabel}</p> : rooms.map((r) => (
+      {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 type-caption text-zinc-500">{emptyLabel}</p> : rooms.map((r) => (
         <div
           key={r.id}
           className={clsx(
-            "rounded-lg border px-3 py-2 text-sm",
+            "rounded-lg border px-3 py-2 type-body",
             activeCode === r.roomCode
               ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100"
               : "border-zinc-800 bg-zinc-900/70 text-zinc-300 hover:border-zinc-700",
@@ -187,9 +212,9 @@ function RoomLinks({
                     className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
                   />
                 ) : null}
-                {r.hasGateCode ? <Shield className="h-3.5 w-3.5 shrink-0 text-zinc-300" /> : null}
+                {r.hasGateCode ? <ShieldIcon size="sm" className="shrink-0 text-zinc-300" /> : null}
               </div>
-              <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">{r.roomCode}</p>
+              <p className="type-numeric mt-1 truncate font-mono type-micro text-zinc-500">{r.roomCode}</p>
             </Link>
             {r.role === "MEMBER" ? (
               <button
@@ -200,7 +225,7 @@ function RoomLinks({
                 onClick={(event) => onToggleMenu(r, event.currentTarget)}
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800"
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreHorizontalIcon size="sm" />
               </button>
             ) : null}
           </div>
@@ -221,7 +246,7 @@ function FileAction({ roomCode, attachment, label }: { roomCode: string; attachm
       alert(e instanceof Error ? e.message : "打开失败");
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
+  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 type-caption text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircleIcon size="xs" className="animate-spin" /> : <DownloadIcon size="xs" />}{label}</button>;
 }
 
 type BubbleAttachment = {
@@ -267,8 +292,8 @@ function MessageAttachmentCard({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm text-zinc-200">{attachment.fileName}</p>
-          <p className="text-xs text-zinc-500">{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</p>
+          <p className="truncate type-body text-zinc-200">{attachment.fileName}</p>
+          <p className="type-numeric type-caption text-zinc-500">{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</p>
         </div>
         {action ?? null}
       </div>
@@ -324,36 +349,36 @@ function MessageBubble({
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Avatar initial={avatarInitial} color={avatarColor} className="h-7 w-7" />
-            <span className="text-sm font-medium text-zinc-200">{nickname}</span>
+            <span className="type-body font-medium text-zinc-200">{nickname}</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-            <time className="tabular-nums">{fmt(createdAt)}</time>
+          <div className="flex items-center gap-1.5 type-micro text-zinc-500">
+            <time className="type-numeric">{fmt(createdAt)}</time>
             {metaSlot}
           </div>
         </div>
 
         {content ? (
           <div className="space-y-2">
-            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">{visibleContent}</p>
+            <p className="whitespace-pre-wrap break-words type-body text-zinc-100">{visibleContent}</p>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={onCopy}
                 className={clsx(
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition",
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 type-micro transition",
                   copied
                     ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
                     : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
                 )}
               >
-                <Copy className="h-3 w-3" />
+                <CopyIcon size="xs" />
                 {copied ? labels.copied : labels.copy}
               </button>
               {content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
                 <button
                   type="button"
                   onClick={onToggleExpand}
-                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 type-micro text-zinc-300 hover:bg-zinc-800"
                 >
                   {collapsed ? labels.expand : labels.collapse}
                 </button>
@@ -433,7 +458,7 @@ function AdCarouselItem({
         target="_blank"
         rel="noopener noreferrer"
         className={clsx(
-          "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-300 ease-out",
+          "absolute inset-0 flex items-center px-3 type-body transition-transform duration-300 ease-out",
           className,
         )}
         style={{ color: textColor }}
@@ -447,7 +472,7 @@ function AdCarouselItem({
   return (
     <div
       className={clsx(
-        "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-300 ease-out",
+        "absolute inset-0 flex items-center px-3 type-body transition-transform duration-300 ease-out",
         className,
       )}
       style={{ color: textColor }}
@@ -1809,7 +1834,7 @@ export default function RoomPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center text-zinc-300">
-        <LoaderCircle className="h-6 w-6 animate-spin" />
+        <LoaderCircleIcon size="xl" className="animate-spin" />
       </main>
     );
   }
@@ -1817,8 +1842,8 @@ export default function RoomPage() {
   if (error && !snap) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-sm text-zinc-300">{error}</p>
-        <Link href="/" className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-200">
+        <p className="type-body text-zinc-300">{error}</p>
+        <Link href="/" className="rounded-xl border border-zinc-700 px-4 py-2 type-body text-zinc-200">
           返回首页
         </Link>
       </main>
@@ -1831,10 +1856,10 @@ export default function RoomPage() {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <section className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900/90 p-8 text-center">
-          <Clock3 className="mx-auto h-8 w-8 text-zinc-300" />
-          <h1 className="mt-4 text-xl font-semibold text-zinc-100">等待房主审批</h1>
-          <p className="mt-2 text-sm text-zinc-400">你曾被移出该房间，再次加入需要房主审批。</p>
-          <Link href="/" className="mt-6 inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white">
+          <ClockIcon size="2xl" className="mx-auto text-zinc-300" />
+          <h1 className="mt-4 type-title font-semibold text-zinc-100">等待房主审批</h1>
+          <p className="mt-2 type-body text-zinc-400">你曾被移出该房间，再次加入需要房主审批。</p>
+          <Link href="/" className="mt-6 inline-flex rounded-xl bg-zinc-700 px-4 py-2 type-body text-white">
             返回首页
           </Link>
         </section>
@@ -1904,17 +1929,17 @@ export default function RoomPage() {
                 />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">{t("nav.title")}</p>
-                <h2 className="truncate text-lg font-semibold text-zinc-100">{t("nav.subtitle")}</h2>
+                <p className="type-overline text-zinc-500">{t("nav.title")}</p>
+                <h2 className="truncate type-heading font-semibold text-zinc-100">{t("nav.subtitle")}</h2>
               </div>
             </div>
             <Tooltip label={t("nav.collapse")}>
               <IconButton aria-label={t("nav.collapse")} onClick={toggleNavCollapsed}>
-                <PanelLeftClose className="h-4 w-4" />
+                <PanelLeftCloseIcon />
               </IconButton>
             </Tooltip>
           </div>
-          <p className="mb-3 flex flex-wrap items-center gap-x-1.5 text-[11px] text-zinc-500">
+          <p className="type-numeric mb-3 flex flex-wrap items-center gap-x-1.5 type-micro text-zinc-500">
             <span>{t("nav.count", { count: roomCount, max: MAX_USER_ROOMS })}</span>
             {!canAddMoreRooms ? <span className="text-zinc-600">· {t("nav.count.full")}</span> : null}
           </p>
@@ -1925,11 +1950,11 @@ export default function RoomPage() {
                   type="button"
                   onClick={toggleCreatedCollapsed}
                   aria-expanded={!createdCollapsed}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-zinc-500 hover:text-zinc-300"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 type-overline text-zinc-500 hover:text-zinc-300"
                 >
-                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !createdCollapsed && "rotate-90")} />
+                  <ChevronRightIcon size="sm" className={clsx("shrink-0 transition-transform", !createdCollapsed && "rotate-90")} />
                   <span className="truncate">{t("nav.group.created")}</span>
-                  <span className="ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">{rooms.created.length}</span>
+                  <span className="type-numeric ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 type-micro font-medium text-zinc-400">{rooms.created.length}</span>
                 </button>
                 <button
                   type="button"
@@ -1939,7 +1964,7 @@ export default function RoomPage() {
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
                   className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <PlusIcon size="sm" />
                 </button>
               </div>
               {!createdCollapsed ? (
@@ -1952,11 +1977,11 @@ export default function RoomPage() {
                   type="button"
                   onClick={toggleJoinedCollapsed}
                   aria-expanded={!joinedCollapsed}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-zinc-500 hover:text-zinc-300"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 type-overline text-zinc-500 hover:text-zinc-300"
                 >
-                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !joinedCollapsed && "rotate-90")} />
+                  <ChevronRightIcon size="sm" className={clsx("shrink-0 transition-transform", !joinedCollapsed && "rotate-90")} />
                   <span className="truncate">{t("nav.group.joined")}</span>
-                  <span className="ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">{rooms.joined.length}</span>
+                  <span className="type-numeric ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 type-micro font-medium text-zinc-400">{rooms.joined.length}</span>
                 </button>
                 <button
                   type="button"
@@ -1966,7 +1991,7 @@ export default function RoomPage() {
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
                   className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <PlusIcon size="sm" />
                 </button>
               </div>
               {!joinedCollapsed ? (
@@ -1974,24 +1999,24 @@ export default function RoomPage() {
               ) : null}
             </div>
           </div>
-          <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
+          <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 type-caption text-zinc-400">
             <p>
-              {t("footer.version")} <span className="font-semibold text-zinc-200">{snap.app.version}</span>
+              {t("footer.version")} <span className="type-numeric font-semibold text-zinc-200">{snap.app.version}</span>
             </p>
             <p>
               {t("footer.license")} <span className="font-semibold text-zinc-200">{snap.app.openSource}</span>
             </p>
             <p>
-              {t("footer.roomOnline")} <span className="font-semibold text-zinc-200">{snap.stats.roomOnline}</span>
+              {t("footer.roomOnline")} <span className="type-numeric font-semibold text-zinc-200">{snap.stats.roomOnline}</span>
             </p>
             <p>
-              {t("footer.totalOnline")} <span className="font-semibold text-zinc-200">{snap.stats.totalOnline}</span>
+              {t("footer.totalOnline")} <span className="type-numeric font-semibold text-zinc-200">{snap.stats.totalOnline}</span>
             </p>
             <div className="pt-2">
               <p className="text-zinc-500">{t("footer.currentUser")}</p>
               <div className="mt-1 flex items-center gap-2">
                 <Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} />
-                <span className="text-sm text-zinc-200">{snap.me.nickname}</span>
+                <span className="type-body text-zinc-200">{snap.me.nickname}</span>
               </div>
             </div>
           </div>
@@ -2001,12 +2026,12 @@ export default function RoomPage() {
           <header className="space-y-3 border-b border-zinc-800 px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-xl font-semibold text-zinc-100">{snap.room.name}</h1>
-                <p className="font-mono text-xs text-zinc-500">/{snap.room.roomCode}</p>
+                <h1 className="type-title font-semibold text-zinc-100">{snap.room.name}</h1>
+                <p className="type-numeric font-mono type-caption text-zinc-500">/{snap.room.roomCode}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center text-xs text-zinc-400">
-                  <Users className="mr-1 inline h-3.5 w-3.5" />
+                <span className="type-numeric inline-flex items-center type-caption text-zinc-400">
+                  <UsersIcon size="sm" className="mr-1 inline" />
                   {t("header.members", { count: snap.members.length, max: 20 })}
                 </span>
                 <ThemeToggle />
@@ -2018,7 +2043,7 @@ export default function RoomPage() {
                 <button
                   type="button"
                   onClick={() => scrollToPanel("rooms")}
-                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
+                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 type-caption text-zinc-200 hover:bg-zinc-800 xl:hidden"
                 >
                   {t("nav.rooms")}
                 </button>
@@ -2027,7 +2052,7 @@ export default function RoomPage() {
                 <button
                   type="button"
                   onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
+                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 type-caption text-zinc-200 hover:bg-zinc-800 xl:hidden"
                 >
                   {t("members.list")}
                 </button>
@@ -2038,22 +2063,22 @@ export default function RoomPage() {
                   active={navVisible}
                   onClick={toggleNavCollapsed}
                 >
-                  <PanelLeft className="h-4 w-4" />
+                  <PanelLeftIcon />
                 </IconButton>
               </Tooltip>
               <Tooltip label={t("header.invite")}>
                 <IconButton aria-label={t("header.invite")} onClick={copyLink}>
-                  <Copy className="h-4 w-4" />
+                  <CopyIcon />
                 </IconButton>
               </Tooltip>
               <Tooltip label={t("header.qr")}>
                 <IconButton aria-label={t("header.qr")} onClick={() => setShowQr(true)}>
-                  <QrCode className="h-4 w-4" />
+                  <QrCodeIcon />
                 </IconButton>
               </Tooltip>
               <Tooltip label={isOwner ? t("header.announcement.edit") : t("header.announcement.view")}>
                 <IconButton aria-label={t("header.announcement")} onClick={isOwner ? openNoticeEditor : openNoticeViewer}>
-                  <Megaphone className="h-4 w-4" />
+                  <MegaphoneIcon />
                 </IconButton>
               </Tooltip>
               <Tooltip label={membersVisible ? t("control.members.hide") : t("control.members.show")}>
@@ -2062,7 +2087,7 @@ export default function RoomPage() {
                   active={membersVisible}
                   onClick={toggleMembersCollapsed}
                 >
-                  <Users className="h-4 w-4" />
+                  <UsersIcon />
                 </IconButton>
               </Tooltip>
               {isOwner ? (
@@ -2072,7 +2097,7 @@ export default function RoomPage() {
                     active={settingsOpen}
                     onClick={() => setSettingsOpen(true)}
                   >
-                    <Settings2 className="h-4 w-4" />
+                    <SettingsIcon />
                   </IconButton>
                 </Tooltip>
               ) : null}
@@ -2085,21 +2110,21 @@ export default function RoomPage() {
                     disabled={action === "dissolve"}
                   >
                     {action === "dissolve" ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      <LoaderCircleIcon className="animate-spin" />
                     ) : (
-                      <Trash2 className="h-4 w-4" />
+                      <TrashIcon />
                     )}
                   </IconButton>
                 </Tooltip>
               ) : null}
             </div>
             <AdCarousel items={snap.adBoard.items} />
-            {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
+            {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 type-caption text-zinc-200">{hint}</div> : null}
           </header>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-6 text-center text-sm text-zinc-500">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-6 text-center type-body text-zinc-500">
                 {t("chat.empty")}
               </div>
             ) : null}
@@ -2120,9 +2145,9 @@ export default function RoomPage() {
                   createdAt={m.createdAt}
                   metaSlot={
                     isOwnMessage && deliveryState === "sent" ? (
-                      <Check className="h-3.5 w-3.5 text-zinc-300" />
+                      <CheckIcon size="sm" className="text-zinc-300" />
                     ) : isOwnMessage && deliveryState === "read" ? (
-                      <CheckCheck className="h-3.5 w-3.5 text-zinc-300" />
+                      <CheckCheckIcon size="sm" className="text-zinc-300" />
                     ) : null
                   }
                   content={m.content}
@@ -2154,12 +2179,12 @@ export default function RoomPage() {
                   metaSlot={
                     message.status === "sending" ? (
                       <>
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin text-zinc-300" />
-                        <span>{message.progress}%</span>
+                        <LoaderCircleIcon size="sm" className="animate-spin text-zinc-300" />
+                        <span className="type-numeric">{message.progress}%</span>
                       </>
                     ) : (
                       <>
-                        <X className="h-3.5 w-3.5 text-red-300" />
+                        <XIcon size="sm" className="text-red-300" />
                         <span>{t("chat.sendFailed")}</span>
                       </>
                     )
@@ -2175,7 +2200,7 @@ export default function RoomPage() {
                   onOpenImage={openImageViewer}
                   footerSlot={
                     message.status === "failed" && message.error ? (
-                      <p className="mt-2 text-xs text-red-300">{message.error}</p>
+                      <p className="mt-2 type-caption text-red-300">{message.error}</p>
                     ) : null
                   }
                 />
@@ -2190,18 +2215,18 @@ export default function RoomPage() {
                 {files.map((file, index) => (
                   <span
                     key={`${file.name}-${file.size}-${index}`}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200"
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900 px-2.5 py-1.5 type-caption text-zinc-200"
                   >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                    <FileTextIcon size="sm" className="shrink-0 text-zinc-400" />
                     <span className="max-w-[200px] truncate">{file.name}</span>
-                    <span className="shrink-0 text-[10px] text-zinc-500">{formatBytes(file.size)}</span>
+                    <span className="type-numeric shrink-0 type-micro text-zinc-500">{formatBytes(file.size)}</span>
                     <button
                       type="button"
                       aria-label={t("composer.removeFile")}
                       onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
                       className="ml-0.5 rounded-full p-0.5 text-zinc-400 transition hover:bg-zinc-700 hover:text-zinc-100"
                     >
-                      <X className="h-3 w-3" />
+                      <XIcon size="xs" />
                     </button>
                   </span>
                 ))}
@@ -2216,12 +2241,12 @@ export default function RoomPage() {
                 onKeyDown={onComposerKeyDown}
                 maxLength={MAX_MESSAGE_TEXT_CHARS}
                 placeholder={t("composer.placeholder")}
-                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-6 text-zinc-100 outline-none placeholder:text-zinc-500"
+                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 type-body text-zinc-100 outline-none placeholder:text-zinc-500"
               />
               <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 transition hover:bg-zinc-800">
-                    <Plus className="h-3.5 w-3.5" />
+                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 type-caption text-zinc-200 transition hover:bg-zinc-800">
+                    <PlusIcon size="sm" />
                     {t("composer.attach")}
                     <input
                       type="file"
@@ -2238,9 +2263,9 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={readClipboard}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 transition hover:bg-zinc-800"
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-700 px-2.5 type-caption text-zinc-200 transition hover:bg-zinc-800"
                   >
-                    <Copy className="h-3.5 w-3.5" />
+                    <CopyIcon size="sm" />
                     {t("composer.clipboard")}
                   </button>
                   <button
@@ -2249,20 +2274,20 @@ export default function RoomPage() {
                     aria-checked={enterToSend}
                     onClick={() => setEnterToSend((prev) => !prev)}
                     className={clsx(
-                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition",
+                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 type-caption transition",
                       enterToSend
                         ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
                         : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
                     )}
                   >
-                    <CornerDownLeft className="h-3.5 w-3.5" />
+                    <CornerDownLeftIcon size="sm" />
                     {t("composer.enterToSend")} · {enterToSend ? t("common.on") : t("common.off")}
                   </button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <span
                     className={clsx(
-                      "text-[11px] tabular-nums",
+                      "type-numeric type-micro",
                       text.length >= MAX_MESSAGE_TEXT_CHARS
                         ? "text-red-400"
                         : text.length > MAX_MESSAGE_TEXT_CHARS * 0.9
@@ -2275,9 +2300,9 @@ export default function RoomPage() {
                   <button
                     type="submit"
                     disabled={!text.trim() && files.length === 0}
-                    className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
+                    className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 type-caption font-medium disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <SendHorizonal className="h-3.5 w-3.5" />
+                    <SendIcon size="sm" />
                     {t("composer.send")}
                   </button>
                 </div>
@@ -2295,7 +2320,7 @@ export default function RoomPage() {
         >
             <div className="mb-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                <p className="type-overline text-zinc-500">
                   {isOwner ? t("members.manage") : t("members.list")}
                 </p>
                 <Tooltip label={t("members.collapse")}>
@@ -2304,7 +2329,7 @@ export default function RoomPage() {
                     className="h-7 w-7"
                     onClick={toggleMembersCollapsed}
                   >
-                    <PanelRightClose className="h-4 w-4" />
+                    <PanelRightCloseIcon />
                   </IconButton>
                 </Tooltip>
               </div>
@@ -2316,7 +2341,7 @@ export default function RoomPage() {
                       setOpenMemberMenuId(null);
                       setMemberPanelTab("members");
                     }}
-                    className="segmented-item px-2 py-1.5 text-xs font-medium"
+                    className="segmented-item px-2 py-1.5 type-caption font-medium"
                     data-active={memberPanelTab === "members"}
                   >
                     {t("members.tab.members")}
@@ -2327,7 +2352,7 @@ export default function RoomPage() {
                       setOpenMemberMenuId(null);
                       setMemberPanelTab("approvals");
                     }}
-                    className="segmented-item px-2 py-1.5 text-xs font-medium"
+                    className="segmented-item px-2 py-1.5 type-caption font-medium"
                     data-active={memberPanelTab === "approvals"}
                   >
                     {t("members.tab.approvals")}
@@ -2338,7 +2363,7 @@ export default function RoomPage() {
 
             {memberPanelTab === "members" || !isOwner ? (
               <div className="flex min-h-0 flex-1 flex-col">
-                <h2 className="mb-2 text-lg font-semibold text-zinc-100">{t("members.count", { count: snap.members.length })}</h2>
+                <h2 className="type-numeric mb-2 type-heading font-semibold text-zinc-100">{t("members.count", { count: snap.members.length })}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.members.map((m) => (
                     <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
@@ -2346,9 +2371,9 @@ export default function RoomPage() {
                         <div className="flex min-w-0 items-center gap-2">
                           <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
                           <div className="min-w-0">
-                            <p className="truncate text-sm text-zinc-200">{m.user.nickname}</p>
-                            <p className="text-xs text-zinc-500">
-                              {m.role === "OWNER" ? t("members.role.owner") : t("members.role.member")} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
+                            <p className="truncate type-body text-zinc-200">{m.user.nickname}</p>
+                            <p className="type-caption text-zinc-500">
+                              {m.role === "OWNER" ? t("members.role.owner") : t("members.role.member")} · <span className="type-numeric">{m.joinedAt ? fmt(m.joinedAt) : "--"}</span>
                             </p>
                           </div>
                         </div>
@@ -2365,7 +2390,7 @@ export default function RoomPage() {
                               onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-500/40 text-zinc-300 hover:bg-zinc-800"
                             >
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontalIcon />
                             </button>
                             {openMemberMenuId === m.id ? (
                               <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl">
@@ -2377,9 +2402,9 @@ export default function RoomPage() {
                                     void transferOwner(m);
                                   }}
                                   disabled={action === `transfer-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left type-caption text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
                                 >
-                                  <Crown className="h-3 w-3" /> 房主转让
+                                  <CrownIcon size="xs" /> 房主转让
                                 </button>
                                 <button
                                   type="button"
@@ -2389,9 +2414,9 @@ export default function RoomPage() {
                                     void kick(m);
                                   }}
                                   disabled={action === `kick-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left type-caption text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
                                 >
-                                  <UserMinus className="h-3 w-3" /> 移除房间
+                                  <UserMinusIcon size="xs" /> 移除房间
                                 </button>
                               </div>
                             ) : null}
@@ -2406,10 +2431,10 @@ export default function RoomPage() {
 
             {isOwner && memberPanelTab === "approvals" ? (
               <div className="flex min-h-0 flex-1 flex-col">
-                <h2 className="mb-2 text-lg font-semibold text-zinc-100">{t("approvals.title")}</h2>
+                <h2 className="mb-2 type-heading font-semibold text-zinc-100">{t("approvals.title")}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.pendingRequests.length === 0 ? (
-                    <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">
+                    <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 type-caption text-zinc-500">
                       {t("approvals.empty")}
                     </p>
                   ) : (
@@ -2418,8 +2443,8 @@ export default function RoomPage() {
                         <div className="mb-2 flex items-center gap-2">
                           <Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" />
                           <div>
-                            <p className="text-sm text-zinc-200">{r.user.nickname}</p>
-                            <p className="text-[11px] text-zinc-500">{fmt(r.createdAt)}</p>
+                            <p className="type-body text-zinc-200">{r.user.nickname}</p>
+                            <p className="type-numeric type-micro text-zinc-500">{fmt(r.createdAt)}</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -2427,17 +2452,17 @@ export default function RoomPage() {
                             type="button"
                             onClick={() => review(r, "approve")}
                             disabled={action === `approve-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 type-caption text-zinc-300 disabled:opacity-60"
                           >
-                            <Check className="h-3 w-3" /> {t("approvals.approve")}
+                            <CheckIcon size="xs" /> {t("approvals.approve")}
                           </button>
                           <button
                             type="button"
                             onClick={() => review(r, "reject")}
                             disabled={action === `reject-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 type-caption text-zinc-300 disabled:opacity-60"
                           >
-                            <X className="h-3 w-3" /> {t("approvals.reject")}
+                            <XIcon size="xs" /> {t("approvals.reject")}
                           </button>
                         </div>
                       </div>
@@ -2456,43 +2481,43 @@ export default function RoomPage() {
               >
                 <div className="space-y-3">
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
-                    <p className="text-xs font-medium text-zinc-200">{t("settings.roomName")}</p>
+                    <p className="type-caption font-medium text-zinc-200">{t("settings.roomName")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={roomNameInput}
                         onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
                         placeholder={t("settings.roomName.placeholder")}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 type-caption text-zinc-100 outline-none"
                       />
                       <button
                         type="button"
                         onClick={updateRoomName}
                         disabled={action === "room-name"}
-                        className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
+                        className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 type-caption text-white disabled:opacity-60"
                       >
                         {action === "room-name" ? t("settings.saving") : t("settings.save")}
                       </button>
                     </div>
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
-                    <p className="text-xs font-medium text-zinc-200">{t("settings.gateCode")}</p>
+                    <p className="type-caption font-medium text-zinc-200">{t("settings.gateCode")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={gateCodeInput}
                         onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         placeholder={t("settings.gateCode.placeholder")}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 type-caption text-zinc-100 outline-none"
                       />
                       <button
                         type="button"
                         onClick={updateGateCode}
                         disabled={action === "gate-code"}
-                        className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
+                        className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 type-caption text-white disabled:opacity-60"
                       >
                         {action === "gate-code" ? t("settings.saving") : t("settings.save")}
                       </button>
                     </div>
-                    <p className="mt-2 text-[11px] text-zinc-500">
+                    <p className="type-numeric mt-2 type-micro text-zinc-500">
                       {t("settings.gateCode.current", {
                         code: snap.room.gateCode ?? t("settings.gateCode.unset"),
                       })}
@@ -2501,11 +2526,11 @@ export default function RoomPage() {
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium text-zinc-200">{t("settings.joinPolicy")}</p>
-                        <p className="text-[11px] text-zinc-500">{t("settings.joinPolicy.hint")}</p>
+                        <p className="type-caption font-medium text-zinc-200">{t("settings.joinPolicy")}</p>
+                        <p className="type-micro text-zinc-500">{t("settings.joinPolicy.hint")}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-zinc-400">
+                        <span className="type-micro text-zinc-400">
                           {snap.room.allowJoinRequest ? t("settings.joinPolicy.allow") : t("settings.joinPolicy.deny")}
                         </span>
                         <SwitchBtn
@@ -2521,11 +2546,11 @@ export default function RoomPage() {
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium text-zinc-200">{t("settings.expiry")}</p>
-                        <p className="text-[11px] text-zinc-500">{t("settings.expiry.hint")}</p>
+                        <p className="type-caption font-medium text-zinc-200">{t("settings.expiry")}</p>
+                        <p className="type-micro text-zinc-500">{t("settings.expiry.hint")}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-zinc-400">
+                        <span className="type-micro text-zinc-400">
                           {snap.room.neverExpire ? t("settings.expiry.on") : t("settings.expiry.off")}
                         </span>
                         <SwitchBtn
@@ -2542,7 +2567,7 @@ export default function RoomPage() {
               </Popover>
             ) : null}
 
-            {error ? <p className="mt-3 text-xs text-zinc-300">{error}</p> : null}
+            {error ? <p className="mt-3 type-caption text-zinc-300">{error}</p> : null}
         </aside>
       </main>
 
@@ -2561,7 +2586,7 @@ export default function RoomPage() {
                 void leaveRoom(openRoomMenu.room);
               }}
               disabled={action === `leave-${openRoomMenu.room.roomCode}`}
-              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left type-caption text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
             >
               退出房间
             </button>
@@ -2575,11 +2600,11 @@ export default function RoomPage() {
           <section className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-semibold text-zinc-100">
+                <h3 className="type-subheading font-semibold text-zinc-100">
                   {roomEntryMode === "create" ? "创建房间" : "加入房间"}
                 </h3>
-                <p className="mt-1 text-[11px] text-zinc-500">
-                  当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
+                <p className="mt-1 type-micro text-zinc-500">
+                  当前已加入/创建房间数：<span className="type-numeric">{roomCount}/{MAX_USER_ROOMS}</span>
                 </p>
               </div>
               <button
@@ -2587,78 +2612,78 @@ export default function RoomPage() {
                 onClick={() => setRoomEntryMode(null)}
                 className="rounded-md border border-zinc-700 p-1 text-zinc-300 hover:bg-zinc-800"
               >
-                <X className="h-4 w-4" />
+                <XIcon />
               </button>
             </div>
 
             {roomEntryMode === "create" ? (
               <form className="space-y-3" onSubmit={quickCreateRoom}>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">房间名称</span>
+                  <span className="type-caption text-zinc-400">房间名称</span>
                   <input
                     required
                     value={createName}
                     onChange={(event) => setCreateName(event.target.value)}
                     placeholder="输入房间名"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 type-body text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
                   />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">门禁码（可选，6位数字）</span>
+                  <span className="type-caption text-zinc-400">门禁码（可选，6位数字）</span>
                   <input
                     value={createGateCode}
                     onChange={(event) =>
                       setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                     }
                     placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 type-body text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
                   />
                 </label>
                 <button
                   type="submit"
                   disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-2.5 type-body font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {roomEntrySubmitting ? <LoaderCircleIcon className="animate-spin" /> : <PlusIcon />}
                   创建并进入
                 </button>
               </form>
             ) : (
               <form className="space-y-3" onSubmit={quickJoinRoom}>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">房间号（URL 随机码）</span>
+                  <span className="type-caption text-zinc-400">房间号（URL 随机码）</span>
                   <input
                     required
                     value={joinRoomCode}
                     onChange={(event) => setJoinRoomCode(event.target.value.trim())}
                     placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 type-body text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
                   />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">门禁码（可选，6位数字）</span>
+                  <span className="type-caption text-zinc-400">门禁码（可选，6位数字）</span>
                   <input
                     value={joinGateCode}
                     onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 type-body text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
                   />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">邀请 Token（可选）</span>
+                  <span className="type-caption text-zinc-400">邀请 Token（可选）</span>
                   <input
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
                     placeholder="有邀请链接时填入"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 type-body text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
                   />
                 </label>
                 <button
                   type="submit"
                   disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-2.5 type-body font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {roomEntrySubmitting ? <LoaderCircleIcon className="animate-spin" /> : <PlusIcon />}
                   加入房间
                 </button>
               </form>
@@ -2671,23 +2696,23 @@ export default function RoomPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
           <section className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-950 p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-zinc-100">房间二维码</h3>
+              <h3 className="type-subheading font-semibold text-zinc-100">房间二维码</h3>
               <button
                 type="button"
                 onClick={() => setShowQr(false)}
                 className="rounded-md border border-zinc-700 p-1 text-zinc-300"
               >
-                <X className="h-4 w-4" />
+                <XIcon />
               </button>
             </div>
             {qr ? (
               <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-zinc-700 bg-white p-2" />
             ) : (
               <div className="flex h-64 items-center justify-center">
-                <LoaderCircle className="h-5 w-5 animate-spin text-zinc-400" />
+                <LoaderCircleIcon size="lg" className="animate-spin text-zinc-400" />
               </div>
             )}
-            <p className="mt-3 break-all text-xs text-zinc-400">{joinLink}</p>
+            <p className="mt-3 break-all type-caption text-zinc-400">{joinLink}</p>
           </section>
         </div>
       ) : null}
@@ -2696,13 +2721,13 @@ export default function RoomPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
           <section className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-950 p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-zinc-100">配置公告</h3>
+              <h3 className="type-subheading font-semibold text-zinc-100">配置公告</h3>
               <button
                 type="button"
                 onClick={closeNoticeEditor}
                 className="rounded-md border border-zinc-700 p-1 text-zinc-300"
               >
-                <X className="h-4 w-4" />
+                <XIcon />
               </button>
             </div>
 
@@ -2710,7 +2735,7 @@ export default function RoomPage() {
               value={noticeText}
               onChange={(e) => setNoticeText(e.target.value)}
               placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none"
+              className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 type-body text-zinc-100 outline-none"
             />
 
             <input
@@ -2750,7 +2775,7 @@ export default function RoomPage() {
                       className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 bg-black/80 text-zinc-200 opacity-100 transition hover:bg-zinc-800 group-hover:opacity-100"
                       title="删除图片"
                     >
-                      <X className="h-3 w-3" />
+                      <XIcon size="xs" />
                     </button>
                   </div>
                 ))}
@@ -2759,15 +2784,15 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={() => noticeImageInputRef.current?.click()}
-                    className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-600 bg-zinc-900/70 px-2 text-center text-[11px] text-zinc-300 hover:bg-zinc-800"
+                    className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-600 bg-zinc-900/70 px-2 text-center type-micro text-zinc-300 hover:bg-zinc-800"
                   >
-                    <Plus className="mb-1 h-4 w-4" />
+                    <PlusIcon className="mb-1" />
                     上传公告图片
                   </button>
                 ) : null}
               </div>
-              <p className="mt-2 text-[11px] text-zinc-500">
-                最多上传 {MAX_ANNOUNCEMENT_IMAGES} 张图片
+              <p className="mt-2 type-micro text-zinc-500">
+                最多上传 <span className="type-numeric">{MAX_ANNOUNCEMENT_IMAGES}</span> 张图片
               </p>
             </div>
 
@@ -2775,14 +2800,14 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={closeNoticeEditor}
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
+                className="rounded-lg border border-zinc-700 px-3 py-1.5 type-body text-zinc-300"
               >
                 取消
               </button>
               <button
                 type="button"
                 onClick={previewNoticeDraft}
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-800"
+                className="rounded-lg border border-zinc-700 px-3 py-1.5 type-body text-zinc-200 hover:bg-zinc-800"
               >
                 预览
               </button>
@@ -2790,7 +2815,7 @@ export default function RoomPage() {
                 type="button"
                 onClick={saveNotice}
                 disabled={action === "notice"}
-                className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+                className="rounded-lg bg-zinc-700 px-3 py-1.5 type-body text-white disabled:opacity-60"
               >
                 {action === "notice" ? "保存中..." : "保存公告"}
               </button>
@@ -2804,11 +2829,11 @@ export default function RoomPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
           <section className="w-full max-w-lg rounded-2xl border border-zinc-400/50 bg-zinc-950 p-5">
             <div className="mb-3 flex items-center gap-2 text-zinc-300">
-              <Megaphone className="h-5 w-5" />
-              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
+              <MegaphoneIcon size="lg" />
+              <h3 className="type-subheading font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
             </div>
             {noticePopupContent.text ? (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-zinc-100">{noticePopupContent.text}</p>
+              <p className="whitespace-pre-wrap type-body text-zinc-100">{noticePopupContent.text}</p>
             ) : null}
             {noticePopupContent.images.length > 0 ? (
               <div
@@ -2837,7 +2862,7 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={closeNoticePopup}
-                className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white"
+                className="rounded-lg bg-zinc-700 px-3 py-1.5 type-body text-white"
               >
                 {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
               </button>
@@ -2856,11 +2881,11 @@ export default function RoomPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-xs text-zinc-300">{imageViewer.fileName}</p>
+              <p className="truncate type-caption text-zinc-300">{imageViewer.fileName}</p>
               <button
                 type="button"
                 onClick={() => setImageViewer(null)}
-                className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-800"
+                className="rounded-md border border-zinc-700 px-2 py-1 type-caption text-zinc-200 hover:bg-zinc-800"
               >
                 关闭
               </button>

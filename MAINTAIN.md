@@ -3,6 +3,27 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.65 图标与排版规范（REQ-202610-0470 / ui-07）
+
+### Scope
+- Establish the icon and typography design baseline for the UI revamp: one icon entry point, six size tokens, a single optical stroke width, semantic type scale, and tabular numerals.
+
+### Frontend Changes
+- `src/components/ui/icons.tsx`: named lucide wrapper with `ICON_SIZES` (12/14/16/20/24/32), 1.75px optical stroke converted to the 24-unit viewBox, decorative `aria-hidden`, optional `label` semantics.
+- `src/app/globals.css`: added typography tokens (`--type-*`), semantic classes `.type-display/title/heading/subheading/body/body-sm/caption/micro/overline`, and `.type-numeric` (tabular-nums); body baseline set to 14/24.
+- Migrated all lucide imports to the wrapper (`page.tsx`, room page, theme toggle, popover) and removed ad-hoc `h-*`/`w-*` icon sizing.
+- Applied semantic type classes and tabular numerals across home, chat header/sidebars, message bubbles, composer, member/approval lists, settings and modal surfaces.
+- Added `docs/design-system-icons-typography.md` and `scripts/check-ui-standards.mjs` (`npm run check:ui`).
+- Added Vitest (`npm test`) with icon wrapper and typography token tests.
+
+### Regression Checklist
+- `npm run lint`, `npm test`, `npm run check:ui`, `npm run build` all green.
+- Home and room pages reviewed at 390px / 1440px in both themes for hierarchy, icon sizing and numeric alignment.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.65`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-13: v0.1.64 决策回写（7 项决策结论同步路线图与需求卡，REQ-202610-0463）
 
 ### Scope
