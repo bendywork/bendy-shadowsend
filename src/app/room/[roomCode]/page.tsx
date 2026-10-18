@@ -13,6 +13,7 @@ import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS,
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { AttachmentCard, type AttachmentCardData } from "@/components/chat/attachment-card";
+import { ImageViewer } from "@/components/chat/image-viewer";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -24,6 +25,7 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { clampImageIndex, type ImageViewerItem } from "@/lib/image-viewer";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -40,7 +42,7 @@ type DirectUploadPreparePayload = {
 };
 type DownloadPayload = { url: string };
 type MessageListPayload = { messages: MessageItem[] };
-type ImageViewerState = { url: string; fileName: string };
+type ImageViewerState = { items: ImageViewerItem[]; index: number };
 type JoinResult = { joined: boolean; waitingApproval?: boolean; roomCode?: string };
 type CreateResult = { room: { roomCode: string } };
 type RoomMenuState = {
@@ -559,19 +561,6 @@ export default function RoomPage() {
     const light = styles.getPropertyValue("--ds-qr-light").trim();
     void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark, light } }).then(setQr);
   }, [showQr, joinLink]);
-
-  useEffect(() => {
-    if (!imageViewer) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setImageViewer(null);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [imageViewer]);
 
   useEffect(() => {
     if (!openRoomMenu) return;
@@ -1120,12 +1109,60 @@ export default function RoomPage() {
     window.open(payload.url, "_blank", "noopener,noreferrer");
   }
 
-  function openImageViewer(url: string | null | undefined, fileName: string) {
-    if (!url) return;
-    setImageViewer({
-      url,
-      fileName,
+  function openImageViewer(items: ImageViewerItem[], index: number) {
+    if (items.length === 0) return;
+    setImageViewer({ items, index: clampImageIndex(index, items.length) });
+  }
+
+  function openAttachmentViewer(
+    attachments: Array<{
+      id: string;
+      fileName: string;
+      previewType: AttachmentItem["previewType"];
+      previewUrl?: string | null;
+    }>,
+    targetId: string,
+    downloadable: boolean,
+  ) {
+    const images: ImageViewerItem[] = attachments.flatMap((attachment) => {
+      if (attachment.previewType !== "IMAGE" || !attachment.previewUrl) return [];
+      return [
+        {
+          id: attachment.id,
+          src: attachment.previewUrl,
+          fileName: attachment.fileName,
+          onDownload: downloadable ? () => downloadAttachment(attachment) : undefined,
+        },
+      ];
     });
+    const targetIndex = images.findIndex((image) => image.id === targetId);
+    if (targetIndex < 0) return;
+    openImageViewer(images, targetIndex);
+  }
+
+  function openNoticeImageViewer(
+    images: NoticePreviewState["images"],
+    index: number,
+  ) {
+    openImageViewer(
+      images.map((image, imageIndex) => ({
+        id: `notice-${imageIndex}-${image.imageUrl}`,
+        src: image.imageUrl,
+        fileName: image.imageName ?? t("imageViewer.untitled", { index: imageIndex + 1 }),
+      })),
+      index,
+    );
+  }
+
+  function openNoticeEditorImageViewer(images: NoticeEditorImage[], index: number) {
+    openImageViewer(
+      images.map((image) => ({
+        id: image.id,
+        src: image.imageUrl,
+        fileName: image.imageName,
+      })),
+      index,
+    );
   }
 
   function scrollToPanel(target: "rooms" | "members") {
@@ -2164,7 +2201,7 @@ export default function RoomPage() {
                       attachment={a}
                       onPreview={
                         a.previewType === "IMAGE"
-                          ? () => openImageViewer(a.previewUrl, a.fileName)
+                          ? () => openAttachmentViewer(m.attachments, a.id, true)
                           : undefined
                       }
                       onDownload={() => downloadAttachment(a)}
@@ -2216,7 +2253,7 @@ export default function RoomPage() {
                       errorMessage={message.error}
                       onPreview={
                         a.previewType === "IMAGE"
-                          ? () => openImageViewer(a.previewUrl, a.fileName)
+                          ? () => openAttachmentViewer(message.attachments, a.id, false)
                           : undefined
                       }
                       onRetry={
@@ -2826,7 +2863,7 @@ export default function RoomPage() {
 
             <div className="mt-3">
               <div className="flex flex-wrap items-start gap-3">
-                {noticeImages.map((image) => (
+                {noticeImages.map((image, index) => (
                   <div
                     key={image.id}
                     className="group relative h-24 w-24 overflow-hidden rounded-xl border border-line bg-panel"
@@ -2834,7 +2871,7 @@ export default function RoomPage() {
                     <button
                       type="button"
                       className="h-full w-full"
-                      onClick={() => openImageViewer(image.imageUrl, image.imageName)}
+                      onClick={() => openNoticeEditorImageViewer(noticeImages, index)}
                       title="预览原图"
                     >
                       <img
@@ -2920,7 +2957,7 @@ export default function RoomPage() {
                   <button
                     key={`${image.imageUrl}-${index}`}
                     type="button"
-                    onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
+                    onClick={() => openNoticeImageViewer(noticePopupContent.images, index)}
                     className="overflow-hidden rounded-lg border border-line bg-media"
                   >
                     <img
@@ -2946,31 +2983,15 @@ export default function RoomPage() {
       ) : null}
 
       {imageViewer ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4"
-          onClick={() => setImageViewer(null)}
-        >
-          <section
-            className="w-full max-w-5xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-xs text-ink-soft">{imageViewer.fileName}</p>
-              <button
-                type="button"
-                onClick={() => setImageViewer(null)}
-                className="rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated"
-              >
-                关闭
-              </button>
-            </div>
-            <img
-              src={imageViewer.url}
-              alt={imageViewer.fileName}
-              className="max-h-[80vh] w-full rounded-lg border border-line bg-media object-contain"
-            />
-          </section>
-        </div>
+        <ImageViewer
+          items={imageViewer.items}
+          index={imageViewer.index}
+          onIndexChange={(index) =>
+            setImageViewer((current) => (current ? { ...current, index } : current))
+          }
+          onClose={() => setImageViewer(null)}
+          onError={(message) => toast.error(message)}
+        />
       ) : null}
     </>
   );

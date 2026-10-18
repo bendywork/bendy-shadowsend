@@ -3,6 +3,33 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.70 图片查看器重构（REQ-202610-0483 / ui-20，阶段二）
+
+### Scope
+- 聊天页/公告图片查看器从手写模态升级为全屏查看器：缩放、多图切换、键盘操作、下载、关闭，视觉与现有弹层/媒体体系一致。
+- Bump app version to `0.1.70`.
+
+### Changes
+- `src/lib/image-viewer.ts` (new): `ImageViewerItem` 类型与纯函数（索引夹取/循环、缩放夹取/步进、百分比、平移边界、键盘映射），便于独立单测。
+- `src/components/chat/image-viewer.tsx` (new): Portal 全屏查看器；顶栏文件名/计数器/缩放百分比、缩放/重置/下载/关闭；左右切换与缩略图条；滚轮/双击缩放、缩放后拖拽平移；加载/失败重试；焦点陷阱与还原、body 滚动锁定；下载失败行内 + Toast 双通道。
+- `src/app/image-viewer.css` (new): 深色媒体层、顶栏/舞台/缩略图/控件/响应式/`prefers-reduced-motion` 样式，全部消费 `--ds-*` token。
+- `src/app/globals.css`: 引入 `image-viewer.css`；新增 `--ds-media-ink`、`--ds-media-ink-soft`、`--ds-media-control-bg`、`--ds-media-control-hover`、`--ds-media-control-border` 固定媒体层 token（light/dark 通用）。
+- `src/app/room/[roomCode]/page.tsx`: `ImageViewerState` 改为 `{ items, index }`；新增 `openAttachmentViewer` / `openNoticeImageViewer` / `openNoticeEditorImageViewer`；消息附件、公告编辑器与公告阅读统一接入；删除旧手写查看器与旧 Esc effect。
+- `src/lib/i18n/messages.ts`: 新增 zh/en 查看器文案（标题、计数、缩放、下载、切换、缩略图、加载/失败、快捷键提示），编译期 en 对齐校验通过。
+- `src/lib/image-viewer.test.ts` (new): 7 条纯逻辑单测。
+- `src/components/chat/image-viewer.test.tsx` (new): 8 条组件测试（渲染、切换、键盘、缩放、下载成功/失败、加载重试、焦点/滚动锁定、单图）。
+- `docs/design-system-image-viewer.md` (new): 结构、交互、多图来源、可访问性、token 与验收清单。
+
+### Regression Checklist
+- `npm test` green: 66/66 tests (7 files).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.70`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.69 附件卡片重构（REQ-202610-0482 / ui-19，阶段二）
 
 ### Scope
