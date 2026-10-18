@@ -368,6 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 文案规范（REQ-202610-0499 / ui-36）：新增 `docs/design-system-copywriting.md`，统一空态/错误/Toast/占位符/确认文案的语气、长度预算、标点与术语；新增 `src/lib/copywriting.ts` 与 5 条审计单测，自动校验 zh/en 键位、占位符对齐、emoji、标点、长度预算与错误可执行性；`messages.ts` 修订 61 处文案（移除 emoji、错误补「请重试」、Toast 去句末标点、空态明确对象与下一步）。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

@@ -3,6 +3,30 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 文案规范（空态 / 错误 / 提示统一，REQ-202610-0499 / ui-36）
+
+### Scope
+- 定义空态、错误、Toast、占位符与确认框的统一语气、长度预算、标点及术语规范，并与 i18n 文案表对齐。
+- 将规范落成可执行审计：新增 `src/lib/copywriting.ts` + Vitest，对 zh/en 键位、占位符、emoji、标点、长度预算与错误可执行性做自动校验。
+- 按规范修订 `messages.ts` 中 61 处文案；版本升至 `0.1.69`。
+
+### Changes
+- `docs/design-system-copywriting.md`（新增）：适用范围、语气与用词、长度预算、格式规则、空态/错误/Toast/确认文案句式、术语表、i18n 对齐、可执行校验与验收清单。
+- `src/lib/copywriting.ts`（新增）：`auditCopyCatalog` / `containsEmoji` / `extractPlaceholders`，覆盖缺失翻译、占位符漂移、emoji、首尾/连续空格、中英标点、`...`、Toast/占位符/提示句末标点、空态句末标点、错误可执行性与分类长度预算。
+- `src/lib/copywriting.test.ts`（新增）：5 条测试，校验实际文案表 0 违规，并验证占位符漂移、emoji 与句末标点等规则能正确报错。
+- `src/lib/i18n/messages.ts`：统一 61 处文案——移除 `chat.copied` 的 ✅；错误文案统一为「<动作>失败，请重试」/「无法<动作>，请<下一步>」；Toast 去掉句末标点；`nav.empty` / `approvals.empty` 明确对象；`chat.empty` 改为完整句并给出下一步；`settings.gateCode.placeholder` 数字与中文间加空格；英文同步去除 em dash 与句末句号。
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`：版本同步至 `0.1.69`。
+
+### Regression Checklist
+- `npm test` green: 29/29 tests（含 copywriting 5 条）。
+- `npm run lint` green（0 errors）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
