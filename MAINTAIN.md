@@ -3,6 +3,29 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 配置与文档清理（REQ-202610-0518 / up-09）
+
+### Scope
+- Rewrite the README upload-channel and environment-variable documentation around the new third-party channels (`file.sang.pub` for images, `pic.sl.al` for non-images) and 4MB chunking.
+- Mark all legacy S3/DUFS/OSS variables as read-only for existing attachments; they no longer participate in new uploads and will be removed with up-12 after existing data is cleared.
+- Add a minimal `.env.example` and migration notes. Docs/config-only iteration — no runtime behavior change.
+
+### Changes
+- `README.md`: replaced the S3 setup tutorial with "上传通道与配置"; split env vars into required core, optional upload-channel, and collapsed legacy read-only groups; added migration steps and upload verification; updated the Vercel env table, feature list, data model note and changelog.
+- `.env.example` (new): minimal required variables plus commented optional upload-channel and legacy storage variables.
+- `.gitignore`: allow committing `.env.example` (`!.env.example`).
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`: version `0.1.69`.
+
+### Regression Checklist
+- `npm test` green.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

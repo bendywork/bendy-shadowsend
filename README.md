@@ -1,6 +1,6 @@
 ﻿# 临时笨迪 (Temporary Bendy)
 
-基于 **Next.js + PostgreSQL + Prisma + S3** 的临时加密聊天室，前后端一体。
+基于 **Next.js + PostgreSQL + Prisma** 的临时加密聊天室，前后端一体。文件上传经服务端转发到第三方通道：图片走 `file.sang.pub`，非图片走 `pic.sl.al`；旧 S3/DUFS/OSS 配置仅用于读取存量附件。
 
 > 目标：临时传递信息（文本 + 文件），房间短生命周期，低心智负担，便于快速协作。
 
@@ -13,20 +13,29 @@
 - Next.js 16 (App Router, TypeScript)
 - React 19
 - Prisma + PostgreSQL
-- AWS SDK v3 (S3 兼容存储)
+- 第三方上传通道：file.sang.pub（图片）/ pic.sl.al（非图片）
+- AWS SDK v3（仅旧 S3 存量读取）
 - Tailwind CSS v4
 
-## S3 配置教程（先配这个）
+## 上传通道与配置
 
-### 1. 准备对象存储
+> v0.1.69 起，新上传不再依赖 S3/DUFS/OSS；旧配置仅用于读取历史附件，可以留空。
 
-- 可使用 AWS S3、MinIO、Ceph、腾讯云 COS（S3 兼容模式）。
-- 先创建一个 Bucket（例如 `bendy-temp`）。
-- 创建访问密钥（Access Key / Secret Key），授予该 Bucket 的读写权限。
+### 1. 上传链路
 
-### 2. 配置环境变量
+| 文件类型 | 通道 | 单请求上限 | 说明 |
+| --- | --- | --- | --- |
+| 图片（jpg/jpeg/png/gif/webp 等） | `file.sang.pub` | 4MB | 服务端按扩展名/大小选择 `meitu` 或 `icve` 通道 |
+| 非图片（文档、压缩包、音视频等） | `pic.sl.al` | 4MB | 服务端完成 token 换取与转发 |
+| 超过 4MB 的文件 | 分片上传 | 4MB/片 | 逐片转发后在接收端合并；单文件上限：图片 100MB / 非图片 200MB |
 
-复制 `.env.example` 为 `.env`，填写以下 S3 变量：
+- 浏览器不直连第三方服务，统一经本项目的服务端路由转发（第三方服务不支持跨域直连）。
+- 上传成功后 `MessageAttachment.s3Key` 保存第三方直链，下载/预览直接使用该直链，不经过本项目中转。
+- 分片上传使用 4MB/片、单请求不超过 4.5MB（Vercel 函数限制）；分片会话有效期 2 小时，单文件最多 50 片。
+
+### 2. 环境变量
+
+复制 `.env.example` 为 `.env` 后填写：
 
 ```bash
 cp .env.example .env
@@ -38,98 +47,68 @@ Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
+**核心变量（必填）**
+
 | 变量名 | 必填 | 说明 |
 | --- | --- | --- |
-| `APP_AUTH` | 否 | 外部管理接口鉴权参数，长度 1~32，默认 `bendywork` |
-| `S3_REGION` | 否 | 区域（可不填，默认空值） |
-| `S3_ENDPOINT` | 是 | S3 API 地址，例如 `https://s3.amazonaws.com` 或 `https://<account>.r2.cloudflarestorage.com` |
-| `S3_BUCKET` | 是 | Bucket 名称 |
-| `S3_ACCESS_KEY_ID` | 是 | 访问 Key |
-| `S3_SECRET_ACCESS_KEY` | 是 | Secret Key |
-| `S3_FORCE_PATH_STYLE` | 建议配置 | 示例：`true`（推荐给 MinIO/Ceph/自建 S3）；AWS S3 常用 `false` |
-| `DUFS_BASE_URL` | 否 | 图片专用文件服务地址（DUFS），例如 `https://ykujzozhxkva.ap-southeast-1.clawcloudrun.com` |
-| `DUFS_PUBLIC_BASE_URL` | 否 | 图片对外访问地址（默认等于 `DUFS_BASE_URL`） |
-| `DUFS_PATH_PREFIX` | 否 | DUFS 路径前缀（例如部署在 `/dufs` 或需要写入 `/data` 时） |
-| `DUFS_AUTH` | 否 | DUFS 上传鉴权头（完整 Authorization 值） |
-| `OSS_PREVIEW_RPC_URL` | 否 | 预览 URL 的 JSON-RPC 接口地址（例如 `https://www.hi168.com/api/user/oss/preview/url`） |
-| `OSS_PREVIEW_BUCKET_NAME` | 否 | 调用预览 RPC 时使用的 bucket（默认跟 `S3_BUCKET` 一致） |
-| `OSS_PREVIEW_COOKIE` | 否 | 预览 RPC 鉴权 Cookie（不填时会转发当前请求 Cookie） |
+| `DATABASE_URL` | 是 | PostgreSQL 连接串 |
+| `CHAT_ENCRYPTION_KEY` | 是 | 聊天消息加密 Key，至少 32 字符 |
 
-> 说明：部分自建或兼容 S3 服务不要求 region，可直接不配置 `S3_REGION`。
-> 
-> `S3_FORCE_PATH_STYLE` 推荐先填 `true`（尤其是自建 S3 或 IP/内网 endpoint）；若你的服务要求虚拟主机风格再改为 `false`。
-> 
-> 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
->
-> 当前上传策略：
->
-> - 所有文件（含 `image/*`）：
->   - 若已配置 S3：优先走 S3 预签名直传；失败时（且文件不超过 `200MB`）回退后端中转（`/api/rooms/[roomCode]/upload`）。
->   - 若未配置 S3 且已配置 DUFS：走后端中转并写入 DUFS。
-> - 公告图片与普通聊天附件使用同一套策略。
->
-> 单文件大小上限为 `10GB`（服务端会校验）。
->
-> 若部署在 Vercel 等函数平台，后端中转会受到函数请求体大小限制（可能触发 `413 FUNCTION_PAYLOAD_TOO_LARGE`），建议优先保证 S3 直传链路可用（含 CORS）。
->
-> 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
+**上传通道变量（可选，通常无需配置）**
 
-### 3. 推荐配置样例
+| 变量名 | 必填 | 说明 |
+| --- | --- | --- |
+| `SANG_UPLOAD_URL` | 否 | `file.sang.pub` 上传端点，默认 `https://file.sang.pub/api/upload` |
+| `UPLOAD_SESSION_SECRET` | 否 | 分片会话签名密钥（≥16 字符）；未配置时回退 `CHAT_ENCRYPTION_KEY` |
+| `UPLOAD_ALLOWED_ORIGINS` | 否 | 额外允许的上传来源，逗号分隔；默认只放行同源 |
 
-MinIO 本地：
+**旧存储变量（仅存量读取，不再参与新上传）**
 
-```env
-S3_REGION=
-S3_ENDPOINT=http://127.0.0.1:9000
-S3_BUCKET=bendy-temp
-S3_ACCESS_KEY_ID=minioadmin
-S3_SECRET_ACCESS_KEY=minioadmin
-S3_FORCE_PATH_STYLE=true
-DUFS_BASE_URL=
-DUFS_PUBLIC_BASE_URL=
-DUFS_PATH_PREFIX=
-DUFS_AUTH=
-```
+> 新部署无需配置以下变量。已有部署可以原样保留，仅用于读取历史附件；`up-12`（存量清零后）会彻底移除。
 
-AWS S3：
+| 变量组 | 必填 | 说明 |
+| --- | --- | --- |
+| `S3_*` | 否 / 废弃 | 仅读取历史 S3 附件；新上传不再写入 |
+| `DUFS_*` | 否 / 废弃 | 仅读取历史 DUFS 附件；新上传不再写入 |
+| `OSS_PREVIEW_*` | 否 / 废弃 | 仅用于历史附件的预览地址解析 |
 
-```env
-S3_REGION=ap-southeast-1
-S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
-S3_BUCKET=your-bucket-name
-S3_ACCESS_KEY_ID=AKIA...
-S3_SECRET_ACCESS_KEY=...
-S3_FORCE_PATH_STYLE=false
-```
+<details>
+<summary>旧存储变量的完整列表（仅在需要读取历史附件时配置）</summary>
 
-可选：第三方预览 URL（JSON-RPC）配置示例：
+| 变量名 | 说明 |
+| --- | --- |
+| `S3_REGION` | S3 区域，可留空 |
+| `S3_ENDPOINT` | S3 API 地址 |
+| `S3_BUCKET` | Bucket 名称 |
+| `S3_ACCESS_KEY_ID` | Access Key |
+| `S3_SECRET_ACCESS_KEY` | Secret Key |
+| `S3_FORCE_PATH_STYLE` | 自建 S3 常用 `true`，AWS S3 常用 `false` |
+| `DUFS_BASE_URL` | DUFS 服务地址 |
+| `DUFS_PUBLIC_BASE_URL` | DUFS 对外访问地址（默认等于 `DUFS_BASE_URL`） |
+| `DUFS_PATH_PREFIX` | DUFS 路径前缀 |
+| `DUFS_AUTH` | DUFS 上传鉴权头 |
+| `OSS_PREVIEW_RPC_URL` | 历史附件预览 URL 的 JSON-RPC 接口 |
+| `OSS_PREVIEW_BUCKET_NAME` | 预览接口使用的 bucket |
+| `OSS_PREVIEW_COOKIE` | 预览接口鉴权 Cookie |
 
-```env
-OSS_PREVIEW_RPC_URL=https://www.hi168.com/api/user/oss/preview/url
-OSS_PREVIEW_BUCKET_NAME=hi168-27979-3306shvc
-OSS_PREVIEW_COOKIE=
-```
+</details>
 
-精简后的请求（服务端实际只需这些）：
+> 其余可选变量：`APP_AUTH`（外部管理接口鉴权，默认 `bendywork`）、`NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS`、`NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES` 等，见「Vercel 部署指南」。
 
-```bash
-curl 'https://www.hi168.com/api/user/oss/preview/url' \
-  -H 'content-type: application/json' \
-  -H 'accept: application/json, text/plain, */*' \
-  -H 'cookie: <your-cookie-if-needed>' \
-  --data-raw '{"jsonrpc":"2.0","method":"call","params":{"bucket_name":"hi168-27979-3306shvc","file_key":"3_1.png","file_size":116292,"file_type":"image/png","file_name":"3_1.png"},"id":null}'
-```
+### 3. 从旧存储配置迁移
 
-> 实测不带有效会话 Cookie 会返回 `Session Expired`，因此该接口通常需要登录态（`OSS_PREVIEW_COOKIE` 或转发当前请求 Cookie）。
+1. **新部署**：只需配置 `DATABASE_URL` 与 `CHAT_ENCRYPTION_KEY`，不需要 S3/DUFS/OSS。
+2. **已有部署**：保留现有旧变量即可，它们不会影响新上传；历史附件的下载与预览仍按原配置读取。
+3. **不要立即删除旧存储**：在历史附件过期或存量清零前，保留旧 Bucket / DUFS 服务与对应变量。
+4. **清理时机**：`up-12` 会在存量清零后移除旧代码与配置；届时再删除这些环境变量和存储资源。
+5. **数据库迁移**：附件存储枚举的新增随 `npm run vercel-build` 自动执行；无需手工迁移历史数据。
 
-### 4. 验证是否配置成功
+### 4. 验证上传
 
-- 启动项目后进入房间，上传任意文件。
-- 文件消息能正常显示且可下载，说明 S3 签名 URL 与存储访问正常。
-- 若报错 `S3_NOT_CONFIGURED`，说明必填项缺失或格式错误。
-- 若前端提示 `Failed to fetch`：项目会自动回退到后端中转上传接口（`/api/rooms/[roomCode]/upload`），当前中转上限为 `200MB`。超过该大小请优先检查 S3 CORS 与网络策略，确保直传链路可用。
-- 生产环境建议优先使用 `HTTPS` 的 `S3_ENDPOINT`，可减少浏览器混合内容拦截与 CORS 问题。
-- 网络请求出错时：前端会在浏览器控制台输出 `apiFetch`/`upload` 详细上下文；服务端会在 Vercel Function Logs 打印路由级和 S3 级错误细节。
+- 启动项目后进入房间，上传一张小于 4MB 的图片：应返回 `file.sang.pub` 直链并可正常预览。
+- 上传一个小于 4MB 的 PDF/压缩包：应返回 `pic.sl.al` 直链并可正常下载。
+- 上传大于 4MB 的文件：应自动走 4MB 分片，并在接收端合并下载。
+- 未配置任何 S3/DUFS/OSS 变量时，上述流程仍应正常工作。
 
 ## 快速开始
 
@@ -174,31 +153,23 @@ npm run dev
 
 ### 2. Vercel 需要配置的环境变量
 
-至少在 **Production / Preview / Development** 三个环境都配置以下变量（`S3_REGION` 可选）：
+至少在 **Production / Preview / Development** 三个环境配置以下变量：
 
 | 变量名 | 必填 | 用途 |
 | --- | --- | --- |
 | `DATABASE_URL` | 是 | Prisma 数据库连接串 |
 | `CHAT_ENCRYPTION_KEY` | 是 | 聊天消息加密 Key（至少 32 字符） |
 | `APP_AUTH` | 否 | 外部管理接口鉴权参数，长度 1~32，默认 `bendywork` |
-| `S3_REGION` | 否 | S3 区域（可不填，默认空值） |
-| `S3_ENDPOINT` | 是 | S3 兼容 API Endpoint |
-| `S3_BUCKET` | 是 | Bucket 名称 |
-| `S3_ACCESS_KEY_ID` | 是 | S3 Access Key |
-| `S3_SECRET_ACCESS_KEY` | 是 | S3 Secret Key |
-| `S3_FORCE_PATH_STYLE` | 建议 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用） |
-| `DUFS_BASE_URL` | 可选 | 图片专用 DUFS 服务地址 |
-| `DUFS_PUBLIC_BASE_URL` | 可选 | 图片公开访问地址（默认同 DUFS_BASE_URL） |
-| `DUFS_PATH_PREFIX` | 可选 | DUFS 路径前缀（如 `/dufs` 或 `/data`） |
-| `DUFS_AUTH` | 可选 | DUFS 上传 Authorization 头 |
-| `OSS_PREVIEW_RPC_URL` | 可选 | 外部预览 URL 的 JSON-RPC 接口 |
-| `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |
-| `OSS_PREVIEW_COOKIE` | 可选 | 外部预览接口鉴权 Cookie |
-| `NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS` | 可选 | 单条文本消息最大长度（默认 `200000`，前后端共用） |
-| `NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES` | 可选 | 公告最多可上传图片数（默认 `3`） |
-| `FORCE_DB_MIGRATE` | 可选 | `true` 时强制执行迁移（默认不强制） |
-| `PRISMA_MIGRATE_RETRIES` | 可选 | 迁移锁冲突重试次数（默认 `3`） |
-| `PRISMA_MIGRATE_RETRY_DELAY_MS` | 可选 | 每次重试间隔毫秒（默认 `4000`） |
+| `SANG_UPLOAD_URL` | 否 | `file.sang.pub` 上传端点（默认官方地址） |
+| `UPLOAD_SESSION_SECRET` | 否 | 分片会话签名密钥（≥16 字符，建议独立配置） |
+| `UPLOAD_ALLOWED_ORIGINS` | 否 | 上传转发额外允许来源，逗号分隔 |
+| `NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS` | 否 | 单条文本消息最大长度（默认 `200000`，前后端共用） |
+| `NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES` | 否 | 公告最多可上传图片数（默认 `3`） |
+| `FORCE_DB_MIGRATE` | 否 | `true` 时强制执行迁移（默认不强制） |
+| `PRISMA_MIGRATE_RETRIES` | 否 | 迁移锁冲突重试次数（默认 `3`） |
+| `PRISMA_MIGRATE_RETRY_DELAY_MS` | 否 | 每次重试间隔毫秒（默认 `4000`） |
+
+**旧存储变量（仅存量读取）**：`S3_*`、`DUFS_*`、`OSS_PREVIEW_*` 均为可选且已废弃，新部署无需配置；已有部署保留即可读取历史附件，`up-12` 存量清零后移除。完整列表见「上传通道与配置」。
 
 > 说明：项目运行时会优先读取 `DATABASE_URL`，若缺失会回退 `POSTGRES_PRISMA_URL` 或 `POSTGRES_URL`。生产环境仍建议显式配置 `DATABASE_URL`。
 > 
@@ -211,7 +182,7 @@ npm run dev
 ### 3. 部署步骤
 
 1. 将仓库导入 Vercel。
-2. 在 Vercel 项目设置中补齐上述环境变量（尤其是 S3 变量）。
+2. 在 Vercel 项目设置中补齐必填变量（`DATABASE_URL`、`CHAT_ENCRYPTION_KEY`）；新部署无需配置旧存储变量。
 3. 触发重新部署。
 4. 部署成功后，创建房间并上传文件进行连通性验证。
 
@@ -253,6 +224,7 @@ npm run dev
 - 消息与文件：
   - 支持文本、任意文件发送。
   - 文本采用 AES-256-GCM 加密存储。
+  - 图片走 `file.sang.pub`，非图片走 `pic.sl.al`；超过 4MB 自动分片。
   - 图片/视频可预览，其他文件仅下载。
 - 剪贴板体验：
   - 输入框支持直接粘贴文本/文件。
@@ -278,7 +250,7 @@ npm run dev
     - `Rooms`：房间总数（包含逻辑删除和未删除）
     - `onlineUsers`：当前在线用户数
     - `serverAddress`：当前服务地址
-    - `fileServerInfo`：包含 `Dufs` 与 `S1`（S3）完整配置信息
+    - `fileServerInfo`：包含 `Dufs` 与 `S1`（S3）旧存储配置信息（仅兼容保留）
 - 日志：每次调用都会在服务端打印记录。
 
 ### 2) 关闭应用 `/offline`
@@ -347,7 +319,7 @@ prisma/
 - `JoinRequest`: 再加入审批记录
 - `RoomInvite`: 邀请 token
 - `Message`: 文本/文件消息（文本加密）
-- `MessageAttachment`: 文件元数据与 S3 Key
+- `MessageAttachment`: 文件元数据与远端存储标识（`s3Key` 保存第三方直链或旧存储 Key）
 - `Presence`: 在线状态统计
 
 ## 数据库前缀与重置
@@ -368,6 +340,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 配置与文档清理（REQ-202610-0518 / up-09）：README 重写上传通道与环境变量说明，新增 `file.sang.pub`（图片）/ `pic.sl.al`（非图片）通道及 4MB 分片说明；旧 `S3_*` / `DUFS_*` / `OSS_PREVIEW_*` 统一标注「仅存量读取、不再参与新上传」并折叠展示；补充新部署与存量迁移步骤，新增精简 `.env.example`。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

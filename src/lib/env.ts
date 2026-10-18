@@ -8,6 +8,7 @@ const baseSchema = z.object({
     .string()
     .min(32, "CHAT_ENCRYPTION_KEY 至少 32 字符")
     .optional(),
+  // 旧存储配置（dc-05）：仅用于读取存量附件，不再参与新上传；up-12 存量清零后移除。
   S3_REGION: z.string().optional(),
   S3_ENDPOINT: z.string().url().optional(),
   S3_BUCKET: z.string().optional(),
