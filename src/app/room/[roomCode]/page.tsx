@@ -9,9 +9,11 @@ import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { AnnouncementEditor } from "@/components/chat/announcement-editor";
+import type { AnnouncementSaveInput } from "@/lib/announcement-editor";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -64,22 +66,6 @@ type PendingMessage = {
   status: "sending" | "failed";
   error?: string;
 };
-type NoticePreviewState = {
-  text: string | null;
-  images: Array<{
-    imageUrl: string;
-    imageName: string | null;
-  }>;
-};
-type NoticeEditorImage = {
-  id: string;
-  kind: "existing" | "new";
-  imageUrl: string;
-  imageName: string;
-  existingIndex?: number;
-  file?: File;
-};
-
 const isPreviewable = (a: { previewType: AttachmentItem["previewType"] }) =>
   a.previewType === "IMAGE" || a.previewType === "VIDEO";
 const fmt = (v: string) => new Date(v).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -535,11 +521,9 @@ export default function RoomPage() {
   const [qr, setQr] = useState<string | null>(null);
 
   const [showNoticeEditor, setShowNoticeEditor] = useState(false);
-  const [noticeText, setNoticeText] = useState("");
-  const [noticeImages, setNoticeImages] = useState<NoticeEditorImage[]>([]);
+  const [noticeSaveError, setNoticeSaveError] = useState<string | null>(null);
 
   const [showNoticePopup, setShowNoticePopup] = useState(false);
-  const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const [roomNameInput, setRoomNameInput] = useState("");
   const [openRoomMenu, setOpenRoomMenu] = useState<RoomMenuState | null>(null);
@@ -564,8 +548,6 @@ export default function RoomPage() {
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
-  const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
-  const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
   const floatingRoomMenuRef = useRef<HTMLDivElement | null>(null);
   const memberMenuRef = useRef<HTMLDivElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
@@ -716,17 +698,8 @@ export default function RoomPage() {
   }, [snap]);
 
   useEffect(() => {
-    noticeImagesRef.current = noticeImages;
-  }, [noticeImages]);
-
-  useEffect(() => {
     const copyTimerMapRef = copyTextTimerRef;
     return () => {
-      noticeImagesRef.current.forEach((item) => {
-        if (item.kind === "new" && item.imageUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(item.imageUrl);
-        }
-      });
       Object.values(copyTimerMapRef.current).forEach((timer) => {
         window.clearTimeout(timer);
       });
@@ -1510,79 +1483,16 @@ export default function RoomPage() {
       toast.error(t("toast.copyFailed"));
     }
   }
-  function releaseNoticeEditorImages(items: NoticeEditorImage[]) {
-    items.forEach((item) => {
-      if (item.kind === "new" && item.imageUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(item.imageUrl);
-      }
-    });
-  }
-
   function closeNoticeEditor() {
+    if (action === "notice") return;
     setShowNoticeEditor(false);
-    setNoticePreview(null);
-    setNoticeText("");
-    setNoticeImages((prev) => {
-      releaseNoticeEditorImages(prev);
-      return [];
-    });
-  }
-
-  function removeNoticeImage(id: string) {
-    setNoticeImages((prev) => {
-      const target = prev.find((item) => item.id === id);
-      if (target?.kind === "new" && target.imageUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(target.imageUrl);
-      }
-      return prev.filter((item) => item.id !== id);
-    });
-  }
-
-  function addNoticeImages(fileList: FileList | null) {
-    if (!fileList) return;
-
-    const selected = Array.from(fileList).filter((file) =>
-      file.type.startsWith("image/"),
-    );
-    if (selected.length === 0) return;
-
-    const remaining = MAX_ANNOUNCEMENT_IMAGES - noticeImages.length;
-    if (remaining <= 0) {
-      toast.warning(t("toast.noticeImageLimit", { max: MAX_ANNOUNCEMENT_IMAGES }));
-      return;
-    }
-
-    const accepted = selected.slice(0, remaining);
-    if (accepted.length < selected.length) {
-      toast.info(t("toast.noticeImageTrimmed", { max: MAX_ANNOUNCEMENT_IMAGES }));
-    }
-
-    const addedItems = accepted.map((file, index) => ({
-      id: `notice-new-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
-      kind: "new" as const,
-      imageUrl: URL.createObjectURL(file),
-      imageName: file.name,
-      file,
-    }));
-
-    setNoticeImages((prev) => [...prev, ...addedItems]);
+    setNoticeSaveError(null);
   }
 
   function openNoticeEditor() {
     if (!snap) return;
-    setNoticeText(snap.announcement.text ?? "");
-    setNoticePreview(null);
     setShowNoticePopup(false);
-    setNoticeImages((prev) => {
-      releaseNoticeEditorImages(prev);
-      return (snap.announcement.images ?? []).map((item, index) => ({
-        id: `notice-existing-${index}`,
-        kind: "existing",
-        imageUrl: item.imageUrl,
-        imageName: item.imageName ?? `announcement-${index + 1}`,
-        existingIndex: index,
-      }));
-    });
+    setNoticeSaveError(null);
     setShowNoticeEditor(true);
   }
 
@@ -1595,49 +1505,22 @@ export default function RoomPage() {
       toast.info(t("toast.noNotice"));
       return;
     }
-    setNoticePreview(null);
     setShowNoticePopup(true);
   }
 
-  function previewNoticeDraft() {
-    if (!snap) return;
-    const draftText = noticeText.trim() || null;
-    const draftImages = noticeImages.map((image) => ({
-      imageUrl: image.imageUrl,
-      imageName: image.imageName,
-    }));
-
-    if (!draftText && draftImages.length === 0) {
-      toast.warning(t("toast.noticeEmpty"));
-      return;
-    }
-
-    setNoticePreview({
-      text: draftText,
-      images: draftImages,
-    });
-    setShowNoticePopup(true);
-  }
-
-  async function saveNotice() {
+  async function saveNotice(input: AnnouncementSaveInput) {
     setAction("notice");
+    setNoticeSaveError(null);
     try {
-      const keepImageIndexes = noticeImages
-        .filter((image) => image.kind === "existing")
-        .map((image) => image.existingIndex)
-        .filter((index): index is number => typeof index === "number");
-
-      const newNoticeFiles = noticeImages
-        .filter((image) => image.kind === "new" && image.file)
-        .map((image) => image.file as File);
-
-      const uploadedNewImages = await Promise.all(newNoticeFiles.map((file) => upload(file)));
+      const uploadedNewImages = await Promise.all(
+        input.newFiles.map((file) => upload(file)),
+      );
 
       await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, {
         method: "POST",
         body: JSON.stringify({
-          text: noticeText || undefined,
-          keepImageIndexes,
+          text: input.text || undefined,
+          keepImageIndexes: input.keepImageIndexes,
           newImages: uploadedNewImages.map((image) => ({
             s3Key: image.s3Key,
             fileName: image.fileName,
@@ -1647,20 +1530,18 @@ export default function RoomPage() {
           })),
         }),
       });
-      closeNoticeEditor();
+      setShowNoticeEditor(false);
+      setNoticeSaveError(null);
       await refresh();
       toast.success(t("toast.noticeUpdated"));
-    } catch (err) { toastError(err, t("toast.noticeSaveFailed"), t); }
-    finally { setAction(null); }
+    } catch (err) {
+      setNoticeSaveError(
+        toastError(err, t("toast.noticeSaveFailed"), t),
+      );
+    } finally { setAction(null); }
   }
 
   async function closeNoticePopup() {
-    if (noticePreview) {
-      setNoticePreview(null);
-      setShowNoticePopup(false);
-      return;
-    }
-
     if (!snap?.announcement.showToMe) {
       setShowNoticePopup(false);
       return;
@@ -1920,12 +1801,6 @@ export default function RoomPage() {
       </main>
     );
   }
-
-  const noticePopupContent = noticePreview ?? {
-    text: snap.announcement.text,
-    images: snap.announcement.images ?? [],
-  };
-  const isPreviewingNoticeDraft = Boolean(noticePreview);
 
   function handleToggleRoomMenu(targetRoom: RoomTreeItem, triggerButton: HTMLButtonElement) {
     if (openRoomMenu?.room.id === targetRoom.id) {
@@ -2814,111 +2689,16 @@ export default function RoomPage() {
       ) : null}
 
       {showNoticeEditor ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">配置公告</h3>
-              <button
-                type="button"
-                onClick={closeNoticeEditor}
-                className="rounded-md border border-line p-1 text-ink-soft"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <textarea
-              value={noticeText}
-              onChange={(e) => setNoticeText(e.target.value)}
-              placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none"
-            />
-
-            <input
-              ref={noticeImageInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              multiple
-              onChange={(e) => {
-                addNoticeImages(e.target.files);
-                e.target.value = "";
-              }}
-            />
-
-            <div className="mt-3">
-              <div className="flex flex-wrap items-start gap-3">
-                {noticeImages.map((image) => (
-                  <div
-                    key={image.id}
-                    className="group relative h-24 w-24 overflow-hidden rounded-xl border border-line bg-panel"
-                  >
-                    <button
-                      type="button"
-                      className="h-full w-full"
-                      onClick={() => openImageViewer(image.imageUrl, image.imageName)}
-                      title="预览原图"
-                    >
-                      <img
-                        src={image.imageUrl}
-                        alt={image.imageName}
-                        className="h-full w-full object-cover"
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeNoticeImage(image.id)}
-                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-overlay-strong text-ink-soft opacity-100 transition-ui hover:bg-elevated group-hover:opacity-100"
-                      title="删除图片"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-
-                {noticeImages.length < MAX_ANNOUNCEMENT_IMAGES ? (
-                  <button
-                    type="button"
-                    onClick={() => noticeImageInputRef.current?.click()}
-                    className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-panel/70 px-2 text-center text-[11px] text-ink-soft hover:bg-elevated"
-                  >
-                    <Plus className="mb-1 h-4 w-4" />
-                    上传公告图片
-                  </button>
-                ) : null}
-              </div>
-              <p className="mt-2 text-[11px] text-ink-faint">
-                最多上传 {MAX_ANNOUNCEMENT_IMAGES} 张图片
-              </p>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeNoticeEditor}
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={previewNoticeDraft}
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft hover:bg-elevated"
-              >
-                预览
-              </button>
-              <button
-                type="button"
-                onClick={saveNotice}
-                disabled={action === "notice"}
-                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink disabled:opacity-60"
-              >
-                {action === "notice" ? "保存中..." : "保存公告"}
-              </button>
-            </div>
-
-          </section>
-        </div>
+        <AnnouncementEditor
+          initialText={snap.announcement.text ?? ""}
+          initialImages={snap.announcement.images ?? []}
+          saving={action === "notice"}
+          saveError={noticeSaveError}
+          onClose={closeNoticeEditor}
+          onClearSaveError={() => setNoticeSaveError(null)}
+          onSave={saveNotice}
+          onPreviewImage={openImageViewer}
+        />
       ) : null}
 
       {showNoticePopup ? (
@@ -2926,19 +2706,19 @@ export default function RoomPage() {
           <section className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
             <div className="mb-3 flex items-center gap-2 text-ink-soft">
               <Megaphone className="h-5 w-5" />
-              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
+              <h3 className="text-base font-semibold">{t("announcement.view.title")}</h3>
             </div>
-            {noticePopupContent.text ? (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{noticePopupContent.text}</p>
+            {snap.announcement.text ? (
+              <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{snap.announcement.text}</p>
             ) : null}
-            {noticePopupContent.images.length > 0 ? (
+            {(snap.announcement.images ?? []).length > 0 ? (
               <div
                 className={clsx(
                   "mt-3 grid gap-3",
-                  noticePopupContent.images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2",
+                  (snap.announcement.images ?? []).length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2",
                 )}
               >
-                {noticePopupContent.images.map((image, index) => (
+                {(snap.announcement.images ?? []).map((image, index) => (
                   <button
                     key={`${image.imageUrl}-${index}`}
                     type="button"
@@ -2960,7 +2740,7 @@ export default function RoomPage() {
                 onClick={closeNoticePopup}
                 className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink"
               >
-                {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
+                {t("announcement.view.close")}
               </button>
             </div>
           </section>

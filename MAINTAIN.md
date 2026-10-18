@@ -3,6 +3,40 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 公告编辑器重构（抽屉式，REQ-202610-0486 / ui-23）
+
+### Scope
+- Replace the hand-written announcement modal with a right-side drawer that keeps the room visible behind it.
+- Add multi-image management (up to 3) with type/size/count validation, thumbnail preview and removal.
+- Add an edit ↔ preview flow; preview renders the same announcement card members will see.
+- Unify save feedback: inline error + global Toast on failure, Toast on success; keep the drawer open with the draft intact on failure.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/ui/drawer.tsx` (new): reusable right-side drawer primitive rendered through a portal — `role="dialog"`/`aria-modal`, labelled header, focus trap, `Esc`/backdrop close, body scroll lock with scrollbar compensation, focus restore, reduced-motion support.
+- `src/components/chat/announcement-editor.tsx` (new): announcement editor built on the drawer — textarea with live counter (1200 chars), image tiles with preview/remove, add tile, edit/preview modes, localized empty/error states, save spinner and `aria-busy`.
+- `src/lib/announcement-editor.ts` (new): pure helpers for existing-image mapping (`existingIndex`), image selection validation, immutable removal, `keepImageIndexes` + `newFiles` request shaping, and draft validation.
+- `src/lib/announcement-editor.test.ts` (new): 10 unit tests covering mapping/fallback names, type/size/limit filtering, overflow trimming, immutable removal, save-input ordering/trimming and empty-draft validation.
+- `src/app/room/[roomCode]/page.tsx`: removed the old notice editor state/refs/cleanup and inline modal; now mounts `AnnouncementEditor` only while open and delegates save to the existing announcement API. Read popup title/close button moved to i18n.
+- `src/app/drawer.css` (new): drawer layer/backdrop/panel/header/body/footer styles; transform/opacity entry animation, mobile full-width panel and 44px close target.
+- `src/app/announcement-editor.css` (new): editor sections, textarea, image grid/tiles/remove/add, preview card/grid; hover depth via `transform`, reduced-motion overrides.
+- `src/app/layout.tsx`: imports `drawer.css` and `announcement-editor.css`.
+- `src/lib/constants.ts`: added `MAX_ANNOUNCEMENT_TEXT_CHARS = 1200`; version synced to `0.1.69`.
+- `src/lib/validators.ts`: announcement schema uses the shared 1200-char constant.
+- `src/lib/i18n/messages.ts`: added zh/en `announcement.editor.*`, `announcement.view.*`, `toast.noticeImageInvalid`, `toast.noticeImageTooLarge` keys (compile-time parity enforced).
+- `docs/design-system-announcement-editor.md` (new): structure, interaction contract, image lifecycle, save/error behavior, accessibility, tokens and acceptance checklist.
+- `package.json` / `package-lock.json`: version `0.1.69`.
+
+### Regression Checklist
+- `npm test` green: 34/34 tests (10 new announcement-editor tests).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

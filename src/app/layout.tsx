@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./drawer.css";
+import "./announcement-editor.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { LanguageProvider } from "@/lib/i18n/context";
 

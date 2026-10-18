@@ -2,6 +2,7 @@
 import {
   MAX_ANNOUNCEMENT_IMAGES,
   MAX_ANNOUNCEMENT_IMAGE_BYTES,
+  MAX_ANNOUNCEMENT_TEXT_CHARS,
   MAX_ATTACHMENT_SIZE_BYTES,
   MAX_MESSAGE_TEXT_CHARS,
 } from "@/lib/constants";
@@ -125,7 +126,10 @@ export const roomAnnouncementSchema = z.object({
   text: z
     .string()
     .trim()
-    .max(1200, "Announcement text must be <= 1200 chars")
+    .max(
+      MAX_ANNOUNCEMENT_TEXT_CHARS,
+      `Announcement text must be <= ${MAX_ANNOUNCEMENT_TEXT_CHARS} chars`,
+    )
     .optional()
     .transform((value) => (value ? value : undefined)),
   keepImageIndexes: z
