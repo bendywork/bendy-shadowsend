@@ -1,11 +1,106 @@
 ﻿import { z } from "zod";
 import {
+  isAllowedRemoteAttachmentUrl,
+  isRemoteAttachmentStorage,
+  MAX_ATTACHMENT_CHUNKS,
+  MAX_REMOTE_ATTACHMENT_URL_LENGTH,
+  parseAttachmentChunkManifest,
+} from "@/lib/attachment-storage";
+import {
   MAX_ANNOUNCEMENT_IMAGES,
   MAX_ANNOUNCEMENT_IMAGE_BYTES,
-  MAX_ATTACHMENT_KEY_CHARS,
   MAX_ATTACHMENT_SIZE_BYTES,
   MAX_MESSAGE_TEXT_CHARS,
 } from "@/lib/constants";
+
+const attachmentStorageSchema = z.enum(["S3", "DUFS", "SANG", "PIC_SL"]);
+
+const chunkDescriptorSchema = z.object({
+  index: z.number().int().min(0),
+  url: z
+    .string()
+    .trim()
+    .min(1)
+    .max(MAX_REMOTE_ATTACHMENT_URL_LENGTH),
+  sizeBytes: z.number().int().positive(),
+});
+
+const chunkManifestSchema = z.object({
+  uploadId: z.string().trim().min(1).max(200).optional(),
+  storage: attachmentStorageSchema.optional(),
+  chunkSize: z.number().int().positive(),
+  totalChunks: z.number().int().min(1).max(MAX_ATTACHMENT_CHUNKS),
+  sizeBytes: z.number().int().positive().optional(),
+  chunks: z
+    .array(chunkDescriptorSchema)
+    .min(1)
+    .max(MAX_ATTACHMENT_CHUNKS),
+});
+
+const attachmentPayloadSchema = z
+  .object({
+    fileName: z.string().trim().min(1).max(255),
+    mimeType: z.string().trim().min(1).max(120),
+    sizeBytes: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
+    s3Key: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_REMOTE_ATTACHMENT_URL_LENGTH),
+    storage: attachmentStorageSchema.optional().default("S3"),
+    chunkManifest: chunkManifestSchema.optional(),
+  })
+  .superRefine((attachment, ctx) => {
+    if (
+      isRemoteAttachmentStorage(attachment.storage) &&
+      !isAllowedRemoteAttachmentUrl(attachment.storage, attachment.s3Key)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["s3Key"],
+        message: "远端附件必须使用对应服务的 HTTPS 公网 URL",
+      });
+    }
+
+    if (!attachment.chunkManifest) {
+      return;
+    }
+
+    if (!isRemoteAttachmentStorage(attachment.storage)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["chunkManifest"],
+        message: "仅 SANG / PIC_SL 附件支持分片清单",
+      });
+      return;
+    }
+
+    const manifest = parseAttachmentChunkManifest(
+      attachment.chunkManifest,
+      attachment.storage,
+    );
+
+    if (!manifest) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["chunkManifest"],
+        message: "分片清单不合法",
+      });
+      return;
+    }
+
+    if (manifest.chunks[0]?.url !== attachment.s3Key) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["s3Key"],
+        message: "分片附件的 s3Key 必须为首片远端 URL",
+      });
+    }
+  });
 
 export const gateCodeSchema = z
   .string()
@@ -54,22 +149,7 @@ export const sendMessageSchema = z.object({
     .optional()
     .transform((value) => (value ? value : undefined)),
   attachments: z
-    .array(
-      z.object({
-        fileName: z.string().trim().min(1).max(255),
-        mimeType: z.string().trim().min(1).max(120),
-        sizeBytes: z
-          .number()
-          .int()
-          .positive()
-          .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
-        s3Key: z.string().trim().min(1).max(MAX_ATTACHMENT_KEY_CHARS),
-        storage: z
-          .enum(["S3", "DUFS", "SANG", "PIC_SL"])
-          .optional()
-          .default("S3"),
-      }),
-    )
+    .array(attachmentPayloadSchema)
     .optional()
     .default([]),
 });
@@ -113,20 +193,34 @@ export const updateRoomJoinPolicySchema = z.object({
   allowJoinRequest: z.boolean(),
 });
 
-const announcementImagePayloadSchema = z.object({
-  s3Key: z.string().trim().min(1).max(MAX_ATTACHMENT_KEY_CHARS),
-  fileName: z.string().trim().min(1).max(255),
-  mimeType: z.string().trim().min(1).max(120),
-  sizeBytes: z
-    .number()
-    .int()
-    .positive()
-    .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
-  storage: z
-    .enum(["S3", "DUFS", "SANG", "PIC_SL"])
-    .optional()
-    .default("S3"),
-});
+const announcementImagePayloadSchema = z
+  .object({
+    s3Key: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_REMOTE_ATTACHMENT_URL_LENGTH),
+    fileName: z.string().trim().min(1).max(255),
+    mimeType: z.string().trim().min(1).max(120),
+    sizeBytes: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
+    storage: attachmentStorageSchema.optional().default("S3"),
+  })
+  .superRefine((image, ctx) => {
+    if (
+      isRemoteAttachmentStorage(image.storage) &&
+      !isAllowedRemoteAttachmentUrl(image.storage, image.s3Key)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["s3Key"],
+        message: "远端公告图片必须使用对应服务的 HTTPS 公网 URL",
+      });
+    }
+  });
 
 export const roomAnnouncementSchema = z.object({
   text: z

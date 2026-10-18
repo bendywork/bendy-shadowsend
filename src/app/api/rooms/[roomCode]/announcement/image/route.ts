@@ -2,32 +2,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseAnnouncementImages } from "@/lib/announcement";
 import { ApiError, jsonError } from "@/lib/api";
+import {
+  isAllowedRemoteAttachmentUrl,
+  isRemoteAttachmentStorage,
+} from "@/lib/attachment-storage";
 import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { createInlineReadUrl } from "@/lib/s3";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
-import { createRemoteAttachmentResponse } from "@/lib/upload/attachment-response";
-import { resolveRemoteAttachment } from "@/lib/upload/stored-manifest";
 
 type Params = {
   roomCode: string;
 };
-
-const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  webp: "image/webp",
-  avif: "image/avif",
-  svg: "image/svg+xml",
-};
-
-function guessImageMimeType(fileName: string): string {
-  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
-  return IMAGE_MIME_BY_EXTENSION[extension] ?? "application/octet-stream";
-}
 
 export async function GET(
   request: NextRequest,
@@ -75,22 +62,12 @@ export async function GET(
       throw new ApiError(404, "公告图片不存在", "ANNOUNCEMENT_IMAGE_NOT_FOUND");
     }
 
-    if (
-      image.storage === AttachmentStorage.SANG ||
-      image.storage === AttachmentStorage.PIC_SL
-    ) {
-      const remote = resolveRemoteAttachment(image.storage, image.s3Key);
-
-      if (!remote) {
-        throw new ApiError(502, "公告图片远端地址无效", "ANNOUNCEMENT_REMOTE_INVALID");
+    if (isRemoteAttachmentStorage(image.storage)) {
+      if (!isAllowedRemoteAttachmentUrl(image.storage, image.s3Key)) {
+        throw new ApiError(502, "公告图片地址无效", "REMOTE_ATTACHMENT_URL_INVALID");
       }
 
-      const response = createRemoteAttachmentResponse({
-        remote,
-        fileName: image.fileName,
-        mimeType: guessImageMimeType(image.fileName),
-        disposition: "inline",
-      });
+      const response = NextResponse.redirect(image.s3Key, 307);
       return applyUserCookie(response, cookieToSet);
     }
 

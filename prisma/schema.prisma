@@ -213,6 +213,7 @@ model MessageAttachment {
   sizeBytes  BigInt
   s3Key      String
   storage    AttachmentStorage @default(S3)
+  chunkManifest Json?
   previewType PreviewType @default(NONE)
   createdAt  DateTime     @default(now())
   message    Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)

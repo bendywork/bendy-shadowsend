@@ -1,4 +1,5 @@
 import { AttachmentStorage } from "@prisma/client";
+import { isAttachmentStorageValue } from "@/lib/attachment-storage";
 
 export type AnnouncementImage = {
   s3Key: string;
@@ -13,14 +14,6 @@ type AnnouncementFields = {
   announcementImageName: string | null;
   announcementImageStorage: AttachmentStorage | null;
 };
-
-const isAttachmentStorage = (
-  value: unknown,
-): value is AttachmentStorage =>
-  value === "S3" ||
-  value === "DUFS" ||
-  value === "SANG" ||
-  value === "PIC_SL";
 
 function normalizeAnnouncementImage(value: unknown): AnnouncementImage | null {
   if (!value || typeof value !== "object") return null;
@@ -54,7 +47,7 @@ function normalizeAnnouncementImage(value: unknown): AnnouncementImage | null {
     candidate.sizeBytes >= 0
       ? candidate.sizeBytes
       : 0;
-  const storage = isAttachmentStorage(candidate.storage)
+  const storage = isAttachmentStorageValue(candidate.storage)
     ? candidate.storage
     : AttachmentStorage.S3;
 
