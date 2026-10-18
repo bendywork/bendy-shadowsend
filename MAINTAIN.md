@@ -3,6 +3,37 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 图片上传接入 file.sang.pub（REQ-202610-0510 / up-01）
+
+### Scope
+- Replace the image upload main path with a server-side encapsulation of `file.sang.pub`: channel selection (`meitu` / `icve`), protocol headers, limited same-service retries, and remote URL writeback.
+- Keep non-image uploads and legacy S3/DUFS read compatibility unchanged; >4MB images temporarily continue through the existing DUFS chunk path until up-04.
+- Add the `SANG` attachment storage value and a minimal migration.
+
+### Changes
+- `src/lib/upload-rules.ts` (new): sang channel constants (meitu 20MB / icve 100MB / Vercel single-request 4MB), image detection by MIME or extension, `selectSangChannel()`, retryable status list.
+- `src/lib/sang.ts` (new): `uploadToSang()` posts raw bytes with `X-Upload-Type` / `X-File-Name` / `X-File-Size`, enforces an 8s timeout, retries transient failures up to 3 attempts, parses `{code,msg,data}`, and validates the returned public URL.
+- `src/app/api/rooms/[roomCode]/upload/route.ts`: image branch now calls `uploadToSang()` and returns `storage=SANG` with the remote URL in `s3Key`; images >4MB return `413 IMAGE_TOO_LARGE_FOR_SANG`; no cross-storage fallback (dc-06). Non-image S3/DUFS logic unchanged.
+- `src/app/api/rooms/[roomCode]/upload-url/route.ts`: rejects image presigned uploads with `400 IMAGE_UPLOAD_USE_PROXY`.
+- `src/app/room/[roomCode]/page.tsx`: images ≤4MB use the proxy route (sang); images >4MB use the existing chunked path; non-images keep S3 direct + proxy fallback. 413 responses now surface the server message.
+- `src/lib/announcement.ts`, `src/lib/validators.ts`, `src/lib/attachment-preview.ts`: accept/read `SANG`; remote URL max length raised to 2048.
+- `attachments/[attachmentId]/download`, `attachments/[attachmentId]/preview`, `announcement/image`: `SANG` returns the remote URL or 307 redirects to it.
+- `prisma/schema.prisma` + `prisma/migrations/20261018000000_add_sang_attachment_storage/migration.sql`: add `SANG` to `bendy_shadowsend_attachment_storage`.
+- `src/lib/upload-rules.test.ts` (15 tests), `src/lib/sang.test.ts` (11 tests), `src/lib/validators.test.ts` (5 tests): channel boundaries, image detection, MIME fallback, allowed URL hosts, header encoding, retry behavior, response validation, size mismatch and storage validation.
+- `docs/upload-sang-pub.md` (new): protocol, data flow, code map, retry policy and acceptance checklist.
+- `README.md`: env tables add optional `SANG_UPLOAD_URL`; upload strategy updated; 0.1.69 update record added.
+
+### Regression Checklist
+- `npm test` green: 55/55 tests across 6 files.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+- Manual: ≤4MB image returns `storage=SANG` and a public URL; `/upload-url` rejects images; announcement image and attachment preview/download work for `SANG`.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

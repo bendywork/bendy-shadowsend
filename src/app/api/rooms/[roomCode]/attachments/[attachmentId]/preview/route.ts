@@ -56,6 +56,11 @@ export async function GET(
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
     }
 
+    if (attachment.storage === AttachmentStorage.SANG) {
+      const response = NextResponse.redirect(attachment.s3Key, 307);
+      return applyUserCookie(response, cookieToSet);
+    }
+
     if (attachment.storage === AttachmentStorage.DUFS) {
       const upstream = await fetchDufsFile(attachment.s3Key);
       const response = new NextResponse(upstream.body, {

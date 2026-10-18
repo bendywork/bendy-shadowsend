@@ -58,6 +58,11 @@ export async function GET(
       throw new ApiError(404, "公告图片不存在", "ANNOUNCEMENT_IMAGE_NOT_FOUND");
     }
 
+    if (image.storage === AttachmentStorage.SANG) {
+      const response = NextResponse.redirect(image.s3Key, 307);
+      return applyUserCookie(response, cookieToSet);
+    }
+
     if (image.storage === AttachmentStorage.DUFS) {
       const upstream = await fetchDufsFile(image.s3Key);
       const response = new NextResponse(upstream.body, {
