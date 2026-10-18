@@ -3,6 +3,36 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 按钮加载/禁用态统一（REQ-202610-0495 / ui-32）
+
+### Scope
+- Unify loading, disabled and duplicate-submit behavior for submit-like buttons across the home page and room page, using the same `Button` / `IconButton` API as the in-flight ui-03 button system.
+- Add a synchronous action guard so a double click cannot fire the same request twice before React re-renders the loading state.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/ui/button.tsx` (new): `Button` with `variant` / `size` / `loading` / `icon` / `block`; loading sets `disabled`, `aria-busy`, `data-loading` and swaps the icon for `.btn__spinner`.
+- `src/components/ui/icon-button.tsx`: added `loading` and optional `sm` / `md` size; loading replaces the glyph with the shared spinner and disables the button.
+- `src/lib/async-guard.ts` (new): synchronous `tryLock` / `unlock` / `isLocked` keyed guard; blank keys are rejected.
+- `src/lib/use-guarded-action.ts` (new): `useGuardedAction()` exposes `pendingKey` for button loading and `run(key, task)` with `finally` unlock.
+- `src/app/page.tsx`: join/create forms use one `home-submit` guard key and `Button` loading; removed the manual `submitting` state and spinner branches.
+- `src/app/room/[roomCode]/page.tsx`: `action` now comes from `useGuardedAction`; member kick/transfer, approval, leave, dissolve, room entry, settings save, announcement save/seen and attachment download all guard duplicate requests. `roomEntrySubmitting` is derived from the action key. Composer send uses a ref lock while keeping the pending-message bubble as progress feedback.
+- `src/app/globals.css`: added `--ds-control-sm/md`, `--ds-danger-hover`, the shared `.btn` / `.btn--{variant}` / `.btn--{size}` / `.btn--block` / `.btn__spinner` system and icon-button size modifiers; reduced-motion slows the spinner instead of adding motion.
+- `src/lib/async-guard.test.ts` (new): lock/release, multi-key, blank-key and whitespace normalization tests.
+- `src/components/ui/button.test.ts` (new): SSR tests for default classes, variant/size/block, loading disabled + ARIA/data attributes + spinner/icon swap, explicit disabled, and `IconButton` loading/size behavior.
+- `docs/design-system-button-states.md` (new): API, guard contract, coverage table, accessibility, ui-03 merge notes and acceptance checklist.
+- `vitest.config.ts`: unchanged — component tests use `react-dom/server` under the existing Node environment.
+
+### Regression Checklist
+- `npm test` green: 35/35 tests (5 files).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

@@ -3,13 +3,15 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
+import { DoorOpen, PlusCircle, Shield, Sparkles } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { ApiRequestError, apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
+import { useGuardedAction } from "@/lib/use-guarded-action";
 import { toast } from "@/lib/toast-store";
 import { toastError } from "@/lib/feedback";
 import {
@@ -63,11 +65,12 @@ export default function HomePage() {
   const router = useRouter();
   const t = useT();
   const translateRef = useRef(t);
+  const { pendingKey: submittingKey, run: runSubmit } = useGuardedAction();
+  const submitting = submittingKey !== null;
   const [tab, setTab] = useState<TabType>("join");
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
   const [fallbackMe, setFallbackMe] = useState<MePayload["user"] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [joinErrors, setJoinErrors] = useState<JoinFieldErrors>({});
   const [createErrors, setCreateErrors] = useState<CreateFieldErrors>({});
 
@@ -216,54 +219,52 @@ export default function HomePage() {
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!validateCreateFields()) return;
-    setSubmitting(true);
 
-    try {
-      const payload = await apiFetch<CreateResult>("/api/rooms", {
-        method: "POST",
-        body: JSON.stringify({
-          name: createName,
-          gateCode: createGateCode || undefined,
-        }),
-      });
+    await runSubmit("home-submit", async () => {
+      try {
+        const payload = await apiFetch<CreateResult>("/api/rooms", {
+          method: "POST",
+          body: JSON.stringify({
+            name: createName,
+            gateCode: createGateCode || undefined,
+          }),
+        });
 
-      localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
-      router.push(`/room/${payload.room.roomCode}`);
-    } catch (createError) {
-      toastError(createError, t("toast.createRoomFailed"), t);
-    } finally {
-      setSubmitting(false);
-    }
+        localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
+        router.push(`/room/${payload.room.roomCode}`);
+      } catch (createError) {
+        toastError(createError, t("toast.createRoomFailed"), t);
+      }
+    });
   }
 
   async function handleJoin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!validateJoinFields()) return;
-    setSubmitting(true);
 
-    try {
-      const payload = await apiFetch<JoinResult>(`/api/rooms/${joinRoomCode}/join`, {
-        method: "POST",
-        body: JSON.stringify({
-          gateCode: joinGateCode || undefined,
-          inviteToken: joinInviteToken || undefined,
-        }),
-      });
+    await runSubmit("home-submit", async () => {
+      try {
+        const payload = await apiFetch<JoinResult>(`/api/rooms/${joinRoomCode}/join`, {
+          method: "POST",
+          body: JSON.stringify({
+            gateCode: joinGateCode || undefined,
+            inviteToken: joinInviteToken || undefined,
+          }),
+        });
 
-      if (payload.waitingApproval) {
-        toast.info(t("toast.joinRequestSent"));
-        return;
+        if (payload.waitingApproval) {
+          toast.info(t("toast.joinRequestSent"));
+          return;
+        }
+
+        if (payload.joined && payload.roomCode) {
+          localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.roomCode);
+          router.push(`/room/${payload.roomCode}`);
+        }
+      } catch (joinError) {
+        toastError(joinError, t("toast.joinRoomFailed"), t);
       }
-
-      if (payload.joined && payload.roomCode) {
-        localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.roomCode);
-        router.push(`/room/${payload.roomCode}`);
-      }
-    } catch (joinError) {
-      toastError(joinError, t("toast.joinRoomFailed"), t);
-    } finally {
-      setSubmitting(false);
-    }
+    });
   }
 
   return (
@@ -399,18 +400,17 @@ export default function HomePage() {
                   />
                 </label>
 
-                <button
+                <Button
                   type="submit"
-                  disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  variant="primary"
+                  size="md"
+                  block
+                  loading={submitting}
+                  disabled={loading}
+                  icon={<DoorOpen className="h-4 w-4" />}
                 >
-                  {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <DoorOpen className="h-4 w-4" />
-                  )}
                   进入房间
-                </button>
+                </Button>
               </form>
             ) : (
               <form className="space-y-4" onSubmit={handleCreate} noValidate>
@@ -452,18 +452,17 @@ export default function HomePage() {
                   <FieldError id="home-create-gate-code-error" message={createErrors.gateCode} />
                 </label>
 
-                <button
+                <Button
                   type="submit"
-                  disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  variant="primary"
+                  size="md"
+                  block
+                  loading={submitting}
+                  disabled={loading}
+                  icon={<Sparkles className="h-4 w-4" />}
                 >
-                  {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
                   创建并进入
-                </button>
+                </Button>
               </form>
             )}
 

@@ -13,6 +13,7 @@ import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS,
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
@@ -23,6 +24,7 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { useGuardedAction } from "@/lib/use-guarded-action";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -215,18 +217,33 @@ function RoomLinks({
 }
 
 function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
-  const [loading, setLoading] = useState(false);
+  const { pendingKey, run } = useGuardedAction();
+  const loading = pendingKey !== null;
   const t = useT();
+
   async function open() {
-    setLoading(true);
-    try {
-      const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
-      window.open(p.url, "_blank", "noopener,noreferrer");
-    } catch (e) {
-      toastError(e, t("toast.downloadFailed"), t);
-    } finally { setLoading(false); }
+    await run("download", async () => {
+      try {
+        const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
+        window.open(p.url, "_blank", "noopener,noreferrer");
+      } catch (e) {
+        toastError(e, t("toast.downloadFailed"), t);
+      }
+    });
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
+
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      loading={loading}
+      onClick={open}
+      icon={<Download className="h-3 w-3" />}
+    >
+      {label}
+    </Button>
+  );
 }
 
 type BubbleAttachment = {
@@ -511,12 +528,12 @@ function AdCarousel({ items }: { items: AdBoardItem[] }) {
 export default function RoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const router = useRouter();
+  const { pendingKey: action, run: runAction } = useGuardedAction();
 
   const [boot, setBoot] = useState<BootstrapPayload | null>(null);
   const [snap, setSnap] = useState<RoomSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [action, setAction] = useState<string | null>(null);
 
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -546,7 +563,7 @@ export default function RoomPage() {
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
-  const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
+  const roomEntrySubmitting = action === "room-entry";
   const [roomEntryErrors, setRoomEntryErrors] = useState<{
     name?: string;
     gateCode?: string;
@@ -562,6 +579,7 @@ export default function RoomPage() {
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const sendLockRef = useRef(false);
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
@@ -1264,80 +1282,93 @@ export default function RoomPage() {
 
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (sendLockRef.current) return;
+
     const content = text.trim();
     const sendingFiles = [...files];
     if (!content && sendingFiles.length === 0) return;
 
-    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const pendingAttachments: PendingAttachment[] = sendingFiles.map((file, index) => ({
-      id: `${localId}-${index}`,
-      fileName: file.name,
-      mimeType: file.type || "application/octet-stream",
-      sizeBytes: file.size,
-      previewType: guessPreviewType(file.type || "application/octet-stream"),
-      previewUrl:
-        (file.type || "").startsWith("image/") || (file.type || "").startsWith("video/")
-          ? URL.createObjectURL(file)
-          : null,
-    }));
+    sendLockRef.current = true;
+    try {
+      const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const pendingAttachments: PendingAttachment[] = sendingFiles.map((file, index) => ({
+        id: `${localId}-${index}`,
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        sizeBytes: file.size,
+        previewType: guessPreviewType(file.type || "application/octet-stream"),
+        previewUrl:
+          (file.type || "").startsWith("image/") || (file.type || "").startsWith("video/")
+            ? URL.createObjectURL(file)
+            : null,
+      }));
 
-    setPendingMessages((prev) => [
-      ...prev.filter((item) => item.status === "sending"),
-      {
-        localId,
-        createdAt: new Date().toISOString(),
-        content,
-        attachments: pendingAttachments,
-        progress: 0,
-        status: "sending",
-      },
-    ]);
+      setPendingMessages((prev) => [
+        ...prev.filter((item) => item.status === "sending"),
+        {
+          localId,
+          createdAt: new Date().toISOString(),
+          content,
+          attachments: pendingAttachments,
+          progress: 0,
+          status: "sending",
+        },
+      ]);
 
-    setText("");
-    setFiles([]);
+      setText("");
+      setFiles([]);
 
-    void runSend(localId, content, sendingFiles);
+      void runSend(localId, content, sendingFiles);
+    } finally {
+      // 状态清空后即可接受下一条消息；同一事件循环内的重复提交会被拒绝。
+      queueMicrotask(() => {
+        sendLockRef.current = false;
+      });
+    }
   }
   async function kick(m: RoomMemberItem) {
     if (!window.confirm(`确认将 ${m.user.nickname} 移出房间吗？`)) return;
-    setAction(`kick-${m.id}`);
-    try {
-      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) });
-      await refresh();
-      toast.success(t("toast.memberRemoved", { name: m.user.nickname }));
-    } catch (err) { toastError(err, t("toast.memberRemoveFailed"), t); }
-    finally { setAction(null); }
+    await runAction(`kick-${m.id}`, async () => {
+      try {
+        await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) });
+        await refresh();
+        toast.success(t("toast.memberRemoved", { name: m.user.nickname }));
+      } catch (err) {
+        toastError(err, t("toast.memberRemoveFailed"), t);
+      }
+    });
   }
 
   async function transferOwner(m: RoomMemberItem) {
     if (!window.confirm(`确认将房主身份转让给 ${m.user.nickname} 吗？转让后你将变为普通成员。`)) return;
-    setAction(`transfer-${m.id}`);
-    try {
-      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/transfer`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
-      await refresh();
-      toast.success(t("toast.ownerTransferred", { name: m.user.nickname }));
-    } catch (err) {
-      toastError(err, t("toast.transferFailed"), t);
-    } finally {
-      setAction(null);
-    }
+    await runAction(`transfer-${m.id}`, async () => {
+      try {
+        await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/transfer`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        await refresh();
+        toast.success(t("toast.ownerTransferred", { name: m.user.nickname }));
+      } catch (err) {
+        toastError(err, t("toast.transferFailed"), t);
+      }
+    });
   }
 
   async function review(r: PendingRequestItem, act: "approve" | "reject") {
-    setAction(`${act}-${r.id}`);
-    try {
-      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/join-requests/${r.id}`, { method: "POST", body: JSON.stringify({ action: act }) });
-      await refresh();
-      toast.success(
-        t(act === "approve" ? "toast.approvalApproved" : "toast.approvalRejected", {
-          name: r.user.nickname,
-        }),
-      );
-    } catch (err) { toastError(err, t("toast.approvalFailed"), t); }
-    finally { setAction(null); }
+    await runAction(`${act}-${r.id}`, async () => {
+      try {
+        await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/join-requests/${r.id}`, { method: "POST", body: JSON.stringify({ action: act }) });
+        await refresh();
+        toast.success(
+          t(act === "approve" ? "toast.approvalApproved" : "toast.approvalRejected", {
+            name: r.user.nickname,
+          }),
+        );
+      } catch (err) {
+        toastError(err, t("toast.approvalFailed"), t);
+      }
+    });
   }
 
   function openRoomEntry(mode: "create" | "join") {
@@ -1366,25 +1397,23 @@ export default function RoomPage() {
     }
     setRoomEntryErrors({});
 
-    setRoomEntrySubmitting(true);
+    await runAction("room-entry", async () => {
+      try {
+        const payload = await apiFetch<CreateResult>("/api/rooms", {
+          method: "POST",
+          body: JSON.stringify({
+            name: createName,
+            gateCode: createGateCode || undefined,
+          }),
+        });
 
-    try {
-      const payload = await apiFetch<CreateResult>("/api/rooms", {
-        method: "POST",
-        body: JSON.stringify({
-          name: createName,
-          gateCode: createGateCode || undefined,
-        }),
-      });
-
-      setRoomEntryMode(null);
-      localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
-      router.push(`/room/${payload.room.roomCode}`);
-    } catch (createError) {
-      toastError(createError, t("toast.createRoomFailed"), t);
-    } finally {
-      setRoomEntrySubmitting(false);
-    }
+        setRoomEntryMode(null);
+        localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
+        router.push(`/room/${payload.room.roomCode}`);
+      } catch (createError) {
+        toastError(createError, t("toast.createRoomFailed"), t);
+      }
+    });
   }
 
   async function quickJoinRoom(event: FormEvent<HTMLFormElement>) {
@@ -1405,34 +1434,32 @@ export default function RoomPage() {
     }
     setRoomEntryErrors({});
 
-    setRoomEntrySubmitting(true);
+    await runAction("room-entry", async () => {
+      try {
+        const targetRoomCode = joinRoomCode.trim();
+        const payload = await apiFetch<JoinResult>(`/api/rooms/${targetRoomCode}/join`, {
+          method: "POST",
+          body: JSON.stringify({
+            gateCode: joinGateCode || undefined,
+            inviteToken: joinInviteToken || undefined,
+          }),
+        });
 
-    try {
-      const targetRoomCode = joinRoomCode.trim();
-      const payload = await apiFetch<JoinResult>(`/api/rooms/${targetRoomCode}/join`, {
-        method: "POST",
-        body: JSON.stringify({
-          gateCode: joinGateCode || undefined,
-          inviteToken: joinInviteToken || undefined,
-        }),
-      });
+        if (payload.waitingApproval) {
+          toast.info(t("toast.joinRequestSent"));
+          setRoomEntryMode(null);
+          return;
+        }
 
-      if (payload.waitingApproval) {
-        toast.info(t("toast.joinRequestSent"));
-        setRoomEntryMode(null);
-        return;
+        if (payload.joined && payload.roomCode) {
+          setRoomEntryMode(null);
+          localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.roomCode);
+          router.push(`/room/${payload.roomCode}`);
+        }
+      } catch (joinError) {
+        toastError(joinError, t("toast.joinRoomFailed"), t);
       }
-
-      if (payload.joined && payload.roomCode) {
-        setRoomEntryMode(null);
-        localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.roomCode);
-        router.push(`/room/${payload.roomCode}`);
-      }
-    } catch (joinError) {
-      toastError(joinError, t("toast.joinRoomFailed"), t);
-    } finally {
-      setRoomEntrySubmitting(false);
-    }
+    });
   }
 
   async function leaveRoom(target: RoomTreeItem) {
@@ -1440,37 +1467,36 @@ export default function RoomPage() {
     if (!window.confirm(`确认退出房间「${target.name}」吗？`)) return;
 
     setOpenRoomMenu(null);
-    setAction(`leave-${target.roomCode}`);
 
-    try {
-      await apiFetch<{ success: boolean }>(`/api/rooms/${target.roomCode}/leave`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
+    await runAction(`leave-${target.roomCode}`, async () => {
+      try {
+        await apiFetch<{ success: boolean }>(`/api/rooms/${target.roomCode}/leave`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
 
-      const latestBoot = await apiFetch<BootstrapPayload>("/api/bootstrap");
-      setBoot(latestBoot);
+        const latestBoot = await apiFetch<BootstrapPayload>("/api/bootstrap");
+        setBoot(latestBoot);
 
-      if (target.roomCode === roomCode) {
-        const nextRoomCode =
-          latestBoot.tree.createdRooms[0]?.roomCode ??
-          latestBoot.tree.joinedRooms[0]?.roomCode;
-        if (nextRoomCode) {
-          localStorage.setItem(LAST_ROOM_STORAGE_KEY, nextRoomCode);
-          router.push(`/room/${nextRoomCode}`);
-        } else {
-          localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
-          router.push("/");
+        if (target.roomCode === roomCode) {
+          const nextRoomCode =
+            latestBoot.tree.createdRooms[0]?.roomCode ??
+            latestBoot.tree.joinedRooms[0]?.roomCode;
+          if (nextRoomCode) {
+            localStorage.setItem(LAST_ROOM_STORAGE_KEY, nextRoomCode);
+            router.push(`/room/${nextRoomCode}`);
+          } else {
+            localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
+            router.push("/");
+          }
+          return;
         }
-        return;
-      }
 
-      toast.success(t("toast.leftRoom", { name: target.name }));
-    } catch (leaveError) {
-      toastError(leaveError, t("toast.leaveRoomFailed"), t);
-    } finally {
-      setAction(null);
-    }
+        toast.success(t("toast.leftRoom", { name: target.name }));
+      } catch (leaveError) {
+        toastError(leaveError, t("toast.leaveRoomFailed"), t);
+      }
+    });
   }
 
   async function copyLink() {
@@ -1620,38 +1646,40 @@ export default function RoomPage() {
   }
 
   async function saveNotice() {
-    setAction("notice");
-    try {
-      const keepImageIndexes = noticeImages
-        .filter((image) => image.kind === "existing")
-        .map((image) => image.existingIndex)
-        .filter((index): index is number => typeof index === "number");
+    await runAction("notice", async () => {
+      try {
+        const keepImageIndexes = noticeImages
+          .filter((image) => image.kind === "existing")
+          .map((image) => image.existingIndex)
+          .filter((index): index is number => typeof index === "number");
 
-      const newNoticeFiles = noticeImages
-        .filter((image) => image.kind === "new" && image.file)
-        .map((image) => image.file as File);
+        const newNoticeFiles = noticeImages
+          .filter((image) => image.kind === "new" && image.file)
+          .map((image) => image.file as File);
 
-      const uploadedNewImages = await Promise.all(newNoticeFiles.map((file) => upload(file)));
+        const uploadedNewImages = await Promise.all(newNoticeFiles.map((file) => upload(file)));
 
-      await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, {
-        method: "POST",
-        body: JSON.stringify({
-          text: noticeText || undefined,
-          keepImageIndexes,
-          newImages: uploadedNewImages.map((image) => ({
-            s3Key: image.s3Key,
-            fileName: image.fileName,
-            mimeType: image.mimeType,
-            sizeBytes: image.sizeBytes,
-            storage: image.storage,
-          })),
-        }),
-      });
-      closeNoticeEditor();
-      await refresh();
-      toast.success(t("toast.noticeUpdated"));
-    } catch (err) { toastError(err, t("toast.noticeSaveFailed"), t); }
-    finally { setAction(null); }
+        await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, {
+          method: "POST",
+          body: JSON.stringify({
+            text: noticeText || undefined,
+            keepImageIndexes,
+            newImages: uploadedNewImages.map((image) => ({
+              s3Key: image.s3Key,
+              fileName: image.fileName,
+              mimeType: image.mimeType,
+              sizeBytes: image.sizeBytes,
+              storage: image.storage,
+            })),
+          }),
+        });
+        closeNoticeEditor();
+        await refresh();
+        toast.success(t("toast.noticeUpdated"));
+      } catch (err) {
+        toastError(err, t("toast.noticeSaveFailed"), t);
+      }
+    });
   }
 
   async function closeNoticePopup() {
@@ -1666,55 +1694,60 @@ export default function RoomPage() {
       return;
     }
 
-    try {
-      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
-      setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
-      setShowNoticePopup(false);
-    } catch (err) { toastError(err, t("toast.noticeSeenFailed"), t); }
+    await runAction("notice-seen", async () => {
+      try {
+        await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
+        setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
+        setShowNoticePopup(false);
+      } catch (err) {
+        toastError(err, t("toast.noticeSeenFailed"), t);
+      }
+    });
   }
 
   async function dissolve() {
     if (!window.confirm("确认解散当前房间？解散后成员将全部退出。")) return;
-    setAction("dissolve");
-    try {
-      const beforeSortedRooms = sortRooms([...rooms.created, ...rooms.joined]);
-      const currentIndex = beforeSortedRooms.findIndex((item) => item.roomCode === roomCode);
+    await runAction("dissolve", async () => {
+      try {
+        const beforeSortedRooms = sortRooms([...rooms.created, ...rooms.joined]);
+        const currentIndex = beforeSortedRooms.findIndex((item) => item.roomCode === roomCode);
 
-      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/dissolve`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
+        await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/dissolve`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
 
-      const latestBoot = await apiFetch<BootstrapPayload>("/api/bootstrap");
-      setBoot(latestBoot);
+        const latestBoot = await apiFetch<BootstrapPayload>("/api/bootstrap");
+        setBoot(latestBoot);
 
-      const remainingRooms = sortRooms([
-        ...latestBoot.tree.createdRooms,
-        ...latestBoot.tree.joinedRooms,
-      ]);
+        const remainingRooms = sortRooms([
+          ...latestBoot.tree.createdRooms,
+          ...latestBoot.tree.joinedRooms,
+        ]);
 
-      if (remainingRooms.length === 0) {
-        localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
-        router.push("/");
-        return;
+        if (remainingRooms.length === 0) {
+          localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
+          router.push("/");
+          return;
+        }
+
+        const nextIndex =
+          currentIndex >= 0
+            ? Math.min(currentIndex, remainingRooms.length - 1)
+            : 0;
+        const nextRoomCode = remainingRooms[nextIndex]?.roomCode ?? remainingRooms[0]?.roomCode;
+
+        if (nextRoomCode) {
+          localStorage.setItem(LAST_ROOM_STORAGE_KEY, nextRoomCode);
+          router.push(`/room/${nextRoomCode}`);
+        } else {
+          localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
+          router.push("/");
+        }
+      } catch (err) {
+        toastError(err, t("toast.dissolveFailed"), t);
       }
-
-      const nextIndex =
-        currentIndex >= 0
-          ? Math.min(currentIndex, remainingRooms.length - 1)
-          : 0;
-      const nextRoomCode = remainingRooms[nextIndex]?.roomCode ?? remainingRooms[0]?.roomCode;
-
-      if (nextRoomCode) {
-        localStorage.setItem(LAST_ROOM_STORAGE_KEY, nextRoomCode);
-        router.push(`/room/${nextRoomCode}`);
-      } else {
-        localStorage.removeItem(LAST_ROOM_STORAGE_KEY);
-        router.push("/");
-      }
-    }
-    catch (err) { toastError(err, t("toast.dissolveFailed"), t); }
-    finally { setAction(null); }
+    });
   }
 
   async function updateRoomName() {
@@ -1728,38 +1761,37 @@ export default function RoomPage() {
     }
     setSettingsErrors((prev) => ({ ...prev, roomName: undefined }));
 
-    setAction("room-name");
-    try {
-      const result = await apiFetch<{ name: string }>(
-        `/api/rooms/${roomCode}/name`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            name: normalized,
-          }),
-        },
-      );
+    await runAction("room-name", async () => {
+      try {
+        const result = await apiFetch<{ name: string }>(
+          `/api/rooms/${roomCode}/name`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              name: normalized,
+            }),
+          },
+        );
 
-      setSnap((prev) =>
-        prev
-          ? {
-              ...prev,
-              room: {
-                ...prev.room,
-                name: result.name,
-              },
-            }
-          : prev,
-      );
-      setRoomNameInput(result.name);
+        setSnap((prev) =>
+          prev
+            ? {
+                ...prev,
+                room: {
+                  ...prev.room,
+                  name: result.name,
+                },
+              }
+            : prev,
+        );
+        setRoomNameInput(result.name);
 
-      toast.success(t("toast.roomNameUpdated"));
-      await refresh();
-    } catch (err) {
-      toastError(err, t("toast.roomNameUpdateFailed"), t);
-    } finally {
-      setAction(null);
-    }
+        toast.success(t("toast.roomNameUpdated"));
+        await refresh();
+      } catch (err) {
+        toastError(err, t("toast.roomNameUpdateFailed"), t);
+      }
+    });
   }
 
   async function updateGateCode() {
@@ -1773,100 +1805,97 @@ export default function RoomPage() {
     }
     setSettingsErrors((prev) => ({ ...prev, gateCode: undefined }));
 
-    setAction("gate-code");
-    try {
-      await apiFetch<{ gateCode: string | null; hasGateCode: boolean }>(
-        `/api/rooms/${roomCode}/gate-code`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            gateCode: normalized || undefined,
-          }),
-        },
-      );
-      await refresh();
-      toast.success(normalized ? t("toast.gateCodeUpdated") : t("toast.gateCodeCleared"));
-    } catch (err) {
-      toastError(err, t("toast.gateCodeUpdateFailed"), t);
-    } finally {
-      setAction(null);
-    }
+    await runAction("gate-code", async () => {
+      try {
+        await apiFetch<{ gateCode: string | null; hasGateCode: boolean }>(
+          `/api/rooms/${roomCode}/gate-code`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              gateCode: normalized || undefined,
+            }),
+          },
+        );
+        await refresh();
+        toast.success(normalized ? t("toast.gateCodeUpdated") : t("toast.gateCodeCleared"));
+      } catch (err) {
+        toastError(err, t("toast.gateCodeUpdateFailed"), t);
+      }
+    });
   }
 
   async function updateJoinPolicy(nextAllowJoinRequest: boolean) {
     if (!isOwner) return;
-    setAction("join-policy");
-    try {
-      const result = await apiFetch<{ allowJoinRequest: boolean }>(
-        `/api/rooms/${roomCode}/join-policy`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            allowJoinRequest: nextAllowJoinRequest,
-          }),
-        },
-      );
+    await runAction("join-policy", async () => {
+      try {
+        const result = await apiFetch<{ allowJoinRequest: boolean }>(
+          `/api/rooms/${roomCode}/join-policy`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              allowJoinRequest: nextAllowJoinRequest,
+            }),
+          },
+        );
 
-      setSnap((prev) =>
-        prev
-          ? {
-              ...prev,
-              room: {
-                ...prev.room,
-                allowJoinRequest: result.allowJoinRequest,
-              },
-            }
-          : prev,
-      );
+        setSnap((prev) =>
+          prev
+            ? {
+                ...prev,
+                room: {
+                  ...prev.room,
+                  allowJoinRequest: result.allowJoinRequest,
+                },
+              }
+            : prev,
+        );
 
-      toast.success(
-        result.allowJoinRequest
-          ? t("toast.joinPolicyAllowed")
-          : t("toast.joinPolicyDenied"),
-      );
-      await refresh();
-    } catch (err) {
-      toastError(err, t("toast.joinPolicyUpdateFailed"), t);
-    } finally {
-      setAction(null);
-    }
+        toast.success(
+          result.allowJoinRequest
+            ? t("toast.joinPolicyAllowed")
+            : t("toast.joinPolicyDenied"),
+        );
+        await refresh();
+      } catch (err) {
+        toastError(err, t("toast.joinPolicyUpdateFailed"), t);
+      }
+    });
   }
 
   async function updateNeverExpire(nextNeverExpire: boolean) {
     if (!isOwner) return;
-    setAction("never-expire");
-    try {
-      const result = await apiFetch<{ neverExpire: boolean }>(
-        `/api/rooms/${roomCode}/never-expire`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            neverExpire: nextNeverExpire,
-          }),
-        },
-      );
+    await runAction("never-expire", async () => {
+      try {
+        const result = await apiFetch<{ neverExpire: boolean }>(
+          `/api/rooms/${roomCode}/never-expire`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              neverExpire: nextNeverExpire,
+            }),
+          },
+        );
 
-      setSnap((prev) =>
-        prev
-          ? {
-              ...prev,
-              room: {
-                ...prev.room,
-                neverExpire: result.neverExpire,
-              },
-            }
-          : prev,
-      );
+        setSnap((prev) =>
+          prev
+            ? {
+                ...prev,
+                room: {
+                  ...prev.room,
+                  neverExpire: result.neverExpire,
+                },
+              }
+            : prev,
+        );
 
-      toast.success(
-        result.neverExpire ? t("toast.neverExpireOn") : t("toast.neverExpireOff"),
-      );
-      await refresh();
-    } catch (err) {
-      toastError(err, t("toast.neverExpireUpdateFailed"), t);
-    } finally {
-      setAction(null);
-    }
+        toast.success(
+          result.neverExpire ? t("toast.neverExpireOn") : t("toast.neverExpireOff"),
+        );
+        await refresh();
+      } catch (err) {
+        toastError(err, t("toast.neverExpireUpdateFailed"), t);
+      }
+    });
   }
 
   if (loading) {
@@ -2160,14 +2189,10 @@ export default function RoomPage() {
                   <IconButton
                     aria-label={t("header.dissolve")}
                     danger
+                    loading={action === "dissolve"}
                     onClick={dissolve}
-                    disabled={action === "dissolve"}
                   >
-                    {action === "dissolve" ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
+                    <Trash2 className="h-4 w-4" />
                   </IconButton>
                 </Tooltip>
               ) : null}
@@ -2350,14 +2375,15 @@ export default function RoomPage() {
                   >
                     {text.length}/{MAX_MESSAGE_TEXT_CHARS}
                   </span>
-                  <button
+                  <Button
                     type="submit"
+                    variant="primary"
+                    size="sm"
                     disabled={!text.trim() && files.length === 0}
-                    className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
+                    icon={<SendHorizonal className="h-3.5 w-3.5" />}
                   >
-                    <SendHorizonal className="h-3.5 w-3.5" />
                     {t("composer.send")}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -2501,22 +2527,26 @@ export default function RoomPage() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button
+                          <Button
                             type="button"
+                            variant="secondary"
+                            size="sm"
+                            loading={action === `approve-${r.id}`}
                             onClick={() => review(r, "approve")}
-                            disabled={action === `approve-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
+                            icon={<Check className="h-3 w-3" />}
                           >
-                            <Check className="h-3 w-3" /> {t("approvals.approve")}
-                          </button>
-                          <button
+                            {t("approvals.approve")}
+                          </Button>
+                          <Button
                             type="button"
+                            variant="secondary"
+                            size="sm"
+                            loading={action === `reject-${r.id}`}
                             onClick={() => review(r, "reject")}
-                            disabled={action === `reject-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
+                            icon={<X className="h-3 w-3" />}
                           >
-                            <X className="h-3 w-3" /> {t("approvals.reject")}
-                          </button>
+                            {t("approvals.reject")}
+                          </Button>
                         </div>
                       </div>
                     ))
@@ -2549,14 +2579,16 @@ export default function RoomPage() {
                         aria-invalid={settingsErrors.roomName ? true : undefined}
                         aria-describedby={settingsErrors.roomName ? "settings-room-name-error" : undefined}
                       />
-                      <button
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
+                        loading={action === "room-name"}
                         onClick={updateRoomName}
-                        disabled={action === "room-name"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
+                        className="shrink-0"
                       >
                         {action === "room-name" ? t("settings.saving") : t("settings.save")}
-                      </button>
+                      </Button>
                     </div>
                     <FieldError id="settings-room-name-error" message={settingsErrors.roomName} />
                   </div>
@@ -2576,14 +2608,16 @@ export default function RoomPage() {
                         aria-invalid={settingsErrors.gateCode ? true : undefined}
                         aria-describedby={settingsErrors.gateCode ? "settings-gate-code-error" : undefined}
                       />
-                      <button
+                      <Button
                         type="button"
+                        variant="secondary"
+                        size="sm"
+                        loading={action === "gate-code"}
                         onClick={updateGateCode}
-                        disabled={action === "gate-code"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
+                        className="shrink-0"
                       >
                         {action === "gate-code" ? t("settings.saving") : t("settings.save")}
-                      </button>
+                      </Button>
                     </div>
                     <FieldError id="settings-gate-code-error" message={settingsErrors.gateCode} />
                     <p className="mt-2 text-[11px] text-ink-faint">
@@ -2720,14 +2754,17 @@ export default function RoomPage() {
                   />
                   <FieldError id="room-entry-create-gate-code-error" message={roomEntryErrors.gateCode} />
                 </label>
-                <button
+                <Button
                   type="submit"
-                  disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  variant="secondary"
+                  size="md"
+                  block
+                  loading={roomEntrySubmitting}
+                  disabled={!canAddMoreRooms}
+                  icon={<Plus className="h-4 w-4" />}
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   创建并进入
-                </button>
+                </Button>
               </form>
             ) : (
               <form className="space-y-3" onSubmit={quickJoinRoom} noValidate>
@@ -2774,14 +2811,17 @@ export default function RoomPage() {
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                   />
                 </label>
-                <button
+                <Button
                   type="submit"
-                  disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  variant="secondary"
+                  size="md"
+                  block
+                  loading={roomEntrySubmitting}
+                  disabled={!canAddMoreRooms}
+                  icon={<Plus className="h-4 w-4" />}
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   加入房间
-                </button>
+                </Button>
               </form>
             )}
           </section>
@@ -2893,28 +2933,21 @@ export default function RoomPage() {
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeNoticeEditor}
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft"
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={closeNoticeEditor}>
                 取消
-              </button>
-              <button
-                type="button"
-                onClick={previewNoticeDraft}
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft hover:bg-elevated"
-              >
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={previewNoticeDraft}>
                 预览
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
+                loading={action === "notice"}
                 onClick={saveNotice}
-                disabled={action === "notice"}
-                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink disabled:opacity-60"
               >
-                {action === "notice" ? "保存中..." : "保存公告"}
-              </button>
+                {action === "notice" ? t("settings.saving") : "保存公告"}
+              </Button>
             </div>
 
           </section>
@@ -2955,13 +2988,15 @@ export default function RoomPage() {
               </div>
             ) : null}
             <div className="mt-4 flex justify-end">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
+                loading={!isPreviewingNoticeDraft && action === "notice-seen"}
                 onClick={closeNoticePopup}
-                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink"
               >
                 {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
-              </button>
+              </Button>
             </div>
           </section>
         </div>
