@@ -18,13 +18,21 @@ type MenuProps = {
   children: ReactNode;
   align?: "start" | "end";
   className?: string;
+  triggerClassName?: string;
 };
 
 const MenuCloseContext = createContext<() => void>(() => {});
 
 // 轻量操作菜单：点击触发、点击外部 / Esc 关闭，键盘聚焦首个菜单项。
 // 面板与菜单项复用设计系统的 .menu-panel / .menu-item。
-export function Menu({ label, trigger, children, align = "end", className }: MenuProps) {
+export function Menu({
+  label,
+  trigger,
+  children,
+  align = "end",
+  className,
+  triggerClassName,
+}: MenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -73,7 +81,7 @@ export function Menu({ label, trigger, children, align = "end", className }: Men
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((prev) => !prev)}
-        className={clsx("icon-btn", open && "icon-btn--active")}
+        className={clsx("icon-btn", open && "icon-btn--active", triggerClassName)}
       >
         {trigger}
       </button>

@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.68 左侧房间栏重构（REQ-202610-0472 / ui-09）
+
+### Scope
+- Rebuild the left room sidebar from a bordered list into a layered, stroke-free navigation surface: hierarchy comes from background tiers, spacing and a 2px active rail instead of `border` on every row.
+- Add hover quick actions per room (copy room code for every room, leave-room menu for `MEMBER` rooms), a clear active state (background + rail + live dot + `aria-current`), and contextual empty states for both groups.
+- Keep the existing collapse/group behavior and align the sidebar with the shared `IconButton` / `Tooltip` / `Menu` primitives from the design-system branches.
+
+### Changes
+- `src/components/chat/room-sidebar.tsx`: new `RoomSidebar` presentational component (`forwardRef`, grouped rooms, collapse toggles with `aria-expanded`, hover actions, empty states, footer with app/presence/current-user metadata).
+- `src/components/chat/room-sidebar.test.tsx`: 8 Vitest cases covering active marking, empty states, copy success/failure, member leave menu, no leave action for owned rooms, collapse state and footer metadata.
+- `src/components/ui/menu.tsx`: add `triggerClassName` so compact icon triggers can size the shared menu button.
+- `src/app/room/[roomCode]/page.tsx`: replace the inline sidebar markup and the portal-based room menu with `RoomSidebar`; drop the now-unused floating-menu state and click-outside/Escape effect.
+- `src/app/globals.css`: add `.room-sidebar*`, `.room-group*`, `.room-item*` and `.room-empty*` styles. Hover/active use `--ds-action-soft`; the active rail animates only `transform`; hover actions animate `opacity` + `transform` and stay visible on `@media (hover: none)`.
+- `src/lib/i18n/messages.ts`: add `nav.empty.*`, `nav.currentRoom`, `nav.copyCode`, `nav.copied`, `nav.copyFailed`, `nav.roomActions`, `nav.leaveRoom`, `nav.leaving`, `nav.gateCode` (zh + en parity).
+- `vitest.config.mts` / `vitest.setup.ts`: add the Vitest + jsdom + Testing Library harness used by the new component tests.
+
+### Regression Checklist
+- `npm test` green: 1 file, 8 tests passed.
+- `npm run lint` green.
+- `npm run build` green (Next.js 16.2.1, TypeScript 0 errors, 12 static pages).
+- Copy failures surface through `onCopyError` → page `setError`; no silent `catch`.
+- Keyboard: group toggles expose `aria-expanded`; room links expose `aria-current="page"`; quick actions appear on `focus-within` and keep `focus-visible` outlines.
+- No database was available locally, so the real room page was not exercised end-to-end.
+
+### Versioning / History
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`: version synced to `0.1.68`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.65 聊天页顶栏重构（REQ-202610-0471 / ui-08）
 
 ### Scope

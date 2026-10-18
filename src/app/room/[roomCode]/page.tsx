@@ -4,15 +4,14 @@
 import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
-import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeftClose, PanelRightClose, Plus, SendHorizonal, Shield, UserMinus, X } from "lucide-react";
+import { Check, CheckCheck, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelRightClose, Plus, SendHorizonal, UserMinus, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_ROOM_MEMBERS, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { RoomHeader } from "@/components/chat/room-header";
+import { RoomSidebar } from "@/components/chat/room-sidebar";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useT } from "@/lib/i18n/context";
@@ -37,11 +36,6 @@ type MessageListPayload = { messages: MessageItem[] };
 type ImageViewerState = { url: string; fileName: string };
 type JoinResult = { joined: boolean; waitingApproval?: boolean; roomCode?: string };
 type CreateResult = { room: { roomCode: string } };
-type RoomMenuState = {
-  room: RoomTreeItem;
-  top: number;
-  left: number;
-};
 type PendingAttachment = {
   id: string;
   fileName: string;
@@ -151,62 +145,6 @@ function mergeIncomingMessages(
     ...prev,
     messages: trimmed,
   });
-}
-
-function RoomLinks({
-  rooms,
-  activeCode,
-  onToggleMenu,
-  emptyLabel = "暂无",
-}: {
-  rooms: RoomTreeItem[];
-  activeCode: string;
-  onToggleMenu: (room: RoomTreeItem, triggerButton: HTMLButtonElement) => void;
-  emptyLabel?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      {rooms.length === 0 ? <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">{emptyLabel}</p> : rooms.map((r) => (
-        <div
-          key={r.id}
-          className={clsx(
-            "rounded-lg border px-3 py-2 text-sm",
-            activeCode === r.roomCode
-              ? "border-action-border bg-action-soft text-ink"
-              : "border-line-subtle bg-panel/70 text-ink-soft hover:border-line",
-          )}
-        >
-          <div className="flex items-start gap-2">
-            <Link href={`/room/${r.roomCode}`} className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate">{r.name}</span>
-                {activeCode === r.roomCode ? (
-                  <span
-                    title="当前房间"
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-success shadow-[0_0_8px_var(--ds-success-glow)]"
-                  />
-                ) : null}
-                {r.hasGateCode ? <Shield className="h-3.5 w-3.5 shrink-0 text-ink-soft" /> : null}
-              </div>
-              <p className="mt-1 truncate font-mono text-[11px] text-ink-faint">{r.roomCode}</p>
-            </Link>
-            {r.role === "MEMBER" ? (
-              <button
-                type="button"
-                aria-label="房间操作"
-                aria-haspopup="menu"
-                data-room-menu-trigger={r.id}
-                onClick={(event) => onToggleMenu(r, event.currentTarget)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
@@ -537,7 +475,6 @@ export default function RoomPage() {
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const [roomNameInput, setRoomNameInput] = useState("");
-  const [openRoomMenu, setOpenRoomMenu] = useState<RoomMenuState | null>(null);
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
@@ -552,7 +489,6 @@ export default function RoomPage() {
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
-  const floatingRoomMenuRef = useRef<HTMLDivElement | null>(null);
   const memberMenuRef = useRef<HTMLDivElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
   const membersPanelRef = useRef<HTMLElement | null>(null);
@@ -628,40 +564,6 @@ export default function RoomPage() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [imageViewer]);
-
-  useEffect(() => {
-    if (!openRoomMenu) return;
-    const onMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (floatingRoomMenuRef.current?.contains(target)) return;
-
-      const triggerElement = target instanceof Element
-        ? target.closest(`[data-room-menu-trigger="${openRoomMenu.room.id}"]`)
-        : null;
-      if (triggerElement) return;
-
-      setOpenRoomMenu(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenRoomMenu(null);
-      }
-    };
-    const closeRoomMenu = () => {
-      setOpenRoomMenu(null);
-    };
-    window.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("resize", closeRoomMenu);
-    window.addEventListener("scroll", closeRoomMenu, true);
-    return () => {
-      window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("resize", closeRoomMenu);
-      window.removeEventListener("scroll", closeRoomMenu, true);
-    };
-  }, [openRoomMenu]);
 
   useEffect(() => {
     if (!openMemberMenuId) return;
@@ -1378,7 +1280,6 @@ export default function RoomPage() {
     if (target.role !== "MEMBER") return;
     if (!window.confirm(`确认退出房间「${target.name}」吗？`)) return;
 
-    setOpenRoomMenu(null);
     setAction(`leave-${target.roomCode}`);
     setError(null);
     setHint(null);
@@ -1876,25 +1777,6 @@ export default function RoomPage() {
   };
   const isPreviewingNoticeDraft = Boolean(noticePreview);
 
-  function handleToggleRoomMenu(targetRoom: RoomTreeItem, triggerButton: HTMLButtonElement) {
-    if (openRoomMenu?.room.id === targetRoom.id) {
-      setOpenRoomMenu(null);
-      return;
-    }
-    const rect = triggerButton.getBoundingClientRect();
-    const menuWidth = 100;
-    const menuHeight = 36;
-    const viewportPadding = 8;
-    const nextLeft = Math.max(
-      viewportPadding,
-      Math.min(window.innerWidth - menuWidth - viewportPadding, rect.right - menuWidth),
-    );
-    const nextTop = rect.bottom + 6 + menuHeight > window.innerHeight
-      ? Math.max(viewportPadding, rect.top - menuHeight - 6)
-      : rect.bottom + 6;
-    setOpenRoomMenu({ room: targetRoom, left: nextLeft, top: nextTop });
-  }
-
   return (
     <>
       <main
@@ -1906,124 +1788,36 @@ export default function RoomPage() {
           !navVisible && !membersVisible && "xl:grid-cols-[minmax(0,1fr)]",
         )}
       >
-        <aside
+        <RoomSidebar
           ref={roomsPanelRef}
+          rooms={rooms}
+          activeCode={roomCode}
+          roomCount={roomCount}
+          maxRooms={MAX_USER_ROOMS}
+          canAddMoreRooms={canAddMoreRooms}
+          submitting={roomEntrySubmitting}
+          createdCollapsed={createdCollapsed}
+          joinedCollapsed={joinedCollapsed}
+          onToggleCreated={toggleCreatedCollapsed}
+          onToggleJoined={toggleJoinedCollapsed}
+          onCreate={() => openRoomEntry("create")}
+          onJoin={() => openRoomEntry("join")}
+          onLeaveRoom={(targetRoom) => {
+            void leaveRoom(targetRoom);
+          }}
+          leavingRoomCode={
+            action?.startsWith("leave-") ? action.slice("leave-".length) : null
+          }
+          onCopyError={(message) => setError(message)}
+          onToggleNav={toggleNavCollapsed}
+          app={snap.app}
+          stats={snap.stats}
+          me={snap.me}
           className={clsx(
-            "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-1 xl:max-h-none",
+            "order-2 min-h-0 max-h-[52vh] xl:order-1 xl:max-h-none",
             navVisible ? "flex" : "hidden",
           )}
-        >
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-line-subtle bg-panel/70 p-1">
-                <Image
-                  src="/1.png"
-                  alt="Temp Bendy"
-                  fill
-                  sizes="36px"
-                  className="theme-dark-only object-contain p-1"
-                />
-                <Image
-                  src="/1-light.png"
-                  alt="Temp Bendy（日间）"
-                  fill
-                  sizes="36px"
-                  className="theme-light-only object-contain p-1"
-                />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-ink-faint">{t("nav.title")}</p>
-                <h2 className="truncate text-lg font-semibold text-ink">{t("nav.subtitle")}</h2>
-              </div>
-            </div>
-            <Tooltip label={t("nav.collapse")}>
-              <IconButton aria-label={t("nav.collapse")} onClick={toggleNavCollapsed}>
-                <PanelLeftClose className="h-4 w-4" />
-              </IconButton>
-            </Tooltip>
-          </div>
-          <p className="mb-3 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-faint">
-            <span>{t("nav.count", { count: roomCount, max: MAX_USER_ROOMS })}</span>
-            {!canAddMoreRooms ? <span className="text-ink-faint">· {t("nav.count.full")}</span> : null}
-          </p>
-          <div className="flex-1 space-y-4 overflow-y-auto pb-3">
-            <div>
-              <div className="mb-2 flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={toggleCreatedCollapsed}
-                  aria-expanded={!createdCollapsed}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-ink-faint hover:text-ink-soft"
-                >
-                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !createdCollapsed && "rotate-90")} />
-                  <span className="truncate">{t("nav.group.created")}</span>
-                  <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.created.length}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t("nav.create")}
-                  title={t("nav.create")}
-                  onClick={() => openRoomEntry("create")}
-                  disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              {!createdCollapsed ? (
-                <RoomLinks rooms={rooms.created} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
-              ) : null}
-            </div>
-            <div>
-              <div className="mb-2 flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={toggleJoinedCollapsed}
-                  aria-expanded={!joinedCollapsed}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-ink-faint hover:text-ink-soft"
-                >
-                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !joinedCollapsed && "rotate-90")} />
-                  <span className="truncate">{t("nav.group.joined")}</span>
-                  <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.joined.length}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t("nav.join")}
-                  title={t("nav.join")}
-                  onClick={() => openRoomEntry("join")}
-                  disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              {!joinedCollapsed ? (
-                <RoomLinks rooms={rooms.joined} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
-              ) : null}
-            </div>
-          </div>
-          <div className="mt-auto space-y-2 rounded-xl border border-line-subtle bg-panel/70 p-3 text-xs text-ink-muted">
-            <p>
-              {t("footer.version")} <span className="font-semibold text-ink-soft">{snap.app.version}</span>
-            </p>
-            <p>
-              {t("footer.license")} <span className="font-semibold text-ink-soft">{snap.app.openSource}</span>
-            </p>
-            <p>
-              {t("footer.roomOnline")} <span className="font-semibold text-ink-soft">{snap.stats.roomOnline}</span>
-            </p>
-            <p>
-              {t("footer.totalOnline")} <span className="font-semibold text-ink-soft">{snap.stats.totalOnline}</span>
-            </p>
-            <div className="pt-2">
-              <p className="text-ink-faint">{t("footer.currentUser")}</p>
-              <div className="mt-1 flex items-center gap-2">
-                <Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} />
-                <span className="text-sm text-ink-soft">{snap.me.nickname}</span>
-              </div>
-            </div>
-          </div>
-        </aside>
+        />
 
         <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
           <RoomHeader
@@ -2504,30 +2298,6 @@ export default function RoomPage() {
             {error ? <p className="mt-3 text-xs text-ink-soft">{error}</p> : null}
         </aside>
       </main>
-
-      {openRoomMenu
-        ? createPortal(
-          <div
-            ref={floatingRoomMenuRef}
-            role="menu"
-            className="fixed z-[90] w-24 rounded-md border border-line bg-panel p-1 shadow-lg"
-            style={{ top: `${openRoomMenu.top}px`, left: `${openRoomMenu.left}px` }}
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                void leaveRoom(openRoomMenu.room);
-              }}
-              disabled={action === `leave-${openRoomMenu.room.roomCode}`}
-              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
-            >
-              退出房间
-            </button>
-          </div>,
-          document.body,
-        )
-        : null}
 
       {roomEntryMode ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4">
