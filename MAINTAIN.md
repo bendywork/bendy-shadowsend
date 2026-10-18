@@ -3,11 +3,11 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
-## 2026-10-18: v0.1.66 表单控件体系统一（REQ-202610-0467 / ui-02）
+## 2026-10-18: v0.1.66 表单控件体系统一（REQ-202610-0467 / ui-04）
 
 ### Scope
 - Unify the form-control layer on top of the v0.1.65 design tokens: one visual and interaction contract for text inputs, textareas, selects, switches, segmented controls and field messages (label / hint / error).
-- Cover hover, focus, error, disabled and read-only affordances in both themes; error states pair a danger border/background with `aria-invalid` and `aria-describedby`.
+- Cover hover, focus, error and disabled affordances in both themes; error states pair a danger border/background with `aria-invalid` and `aria-describedby`.
 - Bump app version to `0.1.66`.
 
 ### Changes

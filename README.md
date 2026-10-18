@@ -368,7 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
-- `0.1.66` 表单控件体系统一（REQ-202610-0467 / ui-02）：新增 `Field`/`TextInput`/`TextArea`/`Select`/`Switch`/`SegmentedControl` 共享原语，`Field` 通过 context 自动注入 `id`、`aria-invalid`、`aria-describedby`；输入框、文本域、选择器、开关与分段控件统一 hover/focus/error/disabled 视觉状态。
+- `0.1.66` 表单控件体系统一（REQ-202610-0467 / ui-04）：新增 `Field`/`TextInput`/`TextArea`/`Select`/`Switch`/`SegmentedControl` 共享原语，`Field` 通过 context 自动注入 `id`、`aria-invalid`、`aria-describedby`；输入框、文本域、选择器、开关与分段控件统一 hover/focus/error/disabled 视觉状态。
 - `globals.css` 重建 `.field`（40px、聚焦环、错误态 danger 边框/底色、禁用态）、`.form-label`/`.form-hint`/`.form-error`、`.switch`（含 `--sm`）与 `.segmented` 组件类，全部消费 v0.1.65 语义令牌。
 - 首页加入/创建、房间入口、设置面板、公告编辑器与成员栏标签全部迁移到共享控件；补齐行内必填与 6 位门禁码校验，错误文案与 ARIA 关联同步；新增 zh/en 文案键。
 
