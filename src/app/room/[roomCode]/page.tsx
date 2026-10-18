@@ -12,6 +12,7 @@ import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, D
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { AnnouncementModal } from "@/components/chat/announcement-modal";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -539,6 +540,7 @@ export default function RoomPage() {
   const [noticeImages, setNoticeImages] = useState<NoticeEditorImage[]>([]);
 
   const [showNoticePopup, setShowNoticePopup] = useState(false);
+  const [noticeSeenPending, setNoticeSeenPending] = useState(false);
   const [noticePreview, setNoticePreview] = useState<NoticePreviewState | null>(null);
   const [gateCodeInput, setGateCodeInput] = useState("");
   const [roomNameInput, setRoomNameInput] = useState("");
@@ -1655,6 +1657,8 @@ export default function RoomPage() {
   }
 
   async function closeNoticePopup() {
+    if (noticeSeenPending) return;
+
     if (noticePreview) {
       setNoticePreview(null);
       setShowNoticePopup(false);
@@ -1666,11 +1670,17 @@ export default function RoomPage() {
       return;
     }
 
+    setNoticeSeenPending(true);
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
       setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
       setShowNoticePopup(false);
-    } catch (err) { toastError(err, t("toast.noticeSeenFailed"), t); }
+      toast.success(t("toast.noticeSeen"));
+    } catch (err) {
+      toastError(err, t("toast.noticeSeenFailed"), t);
+    } finally {
+      setNoticeSeenPending(false);
+    }
   }
 
   async function dissolve() {
@@ -2921,51 +2931,18 @@ export default function RoomPage() {
         </div>
       ) : null}
 
-      {showNoticePopup ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
-            <div className="mb-3 flex items-center gap-2 text-ink-soft">
-              <Megaphone className="h-5 w-5" />
-              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
-            </div>
-            {noticePopupContent.text ? (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{noticePopupContent.text}</p>
-            ) : null}
-            {noticePopupContent.images.length > 0 ? (
-              <div
-                className={clsx(
-                  "mt-3 grid gap-3",
-                  noticePopupContent.images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2",
-                )}
-              >
-                {noticePopupContent.images.map((image, index) => (
-                  <button
-                    key={`${image.imageUrl}-${index}`}
-                    type="button"
-                    onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
-                    className="overflow-hidden rounded-lg border border-line bg-media"
-                  >
-                    <img
-                      src={image.imageUrl}
-                      alt={image.imageName ?? "announcement"}
-                      className="max-h-[42vh] w-full object-contain"
-                    />
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={closeNoticePopup}
-                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink"
-              >
-                {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <AnnouncementModal
+        open={showNoticePopup}
+        text={noticePopupContent.text}
+        images={noticePopupContent.images}
+        updatedAt={isPreviewingNoticeDraft ? null : snap.announcement.updatedAt}
+        unread={!isPreviewingNoticeDraft && Boolean(snap.announcement.showToMe)}
+        preview={isPreviewingNoticeDraft}
+        pending={noticeSeenPending}
+        paused={Boolean(imageViewer)}
+        onClose={() => { void closeNoticePopup(); }}
+        onOpenImage={openImageViewer}
+      />
 
       {imageViewer ? (
         <div

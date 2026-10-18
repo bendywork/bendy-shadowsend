@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 公告阅读弹窗重构（REQ-202610-0487 / ui-24）
+
+### Scope
+- Rebuild the announcement reader as a dedicated, portal-based dialog: editorial typography (65ch column, 15px/1.9, first-paragraph emphasis, blank-line paragraphs), unread badge, unified acknowledge/close flow, and a preview mode for unsaved drafts.
+- All close paths (primary button, X, Esc, backdrop) share one handler: unread announcements call `/announcement/seen` once, close on success with a toast, and keep the dialog open on failure.
+
+### Changes
+- `src/components/chat/announcement-modal.tsx` (new): `AnnouncementModal` owns portal, body scroll lock, focus trap/restore, Esc and backdrop dismissal; `AnnouncementModalContent` is the pure presentational dialog used by tests.
+- `src/lib/announcement-reader.ts` (new): `splitAnnouncementParagraphs` (blank-line paragraphs, CRLF normalization, single line breaks preserved) and `formatAnnouncementUpdatedAt` (zh/en Intl formatting, invalid timestamps return null).
+- `src/app/announcement-modal.css` (new): `.announcement-modal*` styles using `--ds-*` tokens only; 65ch reading column, image grid (1 / 2–3 columns), hover/focus affordances, full-screen ≤480px layout with 44px actions, `prefers-reduced-motion` fallbacks.
+- `src/app/room/[roomCode]/page.tsx`: removed the inline announcement popup; added `noticeSeenPending`, unified `closeNoticePopup` read/close flow, success toast, and paused the dialog while the image viewer is open.
+- `src/lib/i18n/messages.ts`: added zh/en `announcement.reader.*` keys (title, preview, unread, updated time, acknowledge/acknowledging, hints, image count/alt) and `toast.noticeSeen`.
+- `src/lib/announcement-reader.test.ts` + `src/components/chat/announcement-modal.test.ts` (new): paragraph/time pure tests and 5 server-rendered dialog state assertions.
+- `docs/design-system-announcement-reader.md` (new): structure, state machine, typography, accessibility and acceptance checklist.
+- `src/app/globals.css`: imports `announcement-modal.css`.
+
+### Regression Checklist
+- `npm test` green (all suites, including 10 new announcement cases).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
