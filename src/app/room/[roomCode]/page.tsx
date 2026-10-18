@@ -22,6 +22,11 @@ import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
+import {
+  createUploadChunkPlan,
+  validateUploadFile,
+  type UploadPreflightError,
+} from "@/lib/upload-preflight";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
@@ -765,14 +770,57 @@ export default function RoomPage() {
     return content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD && !expanded;
   }
 
+  function uploadPreflightMessage(error: UploadPreflightError): string {
+    switch (error.code) {
+      case "UPLOAD_FILE_EMPTY":
+        return t("toast.uploadEmptyFile");
+      case "UPLOAD_SIZE_INVALID":
+        return t("toast.uploadSizeInvalid");
+      case "UPLOAD_TYPE_UNSUPPORTED":
+        return t("toast.uploadUnsupportedType", {
+          ext: error.params.ext ? `.${error.params.ext}` : "",
+        });
+      case "UPLOAD_SERVICE_LIMIT_EXCEEDED":
+        return t("toast.uploadTooLargeForService", {
+          service: t(
+            error.params.service === "sang"
+              ? "upload.service.sang"
+              : "upload.service.picSl",
+          ),
+          max: error.params.max ?? 0,
+        });
+      case "UPLOAD_CHUNK_COUNT_EXCEEDED":
+        return t("toast.uploadChunkCountExceeded", {
+          count: error.params.count ?? 0,
+          max: error.params.max ?? 0,
+        });
+    }
+  }
+
   function addFiles(input: FileList | File[]) {
     const incoming = Array.from(input);
     if (!incoming.length) return;
+
+    const accepted: File[] = [];
+    for (const file of incoming) {
+      const preflight = validateUploadFile({
+        fileName: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+      });
+      if (!preflight.ok) {
+        toast.error(uploadPreflightMessage(preflight.error));
+        continue;
+      }
+      accepted.push(file);
+    }
+
+    if (!accepted.length) return;
     const maxFiles = 20;
-    if (files.length + incoming.length > maxFiles) {
+    if (files.length + accepted.length > maxFiles) {
       toast.warning(t("toast.fileLimit", { max: maxFiles }));
     }
-    setFiles((prev) => [...prev, ...incoming].slice(0, maxFiles));
+    setFiles((prev) => [...prev, ...accepted].slice(0, maxFiles));
   }
 
   async function readClipboard() {
@@ -981,7 +1029,8 @@ export default function RoomPage() {
   }
 
   async function uploadByChunkedProxy(file: File, onProgress?: (percent: number) => void) {
-    const totalChunks = Math.ceil(file.size / DUFS_CHUNK_SIZE_BYTES);
+    const plan = createUploadChunkPlan(file.size, DUFS_CHUNK_SIZE_BYTES);
+    const totalChunks = plan.totalChunks;
     let dufsPath: string | null = null;
 
     const cleanupDufsFile = async () => {
@@ -994,8 +1043,8 @@ export default function RoomPage() {
     };
 
     for (let i = 0; i < totalChunks; i++) {
-      const start = i * DUFS_CHUNK_SIZE_BYTES;
-      const end = Math.min(start + DUFS_CHUNK_SIZE_BYTES, file.size);
+      const start = i * plan.chunkSize;
+      const end = Math.min(start + plan.chunkSize, file.size);
       const chunk = file.slice(start, end);
 
       const formData = new FormData();
@@ -1135,6 +1184,15 @@ export default function RoomPage() {
   }
 
   async function upload(file: File, onProgress?: (percent: number) => void) {
+    const preflight = validateUploadFile({
+      fileName: file.name,
+      mimeType: file.type,
+      sizeBytes: file.size,
+    });
+    if (!preflight.ok) {
+      throw new Error(uploadPreflightMessage(preflight.error));
+    }
+
     try {
       return await uploadDirectToS3(file, onProgress);
     } catch (directUploadError) {
@@ -2265,24 +2323,32 @@ export default function RoomPage() {
           <form ref={composerFormRef} onSubmit={send} className="border-t border-line-subtle p-3 sm:p-4">
             {files.length ? (
               <div className="mb-2 flex flex-wrap gap-2">
-                {files.map((file, index) => (
-                  <span
-                    key={`${file.name}-${file.size}-${index}`}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-line bg-panel px-2.5 py-1.5 text-xs text-ink-soft"
-                  >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
-                    <span className="max-w-[200px] truncate">{file.name}</span>
-                    <span className="shrink-0 text-[10px] text-ink-faint">{formatBytes(file.size)}</span>
-                    <button
-                      type="button"
-                      aria-label={t("composer.removeFile")}
-                      onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
-                      className="ml-0.5 rounded-full p-0.5 text-ink-muted transition-ui hover:bg-elevated-strong hover:text-ink"
+                {files.map((file, index) => {
+                  const chunkPlan = createUploadChunkPlan(file.size);
+                  return (
+                    <span
+                      key={`${file.name}-${file.size}-${index}`}
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-line bg-panel px-2.5 py-1.5 text-xs text-ink-soft"
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                      <span className="max-w-[200px] truncate">{file.name}</span>
+                      <span className="shrink-0 text-[10px] text-ink-faint">{formatBytes(file.size)}</span>
+                      {chunkPlan.requiresChunking ? (
+                        <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[10px] text-ink-muted">
+                          {t("composer.chunkCount", { count: chunkPlan.totalChunks })}
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label={t("composer.removeFile")}
+                        onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
+                        className="ml-0.5 rounded-full p-0.5 text-ink-muted transition-ui hover:bg-elevated-strong hover:text-ink"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
               </div>
             ) : null}
 

@@ -8,6 +8,11 @@ import { prisma } from "@/lib/prisma";
 import { parseJsonBody } from "@/lib/route";
 import { createAttachmentPreviewUrl, createUploadUrl } from "@/lib/s3";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
+import {
+  uploadPreflightErrorMessage,
+  uploadPreflightHttpStatus,
+  validateUploadFile,
+} from "@/lib/upload-preflight";
 import { uploadPrepareSchema } from "@/lib/validators";
 
 const keyId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
@@ -41,6 +46,16 @@ export async function POST(
     }
 
     await assertRoomMember(room.id, user.id);
+
+    const preflight = validateUploadFile(payload);
+
+    if (!preflight.ok) {
+      throw new ApiError(
+        uploadPreflightHttpStatus(preflight.error),
+        uploadPreflightErrorMessage(preflight.error),
+        preflight.error.code,
+      );
+    }
 
     if (!isS3Configured()) {
       throw new ApiError(

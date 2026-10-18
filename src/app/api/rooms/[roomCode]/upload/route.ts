@@ -2,16 +2,19 @@ import { AttachmentStorage, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { customAlphabet } from "nanoid";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
-import { MAX_PROXY_UPLOAD_BYTES } from "@/lib/constants";
 import { isS3Configured } from "@/lib/env";
 import { isDufsConfigured, uploadImageToDufs } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 import { createAttachmentPreviewUrl, uploadObject } from "@/lib/s3";
+import {
+  uploadPreflightErrorMessage,
+  uploadPreflightHttpStatus,
+  validateUploadFile,
+} from "@/lib/upload-preflight";
 
 const keyId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
-const proxyUploadLimitBytes = MAX_PROXY_UPLOAD_BYTES;
 
 type Params = {
   roomCode: string;
@@ -49,15 +52,17 @@ export async function POST(
       throw new ApiError(400, "Missing uploaded file", "FILE_MISSING");
     }
 
-    if (uploaded.size <= 0) {
-      throw new ApiError(400, "File size must be greater than 0", "INVALID_FILE_SIZE");
-    }
+    const preflight = validateUploadFile({
+      fileName: uploaded.name || `upload-${Date.now()}`,
+      mimeType: uploaded.type,
+      sizeBytes: uploaded.size,
+    });
 
-    if (uploaded.size > proxyUploadLimitBytes) {
+    if (!preflight.ok) {
       throw new ApiError(
-        413,
-        `Proxy upload supports files up to ${Math.floor(proxyUploadLimitBytes / 1024 / 1024)}MB`,
-        "FILE_TOO_LARGE",
+        uploadPreflightHttpStatus(preflight.error),
+        uploadPreflightErrorMessage(preflight.error),
+        preflight.error.code,
       );
     }
 

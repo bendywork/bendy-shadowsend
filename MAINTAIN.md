@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 上传前置校验与服务规则对齐（REQ-202610-0515 / up-06）
+
+### Scope
+- Add one shared preflight module used by the browser and every upload API, so old S3/DUFS checks cannot admit files that file.sang.pub or pic.sl.al will reject.
+- Align limits: sang meitu ≤20MB (5 image types), sang icve ≤100MB (no HTML), pic.sl.al ≤200MB (58-extension whitelist).
+- Precompute chunk plans for the 4.5MB Vercel body limit: 4MB chunks, max 50 chunks for 200MB; keep the legacy 3MB DUFS path on the same planner.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/upload-preflight.ts` (new): service constants, extension whitelist, `getFileExtension` / `isImageFile` / `resolveUploadService` / `resolveSangChannel`, `createUploadChunkPlan` / `getExpectedChunkBytes` / `isUploadChunkSizeValid`, `validateUploadFile`, plus server-side message and HTTP-status mapping.
+- `src/app/room/[roomCode]/page.tsx`: `addFiles` runs preflight per file and only accepts valid ones; `upload()` re-runs preflight as a guard; chunked upload derives `totalChunks` and slices from `createUploadChunkPlan`; attachment chips show the precomputed chunk count.
+- `src/app/api/rooms/[roomCode]/upload/route.ts`: validate `File` name/type/size via the shared module before storage; removed the old empty/200MB-only checks.
+- `src/app/api/rooms/[roomCode]/upload-url/route.ts`: validate the prepare payload after room auth and before signing the S3 URL.
+- `src/app/api/rooms/[roomCode]/upload/chunk/route.ts`: validate total size against service limits, compare `totalChunks` with the precomputed plan and require each chunk to match its exact expected byte count.
+- `src/lib/i18n/messages.ts`: added zh/en keys for empty/invalid/unsupported/limit/chunk-count errors, service labels and chunk-count label (compile-time parity check enforced).
+- `docs/upload-preflight.md` (new): service matrix, dc-01 chunk constraints, error codes and acceptance checklist.
+- `src/lib/upload-preflight.test.ts` (new): 27 boundary tests for extensions, channels, limits, chunk planning and error mapping.
+
+### Regression Checklist
+- `npm test` green: 51/51 tests.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

@@ -368,6 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 上传前置校验与服务规则对齐（REQ-202610-0515 / up-06）：新增 `src/lib/upload-preflight.ts`，浏览器与服务端共用空文件、类型/扩展名、服务限额与分片数量校验；图片按 sang 通道（meitu ≤20MB、icve ≤100MB、拒绝 HTML），非图片按 pic.sl.al 58 项白名单（≤200MB）；分片按 4MB 预计算（200MB = 50 片，单请求低于 Vercel 4.5MB 上限），旧 DUFS 3MB 分片链路复用同一计划器；上传/签发 URL/分片三个接口与房间页统一接入，文件条展示分片数，错误提示带明确错误码；新增 `docs/upload-preflight.md` 与 27 条边界单测。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

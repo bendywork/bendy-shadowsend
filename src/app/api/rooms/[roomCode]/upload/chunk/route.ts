@@ -14,6 +14,13 @@ import {
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
+import {
+  createUploadChunkPlan,
+  getExpectedChunkBytes,
+  uploadPreflightErrorMessage,
+  uploadPreflightHttpStatus,
+  validateUploadFile,
+} from "@/lib/upload-preflight";
 
 const keyId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
 
@@ -92,8 +99,36 @@ export async function POST(
       throw new ApiError(400, "Chunked upload only supports images", "CHUNK_NOT_IMAGE");
     }
 
-    if (uploaded.size > DUFS_CHUNK_SIZE_BYTES + 512 * 1024) {
-      throw new ApiError(400, "Chunk exceeds maximum allowed size", "CHUNK_TOO_LARGE");
+    const preflight = validateUploadFile({
+      fileName,
+      mimeType,
+      sizeBytes: totalBytes,
+    });
+
+    if (!preflight.ok) {
+      throw new ApiError(
+        uploadPreflightHttpStatus(preflight.error),
+        uploadPreflightErrorMessage(preflight.error),
+        preflight.error.code,
+      );
+    }
+
+    const plan = createUploadChunkPlan(totalBytes, DUFS_CHUNK_SIZE_BYTES);
+
+    if (totalChunks !== plan.totalChunks) {
+      throw new ApiError(
+        400,
+        `Chunk count mismatch: expected ${plan.totalChunks}, received ${totalChunks}`,
+        "CHUNK_COUNT_MISMATCH",
+      );
+    }
+
+    if (uploaded.size !== getExpectedChunkBytes(plan, chunkIndex)) {
+      throw new ApiError(
+        400,
+        "Chunk size does not match the precomputed plan",
+        "CHUNK_SIZE_MISMATCH",
+      );
     }
 
     const content = new Uint8Array(await uploaded.arrayBuffer());
