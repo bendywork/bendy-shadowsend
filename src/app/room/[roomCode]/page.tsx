@@ -11,6 +11,7 @@ import QRCode from "qrcode";
 import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
+import { AdCarousel } from "@/components/chat/ad-carousel";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
@@ -23,7 +24,7 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
-import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
+import type { AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
 type DirectUploadPreparePayload = {
@@ -98,9 +99,6 @@ const MAX_MESSAGES_IN_MEMORY = 220;
 const MESSAGE_COLLAPSE_CHAR_THRESHOLD = 1200;
 const MESSAGE_COLLAPSE_PREVIEW_MAX = 1600;
 const MESSAGE_COLLAPSE_PREVIEW_MIN = 360;
-const AD_CAROUSEL_INTERVAL_MS = 4200;
-const AD_CAROUSEL_SLIDE_MS = 320;
-const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 function withStableAttachmentPreviewUrls(
   prev: RoomSnapshot | null,
@@ -419,92 +417,6 @@ function SwitchBtn({
         )}
       />
     </button>
-  );
-}
-
-function AdCarouselItem({
-  item,
-  className,
-}: {
-  item: AdBoardItem;
-  className: string;
-}) {
-  const textColor = HEX_COLOR_RE.test(item.color) ? item.color : "var(--ds-ink-soft)";
-
-  if (item.url) {
-    return (
-      <a
-        href={item.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={clsx(
-          "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-slow ease-out",
-          className,
-        )}
-        style={{ color: textColor }}
-        title={item.content}
-      >
-        <span className="truncate">{item.content}</span>
-      </a>
-    );
-  }
-
-  return (
-    <div
-      className={clsx(
-        "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-slow ease-out",
-        className,
-      )}
-      style={{ color: textColor }}
-      title={item.content}
-    >
-      <span className="truncate">{item.content}</span>
-    </div>
-  );
-}
-
-function AdCarousel({ items }: { items: AdBoardItem[] }) {
-  const [index, setIndex] = useState(0);
-  const [animating, setAnimating] = useState(false);
-
-  useEffect(() => {
-    if (items.length <= 1) return;
-    const timer = window.setInterval(() => {
-      setAnimating(true);
-    }, AD_CAROUSEL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [items.length]);
-
-  useEffect(() => {
-    if (!animating || items.length <= 1) return;
-    const timer = window.setTimeout(() => {
-      setIndex((prev) => (prev + 1) % items.length);
-      setAnimating(false);
-    }, AD_CAROUSEL_SLIDE_MS);
-    return () => window.clearTimeout(timer);
-  }, [animating, items.length]);
-
-  if (items.length === 0) {
-    return null;
-  }
-
-  const safeIndex = index % items.length;
-  const current = items[safeIndex];
-  const next = items[(safeIndex + 1) % items.length];
-
-  return (
-    <div className="relative h-9 overflow-hidden rounded-lg border border-line bg-panel/70">
-      <AdCarouselItem
-        item={current}
-        className={animating ? "-translate-y-full" : "translate-y-0"}
-      />
-      {items.length > 1 ? (
-        <AdCarouselItem
-          item={next}
-          className={animating ? "translate-y-0" : "translate-y-full"}
-        />
-      ) : null}
-    </div>
   );
 }
 
@@ -2077,13 +1989,17 @@ export default function RoomPage() {
         </aside>
 
         <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
-          <header className="space-y-3 border-b border-line-subtle px-3 py-3 sm:px-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl font-semibold text-ink">{snap.room.name}</h1>
+          <header className="border-b border-line-subtle px-3 py-3 sm:px-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-semibold text-ink">{snap.room.name}</h1>
                 <p className="font-mono text-xs text-ink-faint">/{snap.room.roomCode}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <AdCarousel
+                items={snap.adBoard.items}
+                className="order-last basis-full sm:order-none sm:basis-48 sm:flex-1"
+              />
+              <div className="ml-auto flex items-center gap-2">
                 <span className="inline-flex items-center text-xs text-ink-muted">
                   <Users className="mr-1 inline h-3.5 w-3.5" />
                   {t("header.members", { count: snap.members.length, max: 20 })}
@@ -2092,7 +2008,7 @@ export default function RoomPage() {
                 <LanguageToggle />
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {navVisible ? (
                 <button
                   type="button"
@@ -2172,7 +2088,6 @@ export default function RoomPage() {
                 </Tooltip>
               ) : null}
             </div>
-            <AdCarousel items={snap.adBoard.items} />
           </header>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">

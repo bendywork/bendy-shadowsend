@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 广告位降噪与布局整合（REQ-202610-0504 / ui-41）
+
+### Scope
+- Turn the room-header ad carousel from a standalone bordered card into one quiet, monochrome ticker line inside the header title row.
+- Remove per-ad color rendering while keeping the `color` field in the data contract; add hover/focus pause, an explicit pause toggle, and reduced-motion support.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/ad-carousel.ts` (new): `AD_CAROUSEL_INTERVAL_MS` / `AD_CAROUSEL_SLIDE_MS`, index clamping and wrap helpers, auto-advance predicate, current/next slide resolver, and immutable item normalization.
+- `src/components/chat/ad-carousel.tsx` (new): `AdCarousel` state shell (interval, slide timer, hover/focus pause, manual pause) plus hook-free `AdCarouselContent` for SSR tests; monochrome label + divider + single-line viewport.
+- `src/app/room/[roomCode]/page.tsx`: removed the inline `AdCarouselItem` / `AdCarousel` and `HEX_COLOR_RE`; moved `<AdCarousel>` into the header title row (`sm:flex-1`, mobile `order-last basis-full`); removed the old third header row.
+- `src/lib/i18n/messages.ts`: added zh/en `ad.label`, `ad.region`, `ad.pause`, `ad.resume`.
+- `vitest.config.ts`: include `.test.tsx` files for component SSR tests.
+- `docs/design-system-ad-carousel.md` (new): layout/visual/motion/accessibility decisions, component API, test coverage and acceptance checklist.
+- `MAINTAIN.md` / `README.md`: added this iteration entry.
+
+### Regression Checklist
+- `npm test` green (new ad-carousel unit + SSR tests included).
+- `npm run lint` 0 errors.
+- `npx tsc --noEmit` 0 errors.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
