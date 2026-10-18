@@ -810,6 +810,200 @@ textarea[aria-invalid="true"]:focus {
   }
 }
 
+/* ============================================================
+   Home shell + site footer — REQ-202610-0480 / ui-17
+   ============================================================ */
+.home-page {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--ds-space-6) var(--ds-space-4);
+}
+
+.home-page__content {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .home-page {
+    padding: var(--ds-space-10) var(--ds-space-6);
+  }
+}
+
+.site-footer {
+  width: 100%;
+  max-width: 72rem;
+  margin: var(--ds-space-12) auto 0;
+  padding-top: var(--ds-space-8);
+  border-top: 1px solid var(--ds-line-subtle);
+  color: var(--ds-ink-muted);
+}
+
+.site-footer__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: var(--ds-space-8);
+  align-items: start;
+}
+
+.site-footer__wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-space-3);
+  margin: 0;
+  color: var(--ds-ink);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.site-footer__wordmark-en {
+  color: var(--ds-ink-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.site-footer__tagline {
+  max-width: 34ch;
+  margin: var(--ds-space-3) 0 0;
+  color: var(--ds-ink-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.site-footer__nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ds-space-6);
+}
+
+.site-footer__group-title {
+  margin: 0 0 var(--ds-space-3);
+  color: var(--ds-ink-faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.site-footer__list {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-footer__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.site-footer__link svg {
+  flex: none;
+}
+
+.site-footer__link::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  left: 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--ds-duration-base) var(--ds-ease-out);
+}
+
+.site-footer__link:hover,
+.site-footer__link:focus-visible {
+  color: var(--ds-ink);
+}
+
+.site-footer__link:hover::after,
+.site-footer__link:focus-visible::after {
+  transform: scaleX(1);
+}
+
+.site-footer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2) var(--ds-space-4);
+  margin-top: var(--ds-space-8);
+  padding-top: var(--ds-space-4);
+  border-top: 1px solid color-mix(in srgb, var(--ds-line-subtle) 55%, transparent);
+  color: var(--ds-ink-faint);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.site-footer__meta-item {
+  margin: 0;
+}
+
+.site-footer__top {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-ink-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.site-footer__top:hover {
+  color: var(--ds-ink);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 720px) {
+  .site-footer__inner {
+    grid-template-columns: 1fr;
+    gap: var(--ds-space-6);
+  }
+
+  .site-footer__meta {
+    margin-top: var(--ds-space-6);
+  }
+
+  .site-footer__top {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-footer__link::after,
+  .site-footer__top {
+    transition: none;
+  }
+}
+
 /* Theme-specific artwork (logos) without !important overrides. */
 :root[data-theme="light"] .theme-dark-only {
   display: none;

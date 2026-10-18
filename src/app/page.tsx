@@ -8,6 +8,7 @@ import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { ApiRequestError, apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
@@ -63,6 +64,8 @@ export default function HomePage() {
   const router = useRouter();
   const t = useT();
   const translateRef = useRef(t);
+  const joinRoomInputRef = useRef<HTMLInputElement>(null);
+  const createNameInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<TabType>("join");
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
   const [fallbackMe, setFallbackMe] = useState<MePayload["user"] | null>(null);
@@ -266,9 +269,18 @@ export default function HomePage() {
     }
   }
 
+  function focusEntry(nextTab: TabType) {
+    setTab(nextTab);
+    window.requestAnimationFrame(() => {
+      const target = nextTab === "join" ? joinRoomInputRef.current : createNameInputRef.current;
+      target?.focus();
+    });
+  }
+
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 sm:py-10 lg:flex lg:items-center">
-      <section className="relative mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+    <main className="home-page">
+      <div className="home-page__content">
+        <section className="relative mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
         <div className="flex min-h-0 items-center px-1 sm:px-3 lg:min-h-[560px]">
           <div className="w-full max-w-xl space-y-6 sm:space-y-7">
             <div className="w-full max-w-[440px]">
@@ -355,6 +367,7 @@ export default function HomePage() {
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
                   <input
+                    ref={joinRoomInputRef}
                     value={joinRoomCode}
                     onChange={(event) => {
                       setJoinRoomCode(event.target.value.trim());
@@ -417,6 +430,7 @@ export default function HomePage() {
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间名称</span>
                   <input
+                    ref={createNameInputRef}
                     value={createName}
                     onChange={(event) => {
                       setCreateName(event.target.value);
@@ -479,7 +493,12 @@ export default function HomePage() {
             </div>
           </section>
         </div>
-      </section>
+        </section>
+      </div>
+      <SiteFooter
+        onJoinRoom={() => focusEntry("join")}
+        onCreateRoom={() => focusEntry("create")}
+      />
     </main>
   );
 }

@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { LanguageProvider } from "@/lib/i18n/context";
+import { siteMetadata } from "@/lib/site-meta";
 
-export const metadata: Metadata = {
-  title: "Temp Bendy",
-  description: "Temporary encrypted chat app built with Next.js, PostgreSQL and S3.",
-};
+export const metadata: Metadata = siteMetadata;
 
 // 预水合脚本：首帧绘制前依据 localStorage 同步 <html data-theme> 与 <html lang>，
 // 规避「深色/中文默认值」与用户实际偏好不一致造成的闪烁（FOUC）。

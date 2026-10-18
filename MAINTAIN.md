@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 站点元信息与页脚整理（REQ-202610-0480 / ui-17）
+
+### Scope
+- 修正 `layout.tsx` 过时的英文站点元信息：标题从 `Temp Bendy` 改为本地化站点名，description 改为与当前产品一致的临时加密聊天室说明，并补齐 Open Graph / Twitter 摘要。
+- 首页新增站点页脚：入口按「使用 / 项目」两组收敛，提供加入房间、创建房间、源码仓库、更新记录、开源协议与回到顶部入口；补充版本、年份与协议元信息。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/site-meta.ts`（新）：集中维护站点标题、描述、关键词、仓库链接与页脚项目入口，输出 Next.js `Metadata`。
+- `src/app/layout.tsx`：改用 `siteMetadata`，移除 `Temp Bendy` 与过时英文描述。
+- `src/components/layout/site-footer.tsx`（新）：首页站点页脚组件；房间动作直接切换首页加入/创建表单并聚焦对应输入框，项目入口在新标签页打开真实仓库地址。
+- `src/app/page.tsx`：页面骨架改为 `home-page` 纵向布局，内容区居中，底部挂载 `SiteFooter`；新增加入/创建输入框 ref 与页脚入口处理。
+- `src/app/globals.css`：新增 `.home-page` / `.home-page__content` / `.site-footer*` 样式；页脚使用 surface/ink/line 语义令牌，链接下划线仅动 `transform`，并支持 `prefers-reduced-motion` 与 720px 单列布局。
+- `src/lib/i18n/messages.ts`：新增 `site.footer.*` 中英文案（wordmark、tagline、分组、入口、版本、版权、回到顶部）。
+- `src/lib/site-meta.test.ts`（新）：4 条单测覆盖本地化元信息、标题模板、页脚链接唯一性与中英文案完整性。
+
+### Regression Checklist
+- `npm test` green（含新增 site-meta 用例）。
+- `npm run lint` green（0 errors）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
