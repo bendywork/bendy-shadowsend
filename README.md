@@ -368,6 +368,8 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 房间设置重构（REQ-202610-0488 / ui-13）：右侧栏 Popover 改为独立贴边设置抽屉，固定「名称 / 门禁码 / 加入策略 / 过期 / 危险区」五个分区；新增房间概览账本条、编号导轨、字段字数与脏状态保存、门禁码一键清除、开关状态文案，以及危险区内联二次确认。解散房间从 Header 移入危险区，移除 `window.confirm`；抽屉打开时轮询不再覆盖正在编辑的输入。
+- 新增 `src/components/ui/drawer.tsx`、`src/components/ui/switch.tsx`、`src/components/chat/room-settings-drawer.tsx`、`src/lib/room-settings.ts` 与 `src/app/room-settings.css`；`Popover` 增加 `variant="drawer"`，复用既有 portal / 焦点陷阱 / 滚动锁定 / Esc 关闭契约。新增 `docs/design-system-room-settings.md` 与 16 条设置相关单测（合计 40 条）。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

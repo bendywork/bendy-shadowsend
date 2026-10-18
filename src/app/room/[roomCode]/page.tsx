@@ -8,7 +8,7 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -17,7 +17,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
-import { Popover } from "@/components/ui/popover";
+import { RoomSettingsDrawer } from "@/components/chat/room-settings-drawer";
 import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
@@ -386,42 +386,6 @@ function MessageBubble({
   );
 }
 
-function SwitchBtn({
-  checked,
-  disabled,
-  onToggle,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={onToggle}
-      className={clsx(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-ui duration-base",
-        checked
-          ? "border-action-border bg-action/50"
-          : "border-line-strong bg-elevated-strong",
-        disabled
-          ? "cursor-not-allowed opacity-60"
-          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border",
-      )}
-    >
-      <span
-        className={clsx(
-          "inline-block h-5 w-5 rounded-full shadow-sm transition-transform duration-base",
-          checked ? "translate-x-5 bg-action-fg" : "translate-x-0.5 bg-ink-soft",
-        )}
-      />
-    </button>
-  );
-}
-
 function AdCarouselItem({
   item,
   className,
@@ -710,10 +674,11 @@ export default function RoomPage() {
   }, [isOwner, memberPanelTab]);
 
   useEffect(() => {
-    if (!snap || snap.me.role !== "OWNER") return;
+    // 抽屉打开期间不覆盖用户正在编辑的输入；关闭后再与最新快照对齐。
+    if (!snap || snap.me.role !== "OWNER" || settingsOpen) return;
     setGateCodeInput(snap.room.gateCode ?? "");
     setRoomNameInput(snap.room.name);
-  }, [snap]);
+  }, [snap, settingsOpen]);
 
   useEffect(() => {
     noticeImagesRef.current = noticeImages;
@@ -1674,7 +1639,6 @@ export default function RoomPage() {
   }
 
   async function dissolve() {
-    if (!window.confirm("确认解散当前房间？解散后成员将全部退出。")) return;
     setAction("dissolve");
     try {
       const beforeSortedRooms = sortRooms([...rooms.created, ...rooms.joined]);
@@ -1762,10 +1726,10 @@ export default function RoomPage() {
     }
   }
 
-  async function updateGateCode() {
+  async function updateGateCode(nextGateCode?: string) {
     if (!isOwner) return;
 
-    const normalized = gateCodeInput.replace(/\D/g, "").slice(0, 6);
+    const normalized = (nextGateCode ?? gateCodeInput).replace(/\D/g, "").slice(0, 6);
     const gateCodeError = validateGateCode(normalized);
     if (gateCodeError) {
       setSettingsErrors((prev) => ({ ...prev, gateCode: t(gateCodeError) }));
@@ -1784,6 +1748,7 @@ export default function RoomPage() {
           }),
         },
       );
+      setGateCodeInput(normalized);
       await refresh();
       toast.success(normalized ? t("toast.gateCodeUpdated") : t("toast.gateCodeCleared"));
     } catch (err) {
@@ -2155,22 +2120,6 @@ export default function RoomPage() {
                   </IconButton>
                 </Tooltip>
               ) : null}
-              {isOwner ? (
-                <Tooltip label={action === "dissolve" ? t("header.dissolving") : t("header.dissolve")}>
-                  <IconButton
-                    aria-label={t("header.dissolve")}
-                    danger
-                    onClick={dissolve}
-                    disabled={action === "dissolve"}
-                  >
-                    {action === "dissolve" ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </IconButton>
-                </Tooltip>
-              ) : null}
             </div>
             <AdCarousel items={snap.adBoard.items} />
           </header>
@@ -2525,119 +2474,52 @@ export default function RoomPage() {
               </div>
             ) : null}
 
-            {isOwner ? (
-              <Popover
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                title={t("settings.title")}
-                closeLabel={t("common.close")}
-              >
-                <div className="space-y-3">
-                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <p className="text-xs font-medium text-ink-soft">{t("settings.roomName")}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        value={roomNameInput}
-                        onChange={(e) => {
-                          setRoomNameInput(e.target.value.slice(0, 48));
-                          if (settingsErrors.roomName) {
-                            setSettingsErrors((prev) => ({ ...prev, roomName: undefined }));
-                          }
-                        }}
-                        placeholder={t("settings.roomName.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
-                        aria-invalid={settingsErrors.roomName ? true : undefined}
-                        aria-describedby={settingsErrors.roomName ? "settings-room-name-error" : undefined}
-                      />
-                      <button
-                        type="button"
-                        onClick={updateRoomName}
-                        disabled={action === "room-name"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
-                      >
-                        {action === "room-name" ? t("settings.saving") : t("settings.save")}
-                      </button>
-                    </div>
-                    <FieldError id="settings-room-name-error" message={settingsErrors.roomName} />
-                  </div>
-                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <p className="text-xs font-medium text-ink-soft">{t("settings.gateCode")}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        value={gateCodeInput}
-                        onChange={(e) => {
-                          setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
-                          if (settingsErrors.gateCode) {
-                            setSettingsErrors((prev) => ({ ...prev, gateCode: undefined }));
-                          }
-                        }}
-                        placeholder={t("settings.gateCode.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
-                        aria-invalid={settingsErrors.gateCode ? true : undefined}
-                        aria-describedby={settingsErrors.gateCode ? "settings-gate-code-error" : undefined}
-                      />
-                      <button
-                        type="button"
-                        onClick={updateGateCode}
-                        disabled={action === "gate-code"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
-                      >
-                        {action === "gate-code" ? t("settings.saving") : t("settings.save")}
-                      </button>
-                    </div>
-                    <FieldError id="settings-gate-code-error" message={settingsErrors.gateCode} />
-                    <p className="mt-2 text-[11px] text-ink-faint">
-                      {t("settings.gateCode.current", {
-                        code: snap.room.gateCode ?? t("settings.gateCode.unset"),
-                      })}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium text-ink-soft">{t("settings.joinPolicy")}</p>
-                        <p className="text-[11px] text-ink-faint">{t("settings.joinPolicy.hint")}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-ink-muted">
-                          {snap.room.allowJoinRequest ? t("settings.joinPolicy.allow") : t("settings.joinPolicy.deny")}
-                        </span>
-                        <SwitchBtn
-                          checked={snap.room.allowJoinRequest}
-                          disabled={action === "join-policy"}
-                          onToggle={() => {
-                            void updateJoinPolicy(!snap.room.allowJoinRequest);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium text-ink-soft">{t("settings.expiry")}</p>
-                        <p className="text-[11px] text-ink-faint">{t("settings.expiry.hint")}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-ink-muted">
-                          {snap.room.neverExpire ? t("settings.expiry.on") : t("settings.expiry.off")}
-                        </span>
-                        <SwitchBtn
-                          checked={snap.room.neverExpire}
-                          disabled={action === "never-expire"}
-                          onToggle={() => {
-                            void updateNeverExpire(!snap.room.neverExpire);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Popover>
-            ) : null}
-
         </aside>
       </main>
+
+      {isOwner ? (
+        <RoomSettingsDrawer
+          open={settingsOpen}
+          onClose={() => {
+            setSettingsOpen(false);
+            setSettingsErrors({});
+          }}
+          room={snap.room}
+          memberCount={snap.members.length}
+          roomOnline={snap.stats.roomOnline}
+          roomNameInput={roomNameInput}
+          gateCodeInput={gateCodeInput}
+          errors={settingsErrors}
+          action={action}
+          onRoomNameChange={(value) => {
+            setRoomNameInput(value);
+            if (settingsErrors.roomName) {
+              setSettingsErrors((prev) => ({ ...prev, roomName: undefined }));
+            }
+          }}
+          onGateCodeChange={(value) => {
+            setGateCodeInput(value);
+            if (settingsErrors.gateCode) {
+              setSettingsErrors((prev) => ({ ...prev, gateCode: undefined }));
+            }
+          }}
+          onSaveRoomName={() => {
+            void updateRoomName();
+          }}
+          onSaveGateCode={(nextGateCode) => {
+            void updateGateCode(nextGateCode);
+          }}
+          onToggleJoinPolicy={(next) => {
+            void updateJoinPolicy(next);
+          }}
+          onToggleNeverExpire={(next) => {
+            void updateNeverExpire(next);
+          }}
+          onDissolve={() => {
+            void dissolve();
+          }}
+        />
+      ) : null}
 
       {openRoomMenu
         ? createPortal(

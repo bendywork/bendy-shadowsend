@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 房间设置重构（设置抽屉，REQ-202610-0488 / ui-13）
+
+### Scope
+- Replace the cramped right-column settings Popover with a dedicated edge drawer that has a fixed information architecture: 名称 / 门禁码 / 加入策略 / 过期 / 危险区.
+- Move the header dissolve action into the drawer danger zone with an inline two-step confirmation; remove the `window.confirm` path.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/ui/popover.tsx`: added `variant="drawer"` with right/left edge layout, width sizes, scrollable body and optional footer; dialog behavior and focus/scroll-lock contract unchanged.
+- `src/components/ui/drawer.tsx` (new): thin `Drawer` wrapper over the Popover drawer variant.
+- `src/components/ui/switch.tsx` (new): shared `role="switch"` control with `aria-checked`, `aria-labelledby`, disabled/hover/focus-visible states.
+- `src/components/chat/room-settings-drawer.tsx` (new): exported `RoomSettingsContent` plus `RoomSettingsDrawer`; overview ledger, numbered sections, dirty-state save buttons, gate-code clear, switch rows and inline danger confirmation.
+- `src/lib/room-settings.ts` (new): section order and pure input/dirty helpers; `src/app/room-settings.css` (new): drawer-specific semantic-token styles and responsive rules.
+- `src/app/room/[roomCode]/page.tsx`: removed the settings Popover and header dissolve button, mounted `RoomSettingsDrawer`, allowed gate-code clearing via an explicit override, and stopped snapshot polling from overwriting inputs while the drawer is open.
+- `src/lib/i18n/messages.ts`: added zh/en keys for the drawer description, overview, hints, danger zone, done/cancel; changed the expiry control label to “永不过期 / Never expire”.
+- `docs/design-system-room-settings.md` (new): information architecture, visual contract, interaction, accessibility and acceptance checklist.
+- Tests: `src/lib/room-settings.test.ts` and `src/components/chat/room-settings-drawer.test.tsx`; `vitest.config.ts` now includes `.test.tsx`.
+
+### Regression Checklist
+- `npm test` green: 40/40 tests across 5 files.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
