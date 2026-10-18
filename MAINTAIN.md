@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
+
+### Scope
+- Route every action result through the global Toast system and every field-level validation error through inline errors below the control; remove the remaining ad-hoc error bars/text and raw `error.message` toasts.
+- Unify error copy: network failures collapse to one localized message, 4xx business messages stay readable, 5xx/parse/generic failures use the caller's localized fallback.
+- Bump app version to `0.1.68`.
+
+### Changes
+- `src/lib/client.ts`: added `ApiRequestError` with `status` and backend `code`; network/read failures use `NETWORK_ERROR`, parse failures `INVALID_RESPONSE`, non-OK responses carry `HTTP_<status>` or the backend code.
+- `src/lib/feedback.ts` (new): `isNetworkError` / `resolveErrorMessage` / `toastError`; hides URLs, HTTP methods and parser details, preserves user-readable backend messages, and emits exactly one deduped error toast.
+- `src/lib/form-validation.ts` (new): shared `validateRoomName` / `validateGateCode` / `validateRoomCode` returning i18n keys; constants for 48-char room names, 4–64-char room codes and 6-digit gate codes.
+- `src/components/ui/field-error.tsx` (new): inline `role="alert"` error node paired with `aria-invalid` + `aria-describedby`.
+- `src/app/page.tsx`: bootstrap/invite/create/join feedback moved to Toast; join and create forms use `noValidate` plus inline validation with error clearing on edit; removed the `error`/`info` bars.
+- `src/app/room/[roomCode]/page.tsx`: initial load failure is a page-level error with a retry button; poll/sync/upload/send/member/approval/leave/announcement/dissolve/settings failures all go through `toastError` with localized fallbacks; room entry dialog and settings panel use the shared validators and inline errors; removed the remaining raw `error.message` toasts and the aside error line.
+- `src/app/globals.css`: `input/textarea[aria-invalid="true"]` danger border and focus ring; `.field-error` uses `--ds-danger` at 12px/18px.
+- `src/lib/i18n/messages.ts`: added zh/en keys for init/load/poll/sync/create/join/send/upload/member/transfer/approval/leave/notice/dissolve/settings/clipboard/invite failures, form validation, and `common.retry` (compile-time parity check enforced).
+- `vitest.config.ts`: added the `@/*` alias so unit tests can import source modules by path.
+- `docs/design-system-feedback.md` (new): feedback routing matrix, error layering, inline validation contract, coverage and acceptance checklist; `docs/design-system-notifications.md` links to it.
+
+### Regression Checklist
+- `npm test` green: 24/24 tests (toast store, feedback resolver, field validators).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.68`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.66 提示体系（Tooltip / Popover / Toast，REQ-202610-0469 / ui-06）
 
 ### Scope

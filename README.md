@@ -368,6 +368,9 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
+- 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
+- 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。
 - `4a0dea6` `0.1.66` 提示体系统一（REQ-202610-0469 / ui-06）：新增全局 Toast（`src/lib/toast-store.ts` + `ToastProvider`），按 success 2400ms / info 3000ms / warning 3600ms / error 4800ms 停留，最多 3 条，相同 `variant + message` 去重并重置计时；房间页复制、成功、错误、网络异常反馈全部改走 Toast，移除 `hint` 提示条与 `alert()`。
 - Tooltip 统一悬停延时 500ms、移出宽限 120ms，键盘聚焦立即可见，支持 Esc 关闭与 `aria-describedby`；Popover 补齐 `role="dialog"`、滚动锁定、焦点圈定/归还与遮罩/Esc 关闭。
 - `globals.css` 新增 Toast/Popover 语义化样式与仅动 `opacity`/`transform` 的入场动画，`prefers-reduced-motion` 下全部关闭；新增 `docs/design-system-notifications.md` 说明触发时机、时长、用法与验收清单；新增 Vitest 配置与 8 条 toast store 单测。

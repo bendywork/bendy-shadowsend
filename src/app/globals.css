@@ -344,6 +344,28 @@ button {
   box-shadow: 0 0 0 3px var(--ds-action-soft);
 }
 
+/* Inline field validation (REQ-202610-0475 / ui-12). */
+.field[aria-invalid="true"],
+input[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--ds-danger-border);
+}
+
+.field[aria-invalid="true"]:focus,
+input[aria-invalid="true"]:focus,
+textarea[aria-invalid="true"]:focus {
+  border-color: var(--ds-danger);
+  box-shadow: 0 0 0 3px var(--ds-danger-soft);
+}
+
+.field-error {
+  display: block;
+  margin-top: var(--ds-space-1);
+  color: var(--ds-danger);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 /* Primary action is inverted per theme (dc-02). */
 .btn-primary {
   background: var(--ds-action-bg);

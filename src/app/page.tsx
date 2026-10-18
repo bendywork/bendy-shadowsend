@@ -1,14 +1,23 @@
 ﻿"use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
-import { apiFetch } from "@/lib/client";
+import { ApiRequestError, apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { FieldError } from "@/components/ui/field-error";
+import { toast } from "@/lib/toast-store";
+import { toastError } from "@/lib/feedback";
+import {
+  validateGateCode,
+  validateRoomCode,
+  validateRoomName,
+} from "@/lib/form-validation";
+import { useT } from "@/lib/i18n/context";
 
 type JoinResult = {
   joined: boolean;
@@ -33,6 +42,16 @@ type MePayload = {
   };
 };
 
+type JoinFieldErrors = {
+  roomCode?: string;
+  gateCode?: string;
+};
+
+type CreateFieldErrors = {
+  name?: string;
+  gateCode?: string;
+};
+
 const slogans = [
   "临时传递，阅后即散。",
   "黑白极简，信息纯粹。",
@@ -42,13 +61,15 @@ const slogans = [
 
 export default function HomePage() {
   const router = useRouter();
+  const t = useT();
+  const translateRef = useRef(t);
   const [tab, setTab] = useState<TabType>("join");
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
   const [fallbackMe, setFallbackMe] = useState<MePayload["user"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [joinErrors, setJoinErrors] = useState<JoinFieldErrors>({});
+  const [createErrors, setCreateErrors] = useState<CreateFieldErrors>({});
 
   const [createName, setCreateName] = useState("");
   const [createGateCode, setCreateGateCode] = useState("");
@@ -59,6 +80,10 @@ export default function HomePage() {
   const [typedText, setTypedText] = useState("");
   const [typedIndex, setTypedIndex] = useState(0);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    translateRef.current = t;
+  }, [t]);
 
   useEffect(() => {
     let alive = true;
@@ -82,7 +107,13 @@ export default function HomePage() {
         }
 
         if (!bootPayload && !mePayload) {
-          throw new Error("初始化失败，请刷新重试");
+          const reason =
+            meResult.status === "rejected"
+              ? meResult.reason
+              : bootstrapResult.status === "rejected"
+                ? bootstrapResult.reason
+                : null;
+          throw reason ?? new ApiRequestError("initialize-failed", { code: "INVALID_RESPONSE" });
         }
 
         if (!bootPayload) return;
@@ -95,7 +126,9 @@ export default function HomePage() {
           setJoinRoomCode(queryRoom);
           setJoinInviteToken(queryInvite ?? "");
           setTab("join");
-          setInfo(queryInvite ? "检测到邀请链接，可直接加入" : null);
+          if (queryInvite) {
+            toast.info(translateRef.current("toast.inviteDetected"));
+          }
         } else {
           const roomCandidates = [
             ...bootPayload.tree.createdRooms,
@@ -110,7 +143,11 @@ export default function HomePage() {
         }
       } catch (fetchError) {
         if (!alive) return;
-        setError(fetchError instanceof Error ? fetchError.message : "初始化失败");
+        toastError(
+          fetchError,
+          translateRef.current("toast.initFailed"),
+          translateRef.current,
+        );
       } finally {
         if (alive) setLoading(false);
       }
@@ -152,10 +189,33 @@ export default function HomePage() {
 
   const displayMe = bootstrap?.me ?? fallbackMe;
 
+  function validateJoinFields(): boolean {
+    const roomCodeError = validateRoomCode(joinRoomCode);
+    const gateCodeError = validateGateCode(joinGateCode);
+
+    setJoinErrors({
+      ...(roomCodeError ? { roomCode: t(roomCodeError) } : {}),
+      ...(gateCodeError ? { gateCode: t(gateCodeError) } : {}),
+    });
+
+    return !roomCodeError && !gateCodeError;
+  }
+
+  function validateCreateFields(): boolean {
+    const nameError = validateRoomName(createName);
+    const gateCodeError = validateGateCode(createGateCode);
+
+    setCreateErrors({
+      ...(nameError ? { name: t(nameError) } : {}),
+      ...(gateCodeError ? { gateCode: t(gateCodeError) } : {}),
+    });
+
+    return !nameError && !gateCodeError;
+  }
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setInfo(null);
+    if (!validateCreateFields()) return;
     setSubmitting(true);
 
     try {
@@ -170,7 +230,7 @@ export default function HomePage() {
       localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
       router.push(`/room/${payload.room.roomCode}`);
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "创建房间失败");
+      toastError(createError, t("toast.createRoomFailed"), t);
     } finally {
       setSubmitting(false);
     }
@@ -178,8 +238,7 @@ export default function HomePage() {
 
   async function handleJoin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setInfo(null);
+    if (!validateJoinFields()) return;
     setSubmitting(true);
 
     try {
@@ -192,7 +251,7 @@ export default function HomePage() {
       });
 
       if (payload.waitingApproval) {
-        setInfo("已提交加入申请，等待房主审批。");
+        toast.info(t("toast.joinRequestSent"));
         return;
       }
 
@@ -201,7 +260,7 @@ export default function HomePage() {
         router.push(`/room/${payload.roomCode}`);
       }
     } catch (joinError) {
-      setError(joinError instanceof Error ? joinError.message : "加入房间失败");
+      toastError(joinError, t("toast.joinRoomFailed"), t);
     } finally {
       setSubmitting(false);
     }
@@ -292,28 +351,42 @@ export default function HomePage() {
             </div>
 
             {tab === "join" ? (
-              <form className="space-y-4" onSubmit={handleJoin}>
+              <form className="space-y-4" onSubmit={handleJoin} noValidate>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
                   <input
-                    required
                     value={joinRoomCode}
-                    onChange={(event) => setJoinRoomCode(event.target.value.trim())}
+                    onChange={(event) => {
+                      setJoinRoomCode(event.target.value.trim());
+                      if (joinErrors.roomCode) {
+                        setJoinErrors((prev) => ({ ...prev, roomCode: undefined }));
+                      }
+                    }}
                     placeholder="例如：8DK1A2M7QX"
                     className="field px-4 py-2.5 text-sm"
+                    aria-invalid={joinErrors.roomCode ? true : undefined}
+                    aria-describedby={joinErrors.roomCode ? "home-join-room-code-error" : undefined}
                   />
+                  <FieldError id="home-join-room-code-error" message={joinErrors.roomCode} />
                 </label>
 
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">门禁码（可选，6 位数字）</span>
                   <input
                     value={joinGateCode}
-                    onChange={(event) =>
-                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
+                    onChange={(event) => {
+                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      if (joinErrors.gateCode) {
+                        setJoinErrors((prev) => ({ ...prev, gateCode: undefined }));
+                      }
+                    }}
                     placeholder="如果房间设置了门禁码则必填"
                     className="field px-4 py-2.5 text-sm"
+                    inputMode="numeric"
+                    aria-invalid={joinErrors.gateCode ? true : undefined}
+                    aria-describedby={joinErrors.gateCode ? "home-join-gate-code-error" : undefined}
                   />
+                  <FieldError id="home-join-gate-code-error" message={joinErrors.gateCode} />
                 </label>
 
                 <label className="block space-y-1">
@@ -340,28 +413,43 @@ export default function HomePage() {
                 </button>
               </form>
             ) : (
-              <form className="space-y-4" onSubmit={handleCreate}>
+              <form className="space-y-4" onSubmit={handleCreate} noValidate>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间名称</span>
                   <input
-                    required
                     value={createName}
-                    onChange={(event) => setCreateName(event.target.value)}
+                    onChange={(event) => {
+                      setCreateName(event.target.value);
+                      if (createErrors.name) {
+                        setCreateErrors((prev) => ({ ...prev, name: undefined }));
+                      }
+                    }}
                     placeholder="输入房间名"
                     className="field px-4 py-2.5 text-sm"
+                    maxLength={48}
+                    aria-invalid={createErrors.name ? true : undefined}
+                    aria-describedby={createErrors.name ? "home-create-name-error" : undefined}
                   />
+                  <FieldError id="home-create-name-error" message={createErrors.name} />
                 </label>
 
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">门禁码（可选）</span>
                   <input
                     value={createGateCode}
-                    onChange={(event) =>
-                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
+                    onChange={(event) => {
+                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      if (createErrors.gateCode) {
+                        setCreateErrors((prev) => ({ ...prev, gateCode: undefined }));
+                      }
+                    }}
                     placeholder="不填则加入无需门禁码"
                     className="field px-4 py-2.5 text-sm"
+                    inputMode="numeric"
+                    aria-invalid={createErrors.gateCode ? true : undefined}
+                    aria-describedby={createErrors.gateCode ? "home-create-gate-code-error" : undefined}
                   />
+                  <FieldError id="home-create-gate-code-error" message={createErrors.gateCode} />
                 </label>
 
                 <button
@@ -389,22 +477,9 @@ export default function HomePage() {
                 门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
               </div>
             </div>
-
-            {info ? (
-              <p className="mt-4 rounded-lg border border-line-subtle bg-panel/50 px-3 py-2 text-sm text-ink-soft">
-                {info}
-              </p>
-            ) : null}
-            {error ? (
-              <p className="mt-4 rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">
-                {error}
-              </p>
-            ) : null}
           </section>
         </div>
       </section>
     </main>
   );
 }
-
-

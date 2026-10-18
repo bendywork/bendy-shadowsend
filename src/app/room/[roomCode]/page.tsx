@@ -18,7 +18,10 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
+import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
+import { resolveErrorMessage, toastError } from "@/lib/feedback";
+import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
@@ -220,7 +223,7 @@ function FileAction({ roomCode, attachment, label }: { roomCode: string; attachm
       const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
       window.open(p.url, "_blank", "noopener,noreferrer");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("toast.downloadFailed"));
+      toastError(e, t("toast.downloadFailed"), t);
     } finally { setLoading(false); }
   }
   return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
@@ -512,7 +515,7 @@ export default function RoomPage() {
   const [boot, setBoot] = useState<BootstrapPayload | null>(null);
   const [snap, setSnap] = useState<RoomSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [action, setAction] = useState<string | null>(null);
 
   const [text, setText] = useState("");
@@ -544,6 +547,15 @@ export default function RoomPage() {
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
   const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
+  const [roomEntryErrors, setRoomEntryErrors] = useState<{
+    name?: string;
+    gateCode?: string;
+    roomCode?: string;
+  }>({});
+  const [settingsErrors, setSettingsErrors] = useState<{
+    roomName?: string;
+    gateCode?: string;
+  }>({});
   const [createName, setCreateName] = useState("");
   const [createGateCode, setCreateGateCode] = useState("");
   const [joinRoomCode, setJoinRoomCode] = useState("");
@@ -571,7 +583,7 @@ export default function RoomPage() {
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([apiFetch<BootstrapPayload>("/api/bootstrap"), apiFetch<RoomSnapshot>(`/api/rooms/${roomCode}`)]);
     latestMessageAtRef.current = s.messages.at(-1)?.createdAt ?? null;
-    setBoot(b); setSnap((prev) => withStableAttachmentPreviewUrls(prev, s)); setError(null);
+    setBoot(b); setSnap((prev) => withStableAttachmentPreviewUrls(prev, s)); setLoadError(null);
     if (s.announcement.showToMe) setShowNoticePopup(true);
   }, [roomCode]);
 
@@ -586,26 +598,26 @@ export default function RoomPage() {
 
     latestMessageAtRef.current = payload.messages.at(-1)?.createdAt ?? after ?? null;
     setSnap((prev) => (prev ? mergeIncomingMessages(prev, payload.messages) : prev));
-    setError(null);
+    setLoadError(null);
   }, [roomCode]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try { await refresh(); if (alive) localStorage.setItem(LAST_ROOM_STORAGE_KEY, roomCode); }
-      catch (e) { if (alive) setError(e instanceof Error ? e.message : "加载失败"); }
+      catch (e) { if (alive) setLoadError(resolveErrorMessage(e, t("toast.loadFailed"), t)); }
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
-  }, [roomCode, refresh]);
+  }, [roomCode, refresh, t]);
 
   useEffect(() => {
     if (!pollingEnabled) return;
     const hb = window.setInterval(() => { void apiFetch<{ success: boolean }>("/api/presence", { method: "POST", body: JSON.stringify({ roomCode }) }).catch(() => undefined); }, 25000);
-    const messagePoll = window.setInterval(() => { void pollLatestMessages().catch((e) => setError(e instanceof Error ? e.message : "消息刷新失败")); }, FAST_POLL_INTERVAL_MS);
-    const snapshotSync = window.setInterval(() => { void refresh().catch((e) => setError(e instanceof Error ? e.message : "房间同步失败")); }, SNAPSHOT_SYNC_INTERVAL_MS);
+    const messagePoll = window.setInterval(() => { void pollLatestMessages().catch((e) => toastError(e, t("toast.messageRefreshFailed"), t)); }, FAST_POLL_INTERVAL_MS);
+    const snapshotSync = window.setInterval(() => { void refresh().catch((e) => toastError(e, t("toast.roomSyncFailed"), t)); }, SNAPSHOT_SYNC_INTERVAL_MS);
     return () => { window.clearInterval(hb); window.clearInterval(messagePoll); window.clearInterval(snapshotSync); };
-  }, [roomCode, pollingEnabled, pollLatestMessages, refresh]);
+  }, [roomCode, pollingEnabled, pollLatestMessages, refresh, t]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
@@ -756,11 +768,18 @@ export default function RoomPage() {
   function addFiles(input: FileList | File[]) {
     const incoming = Array.from(input);
     if (!incoming.length) return;
-    setFiles((prev) => [...prev, ...incoming].slice(0, 20));
+    const maxFiles = 20;
+    if (files.length + incoming.length > maxFiles) {
+      toast.warning(t("toast.fileLimit", { max: maxFiles }));
+    }
+    setFiles((prev) => [...prev, ...incoming].slice(0, maxFiles));
   }
 
   async function readClipboard() {
-    if (!navigator.clipboard) return;
+    if (!navigator.clipboard) {
+      toast.warning(t("toast.clipboardUnavailable"));
+      return;
+    }
     try {
       if (navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
@@ -834,10 +853,12 @@ export default function RoomPage() {
           }
         }
       } else {
-        const t = await navigator.clipboard.readText();
-        appendMessageText(t);
+        const clipboardText = await navigator.clipboard.readText();
+        appendMessageText(clipboardText);
       }
-    } catch {}
+    } catch {
+      toast.error(t("toast.clipboardReadFailed"));
+    }
   }
 
   function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
@@ -880,7 +901,7 @@ export default function RoomPage() {
           fileType: file.type,
           fileSize: file.size,
         });
-        reject(new Error(`Upload failed: ${file.name}`));
+        reject(new Error(t("toast.networkError")));
       };
 
       xhr.onload = () => {
@@ -894,7 +915,13 @@ export default function RoomPage() {
             fileType: file.type,
             fileSize: file.size,
           });
-          reject(new Error("中转上传被服务平台拒绝（413），请优先使用 S3 直传"));
+          reject(
+            new Error(
+              t("toast.uploadTooLarge", {
+                max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
+              }),
+            ),
+          );
           return;
         }
 
@@ -922,7 +949,7 @@ export default function RoomPage() {
             responseText: xhr.responseText,
             error: parseError,
           });
-          reject(new Error(`Upload failed: ${file.name}`));
+          reject(new Error(t("toast.uploadFailed", { name: file.name })));
           return;
         }
 
@@ -940,7 +967,11 @@ export default function RoomPage() {
           payload: parsed,
         });
 
-        reject(new Error(parsed?.error?.message ?? `Upload failed: ${file.name}`));
+        reject(
+          new Error(
+            parsed?.error?.message ?? t("toast.uploadFailed", { name: file.name }),
+          ),
+        );
       };
 
       xhr.send(formData);
@@ -989,7 +1020,7 @@ export default function RoomPage() {
         });
       } catch {
         await cleanupDufsFile();
-        throw new Error(`Upload failed: ${file.name}`);
+        throw new Error(t("toast.networkError"));
       }
 
       let parsed: {
@@ -1002,12 +1033,14 @@ export default function RoomPage() {
         parsed = await response.json();
       } catch {
         await cleanupDufsFile();
-        throw new Error(`Upload failed: ${file.name}`);
+        throw new Error(t("toast.uploadFailed", { name: file.name }));
       }
 
       if (!response.ok || !parsed?.ok || !parsed?.data) {
         await cleanupDufsFile();
-        throw new Error(parsed?.error?.message ?? `Upload failed: ${file.name}`);
+        throw new Error(
+          parsed?.error?.message ?? t("toast.uploadFailed", { name: file.name }),
+        );
       }
 
       if (i === 0) {
@@ -1030,7 +1063,7 @@ export default function RoomPage() {
       }
     }
 
-    throw new Error(`Upload failed: ${file.name}`);
+    throw new Error(t("toast.uploadFailed", { name: file.name }));
   }
 
   async function uploadDirectToS3(file: File, onProgress?: (percent: number) => void) {
@@ -1066,7 +1099,7 @@ export default function RoomPage() {
           fileType: file.type,
           fileSize: file.size,
         });
-        reject(new Error(`Upload failed: ${file.name}`));
+        reject(new Error(t("toast.networkError")));
       };
 
       xhr.onload = () => {
@@ -1085,7 +1118,7 @@ export default function RoomPage() {
           fileType: file.type,
           fileSize: file.size,
         });
-        reject(new Error(`Upload failed: ${file.name}`));
+        reject(new Error(t("toast.uploadFailed", { name: file.name })));
       };
 
       xhr.send(file);
@@ -1115,7 +1148,9 @@ export default function RoomPage() {
 
       if (file.size > MAX_PROXY_UPLOAD_BYTES) {
         throw new Error(
-          `文件超过 ${Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024)}MB 中转上限，请启用 S3 直传或缩小文件后重试`,
+          t("toast.uploadTooLarge", {
+            max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
+          }),
         );
       }
 
@@ -1215,23 +1250,20 @@ export default function RoomPage() {
         return mergeIncomingMessages(prev, [result.message]);
       });
       latestMessageAtRef.current = result.message.createdAt;
-      setError(null);
       // Extra sync after a previously failed send, to keep UI and server state aligned.
       void pollLatestMessages().catch(() => undefined);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Send failed";
+      const message = resolveErrorMessage(err, t("toast.sendFailed"), t);
       updatePendingMessage(localId, {
         status: "failed",
         error: message,
       });
-      setError(message);
       toast.error(message);
     }
   }
 
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
     const content = text.trim();
     const sendingFiles = [...files];
     if (!content && sendingFiles.length === 0) return;
@@ -1273,7 +1305,7 @@ export default function RoomPage() {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) });
       await refresh();
       toast.success(t("toast.memberRemoved", { name: m.user.nickname }));
-    } catch (err) { toast.error(err instanceof Error ? err.message : "移出失败"); }
+    } catch (err) { toastError(err, t("toast.memberRemoveFailed"), t); }
     finally { setAction(null); }
   }
 
@@ -1288,7 +1320,7 @@ export default function RoomPage() {
       await refresh();
       toast.success(t("toast.ownerTransferred", { name: m.user.nickname }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "转让失败");
+      toastError(err, t("toast.transferFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1304,7 +1336,7 @@ export default function RoomPage() {
           name: r.user.nickname,
         }),
       );
-    } catch (err) { toast.error(err instanceof Error ? err.message : "审批失败"); }
+    } catch (err) { toastError(err, t("toast.approvalFailed"), t); }
     finally { setAction(null); }
   }
 
@@ -1313,7 +1345,6 @@ export default function RoomPage() {
       toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
-    setError(null);
     setRoomEntryMode(mode);
   }
 
@@ -1323,8 +1354,19 @@ export default function RoomPage() {
       toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
+
+    const nameError = validateRoomName(createName);
+    const gateCodeError = validateGateCode(createGateCode);
+    if (nameError || gateCodeError) {
+      setRoomEntryErrors({
+        ...(nameError ? { name: t(nameError) } : {}),
+        ...(gateCodeError ? { gateCode: t(gateCodeError) } : {}),
+      });
+      return;
+    }
+    setRoomEntryErrors({});
+
     setRoomEntrySubmitting(true);
-    setError(null);
 
     try {
       const payload = await apiFetch<CreateResult>("/api/rooms", {
@@ -1339,7 +1381,7 @@ export default function RoomPage() {
       localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
       router.push(`/room/${payload.room.roomCode}`);
     } catch (createError) {
-      toast.error(createError instanceof Error ? createError.message : "创建房间失败");
+      toastError(createError, t("toast.createRoomFailed"), t);
     } finally {
       setRoomEntrySubmitting(false);
     }
@@ -1351,8 +1393,19 @@ export default function RoomPage() {
       toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
+
+    const roomCodeError = validateRoomCode(joinRoomCode);
+    const gateCodeError = validateGateCode(joinGateCode);
+    if (roomCodeError || gateCodeError) {
+      setRoomEntryErrors({
+        ...(roomCodeError ? { roomCode: t(roomCodeError) } : {}),
+        ...(gateCodeError ? { gateCode: t(gateCodeError) } : {}),
+      });
+      return;
+    }
+    setRoomEntryErrors({});
+
     setRoomEntrySubmitting(true);
-    setError(null);
 
     try {
       const targetRoomCode = joinRoomCode.trim();
@@ -1376,7 +1429,7 @@ export default function RoomPage() {
         router.push(`/room/${payload.roomCode}`);
       }
     } catch (joinError) {
-      toast.error(joinError instanceof Error ? joinError.message : "加入房间失败");
+      toastError(joinError, t("toast.joinRoomFailed"), t);
     } finally {
       setRoomEntrySubmitting(false);
     }
@@ -1388,7 +1441,6 @@ export default function RoomPage() {
 
     setOpenRoomMenu(null);
     setAction(`leave-${target.roomCode}`);
-    setError(null);
 
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${target.roomCode}/leave`, {
@@ -1415,7 +1467,7 @@ export default function RoomPage() {
 
       toast.success(t("toast.leftRoom", { name: target.name }));
     } catch (leaveError) {
-      toast.error(leaveError instanceof Error ? leaveError.message : "退出房间失败");
+      toastError(leaveError, t("toast.leaveRoomFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1598,7 +1650,7 @@ export default function RoomPage() {
       closeNoticeEditor();
       await refresh();
       toast.success(t("toast.noticeUpdated"));
-    } catch (err) { toast.error(err instanceof Error ? err.message : "公告保存失败"); }
+    } catch (err) { toastError(err, t("toast.noticeSaveFailed"), t); }
     finally { setAction(null); }
   }
 
@@ -1618,7 +1670,7 @@ export default function RoomPage() {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
       setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
       setShowNoticePopup(false);
-    } catch (err) { toast.error(err instanceof Error ? err.message : "公告已读失败"); }
+    } catch (err) { toastError(err, t("toast.noticeSeenFailed"), t); }
   }
 
   async function dissolve() {
@@ -1661,20 +1713,23 @@ export default function RoomPage() {
         router.push("/");
       }
     }
-    catch (err) { toast.error(err instanceof Error ? err.message : "解散失败"); }
+    catch (err) { toastError(err, t("toast.dissolveFailed"), t); }
     finally { setAction(null); }
   }
 
   async function updateRoomName() {
     if (!isOwner) return;
-    setAction("room-name");
-    setError(null);
-    try {
-      const normalized = roomNameInput.trim();
-      if (!normalized) {
-        throw new Error("房间名称不能为空");
-      }
 
+    const normalized = roomNameInput.trim();
+    const nameError = validateRoomName(normalized);
+    if (nameError) {
+      setSettingsErrors((prev) => ({ ...prev, roomName: t(nameError) }));
+      return;
+    }
+    setSettingsErrors((prev) => ({ ...prev, roomName: undefined }));
+
+    setAction("room-name");
+    try {
       const result = await apiFetch<{ name: string }>(
         `/api/rooms/${roomCode}/name`,
         {
@@ -1701,7 +1756,7 @@ export default function RoomPage() {
       toast.success(t("toast.roomNameUpdated"));
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "房间名称更新失败");
+      toastError(err, t("toast.roomNameUpdateFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1709,14 +1764,17 @@ export default function RoomPage() {
 
   async function updateGateCode() {
     if (!isOwner) return;
-    setAction("gate-code");
-    setError(null);
-    try {
-      const normalized = gateCodeInput.replace(/\D/g, "").slice(0, 6);
-      if (normalized.length > 0 && normalized.length !== 6) {
-        throw new Error("门禁码必须是 6 位数字，留空则表示不设置门禁码");
-      }
 
+    const normalized = gateCodeInput.replace(/\D/g, "").slice(0, 6);
+    const gateCodeError = validateGateCode(normalized);
+    if (gateCodeError) {
+      setSettingsErrors((prev) => ({ ...prev, gateCode: t(gateCodeError) }));
+      return;
+    }
+    setSettingsErrors((prev) => ({ ...prev, gateCode: undefined }));
+
+    setAction("gate-code");
+    try {
       await apiFetch<{ gateCode: string | null; hasGateCode: boolean }>(
         `/api/rooms/${roomCode}/gate-code`,
         {
@@ -1729,7 +1787,7 @@ export default function RoomPage() {
       await refresh();
       toast.success(normalized ? t("toast.gateCodeUpdated") : t("toast.gateCodeCleared"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "门禁码更新失败");
+      toastError(err, t("toast.gateCodeUpdateFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1738,7 +1796,6 @@ export default function RoomPage() {
   async function updateJoinPolicy(nextAllowJoinRequest: boolean) {
     if (!isOwner) return;
     setAction("join-policy");
-    setError(null);
     try {
       const result = await apiFetch<{ allowJoinRequest: boolean }>(
         `/api/rooms/${roomCode}/join-policy`,
@@ -1769,7 +1826,7 @@ export default function RoomPage() {
       );
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "更新加入策略失败");
+      toastError(err, t("toast.joinPolicyUpdateFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1778,7 +1835,6 @@ export default function RoomPage() {
   async function updateNeverExpire(nextNeverExpire: boolean) {
     if (!isOwner) return;
     setAction("never-expire");
-    setError(null);
     try {
       const result = await apiFetch<{ neverExpire: boolean }>(
         `/api/rooms/${roomCode}/never-expire`,
@@ -1807,7 +1863,7 @@ export default function RoomPage() {
       );
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "更新永不过期失败");
+      toastError(err, t("toast.neverExpireUpdateFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1821,13 +1877,29 @@ export default function RoomPage() {
     );
   }
 
-  if (error && !snap) {
+  if (loadError && !snap) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-sm text-ink-soft">{error}</p>
-        <Link href="/" className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft">
-          返回首页
-        </Link>
+        <p className="text-sm text-ink-soft" role="alert">{loadError}</p>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void refresh()
+                .catch((retryError) =>
+                  setLoadError(resolveErrorMessage(retryError, t("toast.loadFailed"), t)),
+                )
+                .finally(() => setLoading(false));
+            }}
+            className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft"
+          >
+            {t("common.retry")}
+          </button>
+          <Link href="/" className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft">
+            返回首页
+          </Link>
+        </div>
       </main>
     );
   }
@@ -2466,9 +2538,16 @@ export default function RoomPage() {
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={roomNameInput}
-                        onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
+                        onChange={(e) => {
+                          setRoomNameInput(e.target.value.slice(0, 48));
+                          if (settingsErrors.roomName) {
+                            setSettingsErrors((prev) => ({ ...prev, roomName: undefined }));
+                          }
+                        }}
                         placeholder={t("settings.roomName.placeholder")}
                         className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                        aria-invalid={settingsErrors.roomName ? true : undefined}
+                        aria-describedby={settingsErrors.roomName ? "settings-room-name-error" : undefined}
                       />
                       <button
                         type="button"
@@ -2479,15 +2558,23 @@ export default function RoomPage() {
                         {action === "room-name" ? t("settings.saving") : t("settings.save")}
                       </button>
                     </div>
+                    <FieldError id="settings-room-name-error" message={settingsErrors.roomName} />
                   </div>
                   <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
                     <p className="text-xs font-medium text-ink-soft">{t("settings.gateCode")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={gateCodeInput}
-                        onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        onChange={(e) => {
+                          setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
+                          if (settingsErrors.gateCode) {
+                            setSettingsErrors((prev) => ({ ...prev, gateCode: undefined }));
+                          }
+                        }}
                         placeholder={t("settings.gateCode.placeholder")}
                         className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                        aria-invalid={settingsErrors.gateCode ? true : undefined}
+                        aria-describedby={settingsErrors.gateCode ? "settings-gate-code-error" : undefined}
                       />
                       <button
                         type="button"
@@ -2498,6 +2585,7 @@ export default function RoomPage() {
                         {action === "gate-code" ? t("settings.saving") : t("settings.save")}
                       </button>
                     </div>
+                    <FieldError id="settings-gate-code-error" message={settingsErrors.gateCode} />
                     <p className="mt-2 text-[11px] text-ink-faint">
                       {t("settings.gateCode.current", {
                         code: snap.room.gateCode ?? t("settings.gateCode.unset"),
@@ -2548,7 +2636,6 @@ export default function RoomPage() {
               </Popover>
             ) : null}
 
-            {error ? <p className="mt-3 text-xs text-ink-soft">{error}</p> : null}
         </aside>
       </main>
 
@@ -2598,27 +2685,40 @@ export default function RoomPage() {
             </div>
 
             {roomEntryMode === "create" ? (
-              <form className="space-y-3" onSubmit={quickCreateRoom}>
+              <form className="space-y-3" onSubmit={quickCreateRoom} noValidate>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间名称</span>
                   <input
-                    required
                     value={createName}
-                    onChange={(event) => setCreateName(event.target.value)}
+                    onChange={(event) => {
+                      setCreateName(event.target.value);
+                      if (roomEntryErrors.name) {
+                        setRoomEntryErrors((prev) => ({ ...prev, name: undefined }));
+                      }
+                    }}
                     placeholder="输入房间名"
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    aria-invalid={roomEntryErrors.name ? true : undefined}
+                    aria-describedby={roomEntryErrors.name ? "room-entry-create-name-error" : undefined}
                   />
+                  <FieldError id="room-entry-create-name-error" message={roomEntryErrors.name} />
                 </label>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
                   <input
                     value={createGateCode}
-                    onChange={(event) =>
-                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
+                    onChange={(event) => {
+                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      if (roomEntryErrors.gateCode) {
+                        setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
+                      }
+                    }}
                     placeholder="不填则加入无需门禁码"
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    aria-invalid={roomEntryErrors.gateCode ? true : undefined}
+                    aria-describedby={roomEntryErrors.gateCode ? "room-entry-create-gate-code-error" : undefined}
                   />
+                  <FieldError id="room-entry-create-gate-code-error" message={roomEntryErrors.gateCode} />
                 </label>
                 <button
                   type="submit"
@@ -2630,25 +2730,40 @@ export default function RoomPage() {
                 </button>
               </form>
             ) : (
-              <form className="space-y-3" onSubmit={quickJoinRoom}>
+              <form className="space-y-3" onSubmit={quickJoinRoom} noValidate>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
                   <input
-                    required
                     value={joinRoomCode}
-                    onChange={(event) => setJoinRoomCode(event.target.value.trim())}
+                    onChange={(event) => {
+                      setJoinRoomCode(event.target.value.trim());
+                      if (roomEntryErrors.roomCode) {
+                        setRoomEntryErrors((prev) => ({ ...prev, roomCode: undefined }));
+                      }
+                    }}
                     placeholder="例如：8DK1A2M7QX"
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    aria-invalid={roomEntryErrors.roomCode ? true : undefined}
+                    aria-describedby={roomEntryErrors.roomCode ? "room-entry-join-room-code-error" : undefined}
                   />
+                  <FieldError id="room-entry-join-room-code-error" message={roomEntryErrors.roomCode} />
                 </label>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
                   <input
                     value={joinGateCode}
-                    onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                    onChange={(event) => {
+                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      if (roomEntryErrors.gateCode) {
+                        setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
+                      }
+                    }}
                     placeholder="如果房间设置了门禁码则必填"
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    aria-invalid={roomEntryErrors.gateCode ? true : undefined}
+                    aria-describedby={roomEntryErrors.gateCode ? "room-entry-join-gate-code-error" : undefined}
                   />
+                  <FieldError id="room-entry-join-gate-code-error" message={roomEntryErrors.gateCode} />
                 </label>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">邀请 Token（可选）</span>

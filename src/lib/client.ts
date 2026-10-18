@@ -7,6 +7,23 @@
   };
 };
 
+/**
+ * Error thrown by `apiFetch`. Keeping the HTTP status and backend error code
+ * lets the feedback layer distinguish user-readable business errors from
+ * transport/internal failures without parsing message text.
+ */
+export class ApiRequestError extends Error {
+  readonly status?: number;
+  readonly code?: string;
+
+  constructor(message: string, options?: { status?: number; code?: string }) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = options?.status;
+    this.code = options?.code;
+  }
+}
+
 export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const method = init?.method ?? "GET";
   const url = typeof input === "string" ? input : input.toString();
@@ -28,7 +45,9 @@ export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit):
       method,
       error: networkError,
     });
-    throw new Error(`网络请求失败: ${method} ${url}`);
+    throw new ApiRequestError(`网络请求失败: ${method} ${url}`, {
+      code: "NETWORK_ERROR",
+    });
   }
 
   let rawText = "";
@@ -42,7 +61,9 @@ export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit):
       statusText: response.statusText,
       error: readError,
     });
-    throw new Error(`读取响应失败: ${method} ${url}`);
+    throw new ApiRequestError(`读取响应失败: ${method} ${url}`, {
+      code: "NETWORK_ERROR",
+    });
   }
 
   let payload: ApiEnvelope<T> | null = null;
@@ -57,7 +78,9 @@ export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit):
       rawText,
       error: parseError,
     });
-    throw new Error(`解析响应失败: ${method} ${url}`);
+    throw new ApiRequestError(`解析响应失败: ${method} ${url}`, {
+      code: "INVALID_RESPONSE",
+    });
   }
 
   if (!response.ok || !payload?.ok || typeof payload.data === "undefined") {
@@ -69,7 +92,10 @@ export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit):
       payload,
       rawText,
     });
-    throw new Error(payload?.error?.message ?? "请求失败");
+    throw new ApiRequestError(payload?.error?.message ?? "请求失败", {
+      status: response.status,
+      code: payload?.error?.code ?? `HTTP_${response.status}`,
+    });
   }
 
   return payload.data;
