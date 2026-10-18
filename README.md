@@ -368,6 +368,8 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.68` 移动端抽屉导航（REQ-202610-0474 / ui-04）：<1280px 时房间导航改为左侧 Drawer、成员/审批改为右侧 Drawer，聊天区默认单栏；≥1280px 保留三栏与折叠持久化。左右栏抽成 `RoomNavPanel` / `RoomMembersPanel` 复用，header 新增 44px 触控入口，切换房间或回到桌面断点自动收起抽屉。
+- 新增 9 条房间面板组件测试；`npm run lint`、`npx tsc --noEmit`、`npm test`（17 条）、`npm run build` 全部通过。
 - `0.1.66` 弹层组件体系（REQ-202610-0468 / ui-02）：新增 Modal / Drawer / Sheet 共享底层，统一 portal、入场动画、焦点陷阱、Esc/遮罩关闭、滚动锁定与层级栈；房间页 5 处手写弹窗与设置面板全部迁移，公告编辑器改为右侧 Drawer、图片查看器使用媒体模式。
 - 新增 Vitest + Testing Library 测试设施与 8 条弹层回归测试；`npm run lint`、`npm test`、`npm run build` 全部通过。
 

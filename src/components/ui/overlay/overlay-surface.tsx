@@ -157,7 +157,7 @@ function OverlayHeader({
           type="button"
           onClick={onClose}
           aria-label={closeLabel}
-          className="icon-btn h-8 w-8 shrink-0"
+          className="icon-btn h-11 w-11 shrink-0 xl:h-8 xl:w-8"
         >
           <X className="h-4 w-4" />
         </button>

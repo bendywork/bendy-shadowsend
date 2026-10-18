@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.68 移动端抽屉导航（REQ-202610-0474 / ui-04）
+
+### Scope
+- 移动端（<1280px）左右栏不再堆叠：房间导航从左侧 Drawer 唤出，成员/审批从右侧 Drawer 唤出，聊天区默认单栏。
+- 桌面端（≥1280px）保持三栏布局和原有的导航/成员栏折叠持久化；移动抽屉在切换房间或回到桌面断点时自动关闭。
+- 抽出 `RoomNavPanel` / `RoomMembersPanel`，桌面侧栏与移动抽屉共用同一套渲染，避免两套 DOM 逻辑漂移。
+- Bump app version to `0.1.68`.
+
+### Changes
+- `src/components/chat/room-nav-panel.tsx`: 房间导航面板，含房间分组折叠、创建/加入入口、成员房间操作菜单、版本/协议/在线人数/当前用户页脚；`showHeader` 控制桌面侧栏头，`onNavigate` 用于移动端点击房间后关闭抽屉。
+- `src/components/chat/room-members-panel.tsx`: 成员/审批面板，含房主标签页、成员转让/移除菜单、审批通过/拒绝与错误提示；同样支持 `showHeader`。
+- `src/lib/format.ts`: 抽出共享的 `formatTimestamp`，消息列表与成员/审批列表统一时间格式。
+- `src/app/room/[roomCode]/page.tsx`: 左右 aside 改用新面板；新增 `mobileNavOpen` / `mobileMembersOpen` 两个 Drawer；header 增加 44px 触控入口（`aria-haspopup="dialog"`），桌面折叠按钮仅在 `xl` 显示；设置 Drawer 移到页面根部，避免与移动抽屉嵌套。
+- `src/components/ui/overlay/overlay-surface.tsx`: 弹层关闭按钮在 `<xl` 断点提升到 44px 触控目标，桌面维持 32px。
+- `src/lib/i18n/messages.ts`: 新增 `nav.current` / `nav.open` / `nav.roomActions` / `members.open` / `members.actions` / `members.transfer` / `members.kick` 中英文案。
+- `src/components/chat/room-panels.test.tsx`: 9 条组件测试，覆盖房间分组与创建/加入、点击房间回调、成员房间操作菜单、上限禁用、标签页切换、审批决策、转让/移除、普通成员权限与错误展示。
+
+### Regression Checklist
+- `npm run lint` green.
+- `npx tsc --noEmit` green.
+- `npm test` green: 2 files, 17 tests.
+- `npm run build` green (Next.js 16.2.1, 12 static pages).
+- Manual responsive checks: 375px / 768px / 1024px 单栏聊天 + 左右抽屉；1280px 恢复三栏；抽屉打开时 Esc/遮罩可关闭，切换房间自动收起。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.68`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.66 弹层组件体系（REQ-202610-0468 / ui-02）
 
 ### Scope

@@ -4,14 +4,15 @@
 import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
-import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, Clock3, CornerDownLeft, Copy, Download, FileText, LoaderCircle, Megaphone, PanelLeft, Plus, QrCode, SendHorizonal, Settings2, Trash2, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { RoomMembersPanel } from "@/components/chat/room-members-panel";
+import { RoomNavPanel } from "@/components/chat/room-nav-panel";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -20,6 +21,7 @@ import { useT } from "@/lib/i18n/context";
 import { Drawer } from "@/components/ui/drawer";
 import { Modal } from "@/components/ui/modal";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { formatTimestamp } from "@/lib/format";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -79,7 +81,6 @@ type NoticeEditorImage = {
 
 const isPreviewable = (a: { previewType: AttachmentItem["previewType"] }) =>
   a.previewType === "IMAGE" || a.previewType === "VIDEO";
-const fmt = (v: string) => new Date(v).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const hasInlinePreview = (a: {
   previewType: AttachmentItem["previewType"];
   previewUrl?: string | null;
@@ -153,62 +154,6 @@ function mergeIncomingMessages(
     ...prev,
     messages: trimmed,
   });
-}
-
-function RoomLinks({
-  rooms,
-  activeCode,
-  onToggleMenu,
-  emptyLabel = "暂无",
-}: {
-  rooms: RoomTreeItem[];
-  activeCode: string;
-  onToggleMenu: (room: RoomTreeItem, triggerButton: HTMLButtonElement) => void;
-  emptyLabel?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      {rooms.length === 0 ? <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">{emptyLabel}</p> : rooms.map((r) => (
-        <div
-          key={r.id}
-          className={clsx(
-            "rounded-lg border px-3 py-2 text-sm",
-            activeCode === r.roomCode
-              ? "border-action-border bg-action-soft text-ink"
-              : "border-line-subtle bg-panel/70 text-ink-soft hover:border-line",
-          )}
-        >
-          <div className="flex items-start gap-2">
-            <Link href={`/room/${r.roomCode}`} className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate">{r.name}</span>
-                {activeCode === r.roomCode ? (
-                  <span
-                    title="当前房间"
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-success shadow-[0_0_8px_var(--ds-success-glow)]"
-                  />
-                ) : null}
-                {r.hasGateCode ? <Shield className="h-3.5 w-3.5 shrink-0 text-ink-soft" /> : null}
-              </div>
-              <p className="mt-1 truncate font-mono text-[11px] text-ink-faint">{r.roomCode}</p>
-            </Link>
-            {r.role === "MEMBER" ? (
-              <button
-                type="button"
-                aria-label="房间操作"
-                aria-haspopup="menu"
-                data-room-menu-trigger={r.id}
-                onClick={(event) => onToggleMenu(r, event.currentTarget)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
@@ -328,7 +273,7 @@ function MessageBubble({
             <span className="text-sm font-medium text-ink-soft">{nickname}</span>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
-            <time className="tabular-nums">{fmt(createdAt)}</time>
+            <time className="tabular-nums">{formatTimestamp(createdAt)}</time>
             {metaSlot}
           </div>
         </div>
@@ -528,6 +473,8 @@ export default function RoomPage() {
   const [createdCollapsed, , toggleCreatedCollapsed] = usePersistentBoolean("tb:nav-group-created", false);
   const [joinedCollapsed, , toggleJoinedCollapsed] = usePersistentBoolean("tb:nav-group-joined", false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileMembersOpen, setMobileMembersOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
 
@@ -556,8 +503,6 @@ export default function RoomPage() {
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
   const floatingRoomMenuRef = useRef<HTMLDivElement | null>(null);
   const memberMenuRef = useRef<HTMLDivElement | null>(null);
-  const roomsPanelRef = useRef<HTMLElement | null>(null);
-  const membersPanelRef = useRef<HTMLElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
   const [imageViewer, setImageViewer] = useState<ImageViewerState | null>(null);
 
@@ -608,6 +553,24 @@ export default function RoomPage() {
   }, [roomCode, pollingEnabled, pollLatestMessages, refresh]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
+
+  // 切换房间后关闭移动端抽屉，避免把上一间房的侧栏状态带到新房间。
+  useEffect(() => {
+    setMobileNavOpen(false);
+    setMobileMembersOpen(false);
+  }, [roomCode]);
+
+  // 进入桌面断点时关闭移动端抽屉，防止窗口放大后遗留浮层。
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const closeOnDesktop = () => {
+      if (!media.matches) return;
+      setMobileNavOpen(false);
+      setMobileMembersOpen(false);
+    };
+    media.addEventListener("change", closeOnDesktop);
+    return () => media.removeEventListener("change", closeOnDesktop);
+  }, []);
 
   useEffect(() => {
     if (!showQr || !joinLink) return;
@@ -1141,11 +1104,6 @@ export default function RoomPage() {
       url,
       fileName,
     });
-  }
-
-  function scrollToPanel(target: "rooms" | "members") {
-    const panelRef = target === "rooms" ? roomsPanelRef : membersPanelRef;
-    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function runSend(localId: string, content: string, sendingFiles: File[]) {
@@ -1870,125 +1828,33 @@ export default function RoomPage() {
         )}
       >
         <aside
-          ref={roomsPanelRef}
           className={clsx(
-            "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-1 xl:max-h-none",
-            navVisible ? "flex" : "hidden",
+            "hidden min-h-0 flex-col border border-line-subtle bg-canvas xl:order-1",
+            navVisible ? "xl:flex" : "xl:hidden",
           )}
         >
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-line-subtle bg-panel/70 p-1">
-                <Image
-                  src="/1.png"
-                  alt="Temp Bendy"
-                  fill
-                  sizes="36px"
-                  className="theme-dark-only object-contain p-1"
-                />
-                <Image
-                  src="/1-light.png"
-                  alt="Temp Bendy（日间）"
-                  fill
-                  sizes="36px"
-                  className="theme-light-only object-contain p-1"
-                />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-ink-faint">{t("nav.title")}</p>
-                <h2 className="truncate text-lg font-semibold text-ink">{t("nav.subtitle")}</h2>
-              </div>
-            </div>
-            <Tooltip label={t("nav.collapse")}>
-              <IconButton aria-label={t("nav.collapse")} onClick={toggleNavCollapsed}>
-                <PanelLeftClose className="h-4 w-4" />
-              </IconButton>
-            </Tooltip>
-          </div>
-          <p className="mb-3 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-faint">
-            <span>{t("nav.count", { count: roomCount, max: MAX_USER_ROOMS })}</span>
-            {!canAddMoreRooms ? <span className="text-ink-faint">· {t("nav.count.full")}</span> : null}
-          </p>
-          <div className="flex-1 space-y-4 overflow-y-auto pb-3">
-            <div>
-              <div className="mb-2 flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={toggleCreatedCollapsed}
-                  aria-expanded={!createdCollapsed}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-ink-faint hover:text-ink-soft"
-                >
-                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !createdCollapsed && "rotate-90")} />
-                  <span className="truncate">{t("nav.group.created")}</span>
-                  <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.created.length}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t("nav.create")}
-                  title={t("nav.create")}
-                  onClick={() => openRoomEntry("create")}
-                  disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              {!createdCollapsed ? (
-                <RoomLinks rooms={rooms.created} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
-              ) : null}
-            </div>
-            <div>
-              <div className="mb-2 flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={toggleJoinedCollapsed}
-                  aria-expanded={!joinedCollapsed}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-ink-faint hover:text-ink-soft"
-                >
-                  <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !joinedCollapsed && "rotate-90")} />
-                  <span className="truncate">{t("nav.group.joined")}</span>
-                  <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.joined.length}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t("nav.join")}
-                  title={t("nav.join")}
-                  onClick={() => openRoomEntry("join")}
-                  disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              {!joinedCollapsed ? (
-                <RoomLinks rooms={rooms.joined} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
-              ) : null}
-            </div>
-          </div>
-          <div className="mt-auto space-y-2 rounded-xl border border-line-subtle bg-panel/70 p-3 text-xs text-ink-muted">
-            <p>
-              {t("footer.version")} <span className="font-semibold text-ink-soft">{snap.app.version}</span>
-            </p>
-            <p>
-              {t("footer.license")} <span className="font-semibold text-ink-soft">{snap.app.openSource}</span>
-            </p>
-            <p>
-              {t("footer.roomOnline")} <span className="font-semibold text-ink-soft">{snap.stats.roomOnline}</span>
-            </p>
-            <p>
-              {t("footer.totalOnline")} <span className="font-semibold text-ink-soft">{snap.stats.totalOnline}</span>
-            </p>
-            <div className="pt-2">
-              <p className="text-ink-faint">{t("footer.currentUser")}</p>
-              <div className="mt-1 flex items-center gap-2">
-                <Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} />
-                <span className="text-sm text-ink-soft">{snap.me.nickname}</span>
-              </div>
-            </div>
-          </div>
+          <RoomNavPanel
+            rooms={rooms}
+            activeCode={roomCode}
+            roomCount={roomCount}
+            maxRooms={MAX_USER_ROOMS}
+            canAddMoreRooms={canAddMoreRooms}
+            roomEntrySubmitting={roomEntrySubmitting}
+            createdCollapsed={createdCollapsed}
+            joinedCollapsed={joinedCollapsed}
+            appVersion={snap.app.version}
+            openSource={snap.app.openSource}
+            stats={snap.stats}
+            me={snap.me}
+            onToggleCreated={toggleCreatedCollapsed}
+            onToggleJoined={toggleJoinedCollapsed}
+            onOpenRoomEntry={openRoomEntry}
+            onToggleRoomMenu={handleToggleRoomMenu}
+            onCollapse={toggleNavCollapsed}
+          />
         </aside>
 
-        <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
+        <section className="order-1 flex min-h-[100dvh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
           <header className="space-y-3 border-b border-line-subtle px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -2005,33 +1871,35 @@ export default function RoomPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {navVisible ? (
-                <button
-                  type="button"
-                  onClick={() => scrollToPanel("rooms")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
-                >
-                  {t("nav.rooms")}
-                </button>
-              ) : null}
-              {membersVisible ? (
-                <button
-                  type="button"
-                  onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
-                >
-                  {t("members.list")}
-                </button>
-              ) : null}
-              <Tooltip label={navVisible ? t("control.nav.hide") : t("control.nav.show")}>
-                <IconButton
-                  aria-label={navVisible ? t("control.nav.hide") : t("control.nav.show")}
-                  active={navVisible}
-                  onClick={toggleNavCollapsed}
-                >
-                  <PanelLeft className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                aria-label={t("nav.open")}
+                aria-haspopup="dialog"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-line text-ink-soft transition-colors hover:bg-elevated active:bg-action-soft xl:hidden"
+              >
+                <PanelLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileMembersOpen(true)}
+                aria-label={t("members.open")}
+                aria-haspopup="dialog"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-line text-ink-soft transition-colors hover:bg-elevated active:bg-action-soft xl:hidden"
+              >
+                <Users className="h-4 w-4" />
+              </button>
+              <span className="hidden xl:inline-flex">
+                <Tooltip label={navVisible ? t("control.nav.hide") : t("control.nav.show")}>
+                  <IconButton
+                    aria-label={navVisible ? t("control.nav.hide") : t("control.nav.show")}
+                    active={navVisible}
+                    onClick={toggleNavCollapsed}
+                  >
+                    <PanelLeft className="h-4 w-4" />
+                  </IconButton>
+                </Tooltip>
+              </span>
               <Tooltip label={t("header.invite")}>
                 <IconButton aria-label={t("header.invite")} onClick={copyLink}>
                   <Copy className="h-4 w-4" />
@@ -2047,15 +1915,17 @@ export default function RoomPage() {
                   <Megaphone className="h-4 w-4" />
                 </IconButton>
               </Tooltip>
-              <Tooltip label={membersVisible ? t("control.members.hide") : t("control.members.show")}>
-                <IconButton
-                  aria-label={membersVisible ? t("control.members.hide") : t("control.members.show")}
-                  active={membersVisible}
-                  onClick={toggleMembersCollapsed}
-                >
-                  <Users className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
+              <span className="hidden xl:inline-flex">
+                <Tooltip label={membersVisible ? t("control.members.hide") : t("control.members.show")}>
+                  <IconButton
+                    aria-label={membersVisible ? t("control.members.hide") : t("control.members.show")}
+                    active={membersVisible}
+                    onClick={toggleMembersCollapsed}
+                  >
+                    <Users className="h-4 w-4" />
+                  </IconButton>
+                </Tooltip>
+              </span>
               {isOwner ? (
                 <Tooltip label={t("header.settings")}>
                   <IconButton
@@ -2278,274 +2148,191 @@ export default function RoomPage() {
         </section>
 
         <aside
-          ref={membersPanelRef}
           className={clsx(
-            "order-3 min-h-0 max-h-[56vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-3 xl:max-h-none",
-            membersVisible ? "flex" : "hidden",
+            "hidden min-h-0 flex-col border border-line-subtle bg-canvas xl:order-3",
+            membersVisible ? "xl:flex" : "xl:hidden",
           )}
         >
-            <div className="mb-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs uppercase tracking-[0.16em] text-ink-faint">
-                  {isOwner ? t("members.manage") : t("members.list")}
-                </p>
-                <Tooltip label={t("members.collapse")}>
-                  <IconButton
-                    aria-label={t("members.collapse")}
-                    className="h-7 w-7"
-                    onClick={toggleMembersCollapsed}
-                  >
-                    <PanelRightClose className="h-4 w-4" />
-                  </IconButton>
-                </Tooltip>
-              </div>
-              {isOwner ? (
-                <div className="segmented mt-2 grid grid-cols-2 gap-1 p-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenMemberMenuId(null);
-                      setMemberPanelTab("members");
-                    }}
-                    className="segmented-item px-2 py-1.5 text-xs font-medium"
-                    data-active={memberPanelTab === "members"}
-                  >
-                    {t("members.tab.members")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenMemberMenuId(null);
-                      setMemberPanelTab("approvals");
-                    }}
-                    className="segmented-item px-2 py-1.5 text-xs font-medium"
-                    data-active={memberPanelTab === "approvals"}
-                  >
-                    {t("members.tab.approvals")}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            {memberPanelTab === "members" || !isOwner ? (
-              <div className="flex min-h-0 flex-1 flex-col">
-                <h2 className="mb-2 text-lg font-semibold text-ink">{t("members.count", { count: snap.members.length })}</h2>
-                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-                  {snap.members.map((m) => (
-                    <div key={m.id} className="rounded-lg border border-line-subtle bg-panel/70 px-3 py-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm text-ink-soft">{m.user.nickname}</p>
-                            <p className="text-xs text-ink-faint">
-                              {m.role === "OWNER" ? t("members.role.owner") : t("members.role.member")} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
-                            </p>
-                          </div>
-                        </div>
-                        {isOwner && m.role !== "OWNER" ? (
-                          <div
-                            ref={openMemberMenuId === m.id ? memberMenuRef : null}
-                            className="relative shrink-0"
-                          >
-                            <button
-                              type="button"
-                              aria-label="成员操作"
-                              aria-haspopup="menu"
-                              aria-expanded={openMemberMenuId === m.id}
-                              onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-action-border text-ink-soft hover:bg-elevated"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                            {openMemberMenuId === m.id ? (
-                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-line bg-panel p-1.5 shadow-lg">
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setOpenMemberMenuId(null);
-                                    void transferOwner(m);
-                                  }}
-                                  disabled={action === `transfer-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
-                                >
-                                  <Crown className="h-3 w-3" /> 房主转让
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setOpenMemberMenuId(null);
-                                    void kick(m);
-                                  }}
-                                  disabled={action === `kick-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
-                                >
-                                  <UserMinus className="h-3 w-3" /> 移除房间
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {isOwner && memberPanelTab === "approvals" ? (
-              <div className="flex min-h-0 flex-1 flex-col">
-                <h2 className="mb-2 text-lg font-semibold text-ink">{t("approvals.title")}</h2>
-                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-                  {snap.pendingRequests.length === 0 ? (
-                    <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">
-                      {t("approvals.empty")}
-                    </p>
-                  ) : (
-                    snap.pendingRequests.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                        <div className="mb-2 flex items-center gap-2">
-                          <Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" />
-                          <div>
-                            <p className="text-sm text-ink-soft">{r.user.nickname}</p>
-                            <p className="text-[11px] text-ink-faint">{fmt(r.createdAt)}</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => review(r, "approve")}
-                            disabled={action === `approve-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
-                          >
-                            <Check className="h-3 w-3" /> {t("approvals.approve")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => review(r, "reject")}
-                            disabled={action === `reject-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
-                          >
-                            <X className="h-3 w-3" /> {t("approvals.reject")}
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            ) : null}
-
-            {isOwner ? (
-              <Drawer
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                title={t("settings.title")}
-                closeLabel={t("common.close")}
-                side="right"
-                size="md"
-              >
-                <div className="space-y-3">
-                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <p className="text-xs font-medium text-ink-soft">{t("settings.roomName")}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        data-autofocus
-                        value={roomNameInput}
-                        onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
-                        placeholder={t("settings.roomName.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={updateRoomName}
-                        disabled={action === "room-name"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
-                      >
-                        {action === "room-name" ? t("settings.saving") : t("settings.save")}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <p className="text-xs font-medium text-ink-soft">{t("settings.gateCode")}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        value={gateCodeInput}
-                        onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder={t("settings.gateCode.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={updateGateCode}
-                        disabled={action === "gate-code"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
-                      >
-                        {action === "gate-code" ? t("settings.saving") : t("settings.save")}
-                      </button>
-                    </div>
-                    <p className="mt-2 text-[11px] text-ink-faint">
-                      {t("settings.gateCode.current", {
-                        code: snap.room.gateCode ?? t("settings.gateCode.unset"),
-                      })}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium text-ink-soft">{t("settings.joinPolicy")}</p>
-                        <p className="text-[11px] text-ink-faint">{t("settings.joinPolicy.hint")}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-ink-muted">
-                          {snap.room.allowJoinRequest ? t("settings.joinPolicy.allow") : t("settings.joinPolicy.deny")}
-                        </span>
-                        <SwitchBtn
-                          checked={snap.room.allowJoinRequest}
-                          disabled={action === "join-policy"}
-                          onToggle={() => {
-                            void updateJoinPolicy(!snap.room.allowJoinRequest);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-medium text-ink-soft">{t("settings.expiry")}</p>
-                        <p className="text-[11px] text-ink-faint">{t("settings.expiry.hint")}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-ink-muted">
-                          {snap.room.neverExpire ? t("settings.expiry.on") : t("settings.expiry.off")}
-                        </span>
-                        <SwitchBtn
-                          checked={snap.room.neverExpire}
-                          disabled={action === "never-expire"}
-                          onToggle={() => {
-                            void updateNeverExpire(!snap.room.neverExpire);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Drawer>
-            ) : null}
-
-            {error ? <p className="mt-3 text-xs text-ink-soft">{error}</p> : null}
+          <RoomMembersPanel
+            isOwner={isOwner}
+            members={snap.members}
+            pendingRequests={snap.pendingRequests}
+            tab={memberPanelTab}
+            onTabChange={setMemberPanelTab}
+            openMemberMenuId={openMemberMenuId}
+            onToggleMemberMenu={setOpenMemberMenuId}
+            memberMenuRef={memberMenuRef}
+            action={action}
+            onTransferOwner={transferOwner}
+            onKick={kick}
+            onReview={review}
+            onCollapse={toggleMembersCollapsed}
+            error={error}
+          />
         </aside>
       </main>
+
+      <Drawer
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        title={t("nav.title")}
+        side="left"
+        size="sm"
+        bodyClassName="overflow-hidden p-0"
+      >
+        <RoomNavPanel
+          rooms={rooms}
+          activeCode={roomCode}
+          roomCount={roomCount}
+          maxRooms={MAX_USER_ROOMS}
+          canAddMoreRooms={canAddMoreRooms}
+          roomEntrySubmitting={roomEntrySubmitting}
+          createdCollapsed={createdCollapsed}
+          joinedCollapsed={joinedCollapsed}
+          appVersion={snap.app.version}
+          openSource={snap.app.openSource}
+          stats={snap.stats}
+          me={snap.me}
+          onToggleCreated={toggleCreatedCollapsed}
+          onToggleJoined={toggleJoinedCollapsed}
+          onOpenRoomEntry={openRoomEntry}
+          onToggleRoomMenu={handleToggleRoomMenu}
+          onNavigate={() => setMobileNavOpen(false)}
+          showHeader={false}
+        />
+      </Drawer>
+
+      <Drawer
+        open={mobileMembersOpen}
+        onClose={() => setMobileMembersOpen(false)}
+        title={isOwner ? t("members.manage") : t("members.list")}
+        side="right"
+        size="sm"
+        bodyClassName="overflow-hidden p-0"
+      >
+        <RoomMembersPanel
+          isOwner={isOwner}
+          members={snap.members}
+          pendingRequests={snap.pendingRequests}
+          tab={memberPanelTab}
+          onTabChange={setMemberPanelTab}
+          openMemberMenuId={openMemberMenuId}
+          onToggleMemberMenu={setOpenMemberMenuId}
+          memberMenuRef={memberMenuRef}
+          action={action}
+          onTransferOwner={transferOwner}
+          onKick={kick}
+          onReview={review}
+          error={error}
+          showHeader={false}
+        />
+      </Drawer>
+
+      {isOwner ? (
+        <Drawer
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          title={t("settings.title")}
+          closeLabel={t("common.close")}
+          side="right"
+          size="md"
+        >
+          <div className="space-y-3">
+            <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
+              <p className="text-xs font-medium text-ink-soft">{t("settings.roomName")}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  data-autofocus
+                  value={roomNameInput}
+                  onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
+                  placeholder={t("settings.roomName.placeholder")}
+                  className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={updateRoomName}
+                  disabled={action === "room-name"}
+                  className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
+                >
+                  {action === "room-name" ? t("settings.saving") : t("settings.save")}
+                </button>
+              </div>
+            </div>
+            <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
+              <p className="text-xs font-medium text-ink-soft">{t("settings.gateCode")}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  value={gateCodeInput}
+                  onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder={t("settings.gateCode.placeholder")}
+                  className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={updateGateCode}
+                  disabled={action === "gate-code"}
+                  className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
+                >
+                  {action === "gate-code" ? t("settings.saving") : t("settings.save")}
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-ink-faint">
+                {t("settings.gateCode.current", {
+                  code: snap.room.gateCode ?? t("settings.gateCode.unset"),
+                })}
+              </p>
+            </div>
+            <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-ink-soft">{t("settings.joinPolicy")}</p>
+                  <p className="text-[11px] text-ink-faint">{t("settings.joinPolicy.hint")}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-ink-muted">
+                    {snap.room.allowJoinRequest ? t("settings.joinPolicy.allow") : t("settings.joinPolicy.deny")}
+                  </span>
+                  <SwitchBtn
+                    checked={snap.room.allowJoinRequest}
+                    disabled={action === "join-policy"}
+                    onToggle={() => {
+                      void updateJoinPolicy(!snap.room.allowJoinRequest);
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-ink-soft">{t("settings.expiry")}</p>
+                  <p className="text-[11px] text-ink-faint">{t("settings.expiry.hint")}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-ink-muted">
+                    {snap.room.neverExpire ? t("settings.expiry.on") : t("settings.expiry.off")}
+                  </span>
+                  <SwitchBtn
+                    checked={snap.room.neverExpire}
+                    disabled={action === "never-expire"}
+                    onToggle={() => {
+                      void updateNeverExpire(!snap.room.neverExpire);
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </Drawer>
+      ) : null}
+
 
       {openRoomMenu
         ? createPortal(
           <div
             ref={floatingRoomMenuRef}
             role="menu"
-            className="fixed z-[90] w-24 rounded-md border border-line bg-panel p-1 shadow-lg"
+            className="fixed z-[105] w-24 rounded-md border border-line bg-panel p-1 shadow-lg"
             style={{ top: `${openRoomMenu.top}px`, left: `${openRoomMenu.left}px` }}
           >
             <button
