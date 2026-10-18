@@ -16,6 +16,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
+import { Field, SegmentedControl, Switch, TextArea, TextInput } from "@/components/ui/form-controls";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
@@ -381,42 +382,6 @@ function MessageBubble({
   );
 }
 
-function SwitchBtn({
-  checked,
-  disabled,
-  onToggle,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={onToggle}
-      className={clsx(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-ui duration-base",
-        checked
-          ? "border-action-border bg-action/50"
-          : "border-line-strong bg-elevated-strong",
-        disabled
-          ? "cursor-not-allowed opacity-60"
-          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border",
-      )}
-    >
-      <span
-        className={clsx(
-          "inline-block h-5 w-5 rounded-full shadow-sm transition-transform duration-base",
-          checked ? "translate-x-5 bg-action-fg" : "translate-x-0.5 bg-ink-soft",
-        )}
-      />
-    </button>
-  );
-}
-
 function AdCarouselItem({
   item,
   className,
@@ -543,6 +508,8 @@ export default function RoomPage() {
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
   const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
+  const [roomEntryErrors, setRoomEntryErrors] = useState<{ name?: string; gateCode?: string; roomCode?: string }>({});
+  const [settingsFieldErrors, setSettingsFieldErrors] = useState<{ roomName?: string; gateCode?: string }>({});
   const [createName, setCreateName] = useState("");
   const [createGateCode, setCreateGateCode] = useState("");
   const [joinRoomCode, setJoinRoomCode] = useState("");
@@ -1304,6 +1271,7 @@ export default function RoomPage() {
     }
     setError(null);
     setHint(null);
+    setRoomEntryErrors({});
     setRoomEntryMode(mode);
   }
 
@@ -1313,6 +1281,15 @@ export default function RoomPage() {
       setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
       return;
     }
+
+    const nextErrors = {
+      name: createName.trim() ? undefined : t("form.required"),
+      gateCode:
+        createGateCode && !/^\d{6}$/.test(createGateCode) ? t("form.gateCode.invalid") : undefined,
+    };
+    setRoomEntryErrors(nextErrors);
+    if (nextErrors.name || nextErrors.gateCode) return;
+
     setRoomEntrySubmitting(true);
     setError(null);
     setHint(null);
@@ -1342,6 +1319,14 @@ export default function RoomPage() {
       setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
       return;
     }
+
+    const nextErrors = {
+      roomCode: joinRoomCode.trim() ? undefined : t("form.required"),
+      gateCode: joinGateCode && !/^\d{6}$/.test(joinGateCode) ? t("form.gateCode.invalid") : undefined,
+    };
+    setRoomEntryErrors(nextErrors);
+    if (nextErrors.roomCode || nextErrors.gateCode) return;
+
     setRoomEntrySubmitting(true);
     setError(null);
     setHint(null);
@@ -1665,14 +1650,15 @@ export default function RoomPage() {
 
   async function updateRoomName() {
     if (!isOwner) return;
+    const normalized = roomNameInput.trim();
+    if (!normalized) {
+      setSettingsFieldErrors((prev) => ({ ...prev, roomName: t("settings.roomName.required") }));
+      return;
+    }
+    setSettingsFieldErrors((prev) => ({ ...prev, roomName: undefined }));
     setAction("room-name");
     setError(null);
     try {
-      const normalized = roomNameInput.trim();
-      if (!normalized) {
-        throw new Error("房间名称不能为空");
-      }
-
       const result = await apiFetch<{ name: string }>(
         `/api/rooms/${roomCode}/name`,
         {
@@ -1708,14 +1694,15 @@ export default function RoomPage() {
 
   async function updateGateCode() {
     if (!isOwner) return;
+    const normalized = gateCodeInput.replace(/\D/g, "").slice(0, 6);
+    if (normalized.length > 0 && normalized.length !== 6) {
+      setSettingsFieldErrors((prev) => ({ ...prev, gateCode: t("settings.gateCode.invalid") }));
+      return;
+    }
+    setSettingsFieldErrors((prev) => ({ ...prev, gateCode: undefined }));
     setAction("gate-code");
     setError(null);
     try {
-      const normalized = gateCodeInput.replace(/\D/g, "").slice(0, 6);
-      if (normalized.length > 0 && normalized.length !== 6) {
-        throw new Error("门禁码必须是 6 位数字，留空则表示不设置门禁码");
-      }
-
       await apiFetch<{ gateCode: string | null; hasGateCode: boolean }>(
         `/api/rooms/${roomCode}/gate-code`,
         {
@@ -2246,21 +2233,16 @@ export default function RoomPage() {
                     <Copy className="h-3.5 w-3.5" />
                     {t("composer.clipboard")}
                   </button>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={enterToSend}
-                    onClick={() => setEnterToSend((prev) => !prev)}
-                    className={clsx(
-                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition-ui",
-                      enterToSend
-                        ? "border-action-border bg-action-soft text-ink"
-                        : "border-line text-ink-soft hover:bg-elevated",
-                    )}
-                  >
+                  <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs text-ink-soft">
                     <CornerDownLeft className="h-3.5 w-3.5" />
-                    {t("composer.enterToSend")} · {enterToSend ? t("common.on") : t("common.off")}
-                  </button>
+                    {t("composer.enterToSend")}
+                    <Switch
+                      checked={enterToSend}
+                      onCheckedChange={setEnterToSend}
+                      label={t("composer.enterToSend")}
+                      size="sm"
+                    />
+                  </span>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <span
@@ -2312,30 +2294,20 @@ export default function RoomPage() {
                 </Tooltip>
               </div>
               {isOwner ? (
-                <div className="segmented mt-2 grid grid-cols-2 gap-1 p-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenMemberMenuId(null);
-                      setMemberPanelTab("members");
-                    }}
-                    className="segmented-item px-2 py-1.5 text-xs font-medium"
-                    data-active={memberPanelTab === "members"}
-                  >
-                    {t("members.tab.members")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenMemberMenuId(null);
-                      setMemberPanelTab("approvals");
-                    }}
-                    className="segmented-item px-2 py-1.5 text-xs font-medium"
-                    data-active={memberPanelTab === "approvals"}
-                  >
-                    {t("members.tab.approvals")}
-                  </button>
-                </div>
+                <SegmentedControl
+                  value={memberPanelTab}
+                  onChange={(nextTab) => {
+                    setOpenMemberMenuId(null);
+                    setMemberPanelTab(nextTab);
+                  }}
+                  ariaLabel={t("members.manage")}
+                  fullWidth
+                  className="mt-2"
+                  options={[
+                    { value: "members", label: t("members.tab.members") },
+                    { value: "approvals", label: t("members.tab.approvals") },
+                  ]}
+                />
               ) : null}
             </div>
 
@@ -2459,47 +2431,64 @@ export default function RoomPage() {
               >
                 <div className="space-y-3">
                   <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <p className="text-xs font-medium text-ink-soft">{t("settings.roomName")}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        value={roomNameInput}
-                        onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
-                        placeholder={t("settings.roomName.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={updateRoomName}
-                        disabled={action === "room-name"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
-                      >
-                        {action === "room-name" ? t("settings.saving") : t("settings.save")}
-                      </button>
-                    </div>
+                    <Field
+                      id="settings-room-name"
+                      label={t("settings.roomName")}
+                      labelClassName="form-label--sm"
+                      error={settingsFieldErrors.roomName}
+                    >
+                      <div className="flex items-center gap-2">
+                        <TextInput
+                          value={roomNameInput}
+                          className="field-sm"
+                          onChange={(e) => {
+                            setRoomNameInput(e.target.value.slice(0, 48));
+                            setSettingsFieldErrors((prev) => ({ ...prev, roomName: undefined }));
+                          }}
+                          placeholder={t("settings.roomName.placeholder")}
+                        />
+                        <button
+                          type="button"
+                          onClick={updateRoomName}
+                          disabled={action === "room-name"}
+                          className="btn-secondary btn-sm shrink-0"
+                        >
+                          {action === "room-name" ? t("settings.saving") : t("settings.save")}
+                        </button>
+                      </div>
+                    </Field>
                   </div>
                   <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <p className="text-xs font-medium text-ink-soft">{t("settings.gateCode")}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        value={gateCodeInput}
-                        onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder={t("settings.gateCode.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={updateGateCode}
-                        disabled={action === "gate-code"}
-                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
-                      >
-                        {action === "gate-code" ? t("settings.saving") : t("settings.save")}
-                      </button>
-                    </div>
-                    <p className="mt-2 text-[11px] text-ink-faint">
-                      {t("settings.gateCode.current", {
+                    <Field
+                      id="settings-gate-code"
+                      label={t("settings.gateCode")}
+                      labelClassName="form-label--sm"
+                      hint={t("settings.gateCode.current", {
                         code: snap.room.gateCode ?? t("settings.gateCode.unset"),
                       })}
-                    </p>
+                      error={settingsFieldErrors.gateCode}
+                    >
+                      <div className="flex items-center gap-2">
+                        <TextInput
+                          value={gateCodeInput}
+                          className="field-sm"
+                          inputMode="numeric"
+                          onChange={(e) => {
+                            setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
+                            setSettingsFieldErrors((prev) => ({ ...prev, gateCode: undefined }));
+                          }}
+                          placeholder={t("settings.gateCode.placeholder")}
+                        />
+                        <button
+                          type="button"
+                          onClick={updateGateCode}
+                          disabled={action === "gate-code"}
+                          className="btn-secondary btn-sm shrink-0"
+                        >
+                          {action === "gate-code" ? t("settings.saving") : t("settings.save")}
+                        </button>
+                      </div>
+                    </Field>
                   </div>
                   <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
                     <div className="flex items-center justify-between gap-3">
@@ -2511,11 +2500,12 @@ export default function RoomPage() {
                         <span className="text-[11px] text-ink-muted">
                           {snap.room.allowJoinRequest ? t("settings.joinPolicy.allow") : t("settings.joinPolicy.deny")}
                         </span>
-                        <SwitchBtn
+                        <Switch
                           checked={snap.room.allowJoinRequest}
                           disabled={action === "join-policy"}
-                          onToggle={() => {
-                            void updateJoinPolicy(!snap.room.allowJoinRequest);
+                          label={t("settings.joinPolicy")}
+                          onCheckedChange={(checked) => {
+                            void updateJoinPolicy(checked);
                           }}
                         />
                       </div>
@@ -2531,11 +2521,12 @@ export default function RoomPage() {
                         <span className="text-[11px] text-ink-muted">
                           {snap.room.neverExpire ? t("settings.expiry.on") : t("settings.expiry.off")}
                         </span>
-                        <SwitchBtn
+                        <Switch
                           checked={snap.room.neverExpire}
                           disabled={action === "never-expire"}
-                          onToggle={() => {
-                            void updateNeverExpire(!snap.room.neverExpire);
+                          label={t("settings.expiry")}
+                          onCheckedChange={(checked) => {
+                            void updateNeverExpire(checked);
                           }}
                         />
                       </div>
@@ -2579,10 +2570,12 @@ export default function RoomPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold text-ink">
-                  {roomEntryMode === "create" ? "创建房间" : "加入房间"}
+                  {roomEntryMode === "create"
+                    ? t("roomEntry.title.create")
+                    : t("roomEntry.title.join")}
                 </h3>
                 <p className="mt-1 text-[11px] text-ink-faint">
-                  当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
+                  {t("roomEntry.count", { count: roomCount, max: MAX_USER_ROOMS })}
                 </p>
               </div>
               <button
@@ -2595,74 +2588,93 @@ export default function RoomPage() {
             </div>
 
             {roomEntryMode === "create" ? (
-              <form className="space-y-3" onSubmit={quickCreateRoom}>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间名称</span>
-                  <input
-                    required
+              <form className="space-y-3" onSubmit={quickCreateRoom} noValidate>
+                <Field
+                  id="room-entry-create-name"
+                  label={t("roomEntry.name")}
+                  required
+                  error={roomEntryErrors.name}
+                >
+                  <TextInput
                     value={createName}
-                    onChange={(event) => setCreateName(event.target.value)}
-                    placeholder="输入房间名"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    onChange={(event) => {
+                      setCreateName(event.target.value);
+                      setRoomEntryErrors((prev) => ({ ...prev, name: undefined }));
+                    }}
+                    placeholder={t("roomEntry.name.placeholder")}
                   />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
-                  <input
+                </Field>
+                <Field
+                  id="room-entry-create-gate"
+                  label={t("roomEntry.gateCode")}
+                  hint={t("roomEntry.gateCode.createPlaceholder")}
+                  error={roomEntryErrors.gateCode}
+                >
+                  <TextInput
                     value={createGateCode}
-                    onChange={(event) =>
-                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    inputMode="numeric"
+                    onChange={(event) => {
+                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
+                    }}
+                    placeholder={t("roomEntry.gateCode.placeholder")}
                   />
-                </label>
+                </Field>
                 <button
                   type="submit"
                   disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-primary btn-md w-full"
                 >
                   {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  创建并进入
+                  {t("roomEntry.submit.create")}
                 </button>
               </form>
             ) : (
-              <form className="space-y-3" onSubmit={quickJoinRoom}>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
-                  <input
-                    required
+              <form className="space-y-3" onSubmit={quickJoinRoom} noValidate>
+                <Field
+                  id="room-entry-join-code"
+                  label={t("roomEntry.roomCode")}
+                  required
+                  error={roomEntryErrors.roomCode}
+                >
+                  <TextInput
                     value={joinRoomCode}
-                    onChange={(event) => setJoinRoomCode(event.target.value.trim())}
-                    placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    onChange={(event) => {
+                      setJoinRoomCode(event.target.value.trim());
+                      setRoomEntryErrors((prev) => ({ ...prev, roomCode: undefined }));
+                    }}
+                    placeholder={t("roomEntry.roomCode.placeholder")}
                   />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
-                  <input
+                </Field>
+                <Field
+                  id="room-entry-join-gate"
+                  label={t("roomEntry.gateCode")}
+                  error={roomEntryErrors.gateCode}
+                >
+                  <TextInput
                     value={joinGateCode}
-                    onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    inputMode="numeric"
+                    onChange={(event) => {
+                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
+                    }}
+                    placeholder={t("roomEntry.gateCode.placeholder")}
                   />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
-                  <input
+                </Field>
+                <Field id="room-entry-join-invite" label={t("roomEntry.invite")}>
+                  <TextInput
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
-                    placeholder="有邀请链接时填入"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    placeholder={t("roomEntry.invite.placeholder")}
                   />
-                </label>
+                </Field>
                 <button
                   type="submit"
                   disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-primary btn-md w-full"
                 >
                   {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  加入房间
+                  {t("roomEntry.submit.join")}
                 </button>
               </form>
             )}
@@ -2709,12 +2721,13 @@ export default function RoomPage() {
               </button>
             </div>
 
-            <textarea
-              value={noticeText}
-              onChange={(e) => setNoticeText(e.target.value)}
-              placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none"
-            />
+            <Field id="notice-content" label={t("announcement.content")}>
+              <TextArea
+                value={noticeText}
+                onChange={(e) => setNoticeText(e.target.value)}
+                placeholder={t("announcement.content.placeholder")}
+              />
+            </Field>
 
             <input
               ref={noticeImageInputRef}

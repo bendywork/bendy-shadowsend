@@ -366,6 +366,12 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-18
+
+- `0.1.66` 表单控件体系统一（REQ-202610-0467 / ui-02）：新增 `Field`/`TextInput`/`TextArea`/`Select`/`Switch`/`SegmentedControl` 共享原语，`Field` 通过 context 自动注入 `id`、`aria-invalid`、`aria-describedby`；输入框、文本域、选择器、开关与分段控件统一 hover/focus/error/disabled 视觉状态。
+- `globals.css` 重建 `.field`（40px、聚焦环、错误态 danger 边框/底色、禁用态）、`.form-label`/`.form-hint`/`.form-error`、`.switch`（含 `--sm`）与 `.segmented` 组件类，全部消费 v0.1.65 语义令牌。
+- 首页加入/创建、房间入口、设置面板、公告编辑器与成员栏标签全部迁移到共享控件；补齐行内必填与 6 位门禁码校验，错误文案与 ARIA 关联同步；新增 zh/en 文案键。
+
 ### 2026-10-17
 
 - `0.1.65` 设计令牌体系重建（REQ-202610-0464 / ui-01）：`globals.css` 重建 10 级中性灰 primitive ramp 与语义 surface/line/ink/action 令牌，补齐圆角、4px 间距、阴影、动效时长/缓动及 success/warning/danger 状态色；全部令牌经 `@theme inline` 暴露为 Tailwind 工具类。

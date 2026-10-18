@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.66 表单控件体系统一（REQ-202610-0467 / ui-02）
+
+### Scope
+- Unify the form-control layer on top of the v0.1.65 design tokens: one visual and interaction contract for text inputs, textareas, selects, switches, segmented controls and field messages (label / hint / error).
+- Cover hover, focus, error, disabled and read-only affordances in both themes; error states pair a danger border/background with `aria-invalid` and `aria-describedby`.
+- Bump app version to `0.1.66`.
+
+### Changes
+- `src/app/globals.css`:
+  - Rebuilt `.field`: 40px default height, token-driven border/surface/ink, hover border + surface lift, focus ring via `--ds-action-soft`, disabled dimming, and `[aria-invalid="true"]` danger border/background.
+  - Added `.field-sm`, `textarea.field`, `.select-wrap` + `.select-chevron` (rotates on `:focus-within`), `.form-field`, `.form-label` (+ `--sm`), `.form-required`, `.form-hint`, `.form-error`.
+  - Rebuilt `.switch` (+ `.switch--sm`, `.switch-thumb`) with `data-checked` styling and transform-only thumb motion; rebuilt `.segmented` / `.segmented--full` / `.segmented-item` with active, hover, focus-visible and disabled states.
+- `src/components/ui/form-controls.tsx` (new): shared primitives `Field`, `TextInput`, `TextArea`, `Select`, `Switch`, `SegmentedControl`. `Field` provides id/`aria-invalid`/`aria-describedby` through context, so controls inherit the label, hint and error wiring automatically.
+- `src/app/page.tsx`: join/create forms migrated to `Field` + `TextInput` with inline required / 6-digit gate-code validation; tab switcher migrated to `SegmentedControl`; success/error notices use `.notice` variants.
+- `src/app/room/[roomCode]/page.tsx`: room-entry dialog, settings panel (room name / gate code), announcement editor and composer migrated to the shared primitives; local `SwitchBtn` removed; member-panel tabs use `SegmentedControl`; field-level errors replace thrown global errors for settings validation.
+- `src/lib/i18n/messages.ts`: added zh/en keys for form validation and all migrated labels/placeholders/hints (`form.*`, `home.*`, `roomEntry.*`, `announcement.content`, `settings.*`), keeping compile-time parity.
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`: version synced to `0.1.66` via `scripts/sync-version.js`.
+
+### Regression Checklist
+- `./node_modules/.bin/tsc --noEmit` green.
+- `npm run lint` green.
+- `npm run build` green (Next.js 16.2.1).
+- Headless Chrome (CDP) checks: dark + light themes render 40px fields with token borders; submitting an empty join form shows the inline error with `aria-invalid="true"` and `aria-describedby="home-join-room-code-error"`; English locale renders the migrated labels; no horizontal overflow at 1440px.
+- Local API 500s during the check are due to no database in the verification environment; rendering and control assertions are unaffected.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.66`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
 
 ### Scope

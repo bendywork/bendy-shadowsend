@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { apiFetch } from "@/lib/client";
+import { useT } from "@/lib/i18n/context";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Field, SegmentedControl, TextInput } from "@/components/ui/form-controls";
 
 type JoinResult = {
   joined: boolean;
@@ -42,6 +44,7 @@ const slogans = [
 
 export default function HomePage() {
   const router = useRouter();
+  const t = useT();
   const [tab, setTab] = useState<TabType>("join");
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
   const [fallbackMe, setFallbackMe] = useState<MePayload["user"] | null>(null);
@@ -55,6 +58,8 @@ export default function HomePage() {
   const [joinRoomCode, setJoinRoomCode] = useState("");
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
+  const [joinErrors, setJoinErrors] = useState<{ roomCode?: string; gateCode?: string }>({});
+  const [createErrors, setCreateErrors] = useState<{ name?: string; gateCode?: string }>({});
 
   const [typedText, setTypedText] = useState("");
   const [typedIndex, setTypedIndex] = useState(0);
@@ -152,10 +157,23 @@ export default function HomePage() {
 
   const displayMe = bootstrap?.me ?? fallbackMe;
 
+  function validateGateCode(value: string) {
+    if (!value) return undefined;
+    return /^\d{6}$/.test(value) ? undefined : t("form.gateCode.invalid");
+  }
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setInfo(null);
+
+    const nextErrors = {
+      name: createName.trim() ? undefined : t("form.required"),
+      gateCode: validateGateCode(createGateCode),
+    };
+    setCreateErrors(nextErrors);
+    if (nextErrors.name || nextErrors.gateCode) return;
+
     setSubmitting(true);
 
     try {
@@ -180,6 +198,14 @@ export default function HomePage() {
     event.preventDefault();
     setError(null);
     setInfo(null);
+
+    const nextErrors = {
+      roomCode: joinRoomCode.trim() ? undefined : t("form.required"),
+      gateCode: validateGateCode(joinGateCode),
+    };
+    setJoinErrors(nextErrors);
+    if (nextErrors.roomCode || nextErrors.gateCode) return;
+
     setSubmitting(true);
 
     try {
@@ -272,109 +298,132 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="segmented mb-5 inline-flex w-full p-1 sm:w-auto">
-              <button
-                type="button"
-                onClick={() => setTab("join")}
-                data-active={tab === "join"}
-                className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
-              >
-                <DoorOpen className="h-4 w-4" /> 加入
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab("create")}
-                data-active={tab === "create"}
-                className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
-              >
-                <PlusCircle className="h-4 w-4" /> 创建
-              </button>
-            </div>
+            <SegmentedControl
+              value={tab}
+              onChange={setTab}
+              ariaLabel={t("home.tabs.label")}
+              fullWidth
+              className="mb-5 sm:w-auto"
+              options={[
+                {
+                  value: "join",
+                  label: t("home.tab.join"),
+                  icon: <DoorOpen className="h-4 w-4" />,
+                },
+                {
+                  value: "create",
+                  label: t("home.tab.create"),
+                  icon: <PlusCircle className="h-4 w-4" />,
+                },
+              ]}
+            />
 
             {tab === "join" ? (
-              <form className="space-y-4" onSubmit={handleJoin}>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
-                  <input
-                    required
+              <form className="space-y-4" onSubmit={handleJoin} noValidate>
+                <Field
+                  id="home-join-room-code"
+                  label={t("home.form.roomCode")}
+                  required
+                  error={joinErrors.roomCode}
+                >
+                  <TextInput
                     value={joinRoomCode}
-                    onChange={(event) => setJoinRoomCode(event.target.value.trim())}
-                    placeholder="例如：8DK1A2M7QX"
-                    className="field px-4 py-2.5 text-sm"
+                    onChange={(event) => {
+                      setJoinRoomCode(event.target.value.trim());
+                      setJoinErrors((prev) => ({ ...prev, roomCode: undefined }));
+                    }}
+                    placeholder={t("home.form.roomCode.placeholder")}
                   />
-                </label>
+                </Field>
 
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6 位数字）</span>
-                  <input
+                <Field
+                  id="home-join-gate-code"
+                  label={t("home.form.gateCode")}
+                  hint={t("home.form.gateCode.hint")}
+                  error={joinErrors.gateCode}
+                >
+                  <TextInput
                     value={joinGateCode}
-                    onChange={(event) =>
-                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    placeholder="如果房间设置了门禁码则必填"
-                    className="field px-4 py-2.5 text-sm"
+                    inputMode="numeric"
+                    onChange={(event) => {
+                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      setJoinErrors((prev) => ({ ...prev, gateCode: undefined }));
+                    }}
+                    placeholder={t("home.form.gateCode.placeholder")}
                   />
-                </label>
+                </Field>
 
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
-                  <input
+                <Field
+                  id="home-join-invite"
+                  label={t("home.form.invite")}
+                  hint={t("home.form.invite.hint")}
+                >
+                  <TextInput
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
-                    placeholder="有邀请链接时自动填充"
-                    className="field px-4 py-2.5 text-sm"
+                    placeholder={t("home.form.invite.placeholder")}
                   />
-                </label>
+                </Field>
 
                 <button
                   type="submit"
                   disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  className="btn-primary btn-md w-full"
                 >
                   {submitting ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (
                     <DoorOpen className="h-4 w-4" />
                   )}
-                  进入房间
+                  {t("home.join.submit")}
                 </button>
               </form>
             ) : (
-              <form className="space-y-4" onSubmit={handleCreate}>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间名称</span>
-                  <input
-                    required
+              <form className="space-y-4" onSubmit={handleCreate} noValidate>
+                <Field
+                  id="home-create-name"
+                  label={t("home.form.name")}
+                  required
+                  error={createErrors.name}
+                >
+                  <TextInput
                     value={createName}
-                    onChange={(event) => setCreateName(event.target.value)}
-                    placeholder="输入房间名"
-                    className="field px-4 py-2.5 text-sm"
+                    onChange={(event) => {
+                      setCreateName(event.target.value);
+                      setCreateErrors((prev) => ({ ...prev, name: undefined }));
+                    }}
+                    placeholder={t("home.form.name.placeholder")}
                   />
-                </label>
+                </Field>
 
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选）</span>
-                  <input
+                <Field
+                  id="home-create-gate-code"
+                  label={t("home.form.gateCode")}
+                  hint={t("home.form.createGateHint")}
+                  error={createErrors.gateCode}
+                >
+                  <TextInput
                     value={createGateCode}
-                    onChange={(event) =>
-                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    placeholder="不填则加入无需门禁码"
-                    className="field px-4 py-2.5 text-sm"
+                    inputMode="numeric"
+                    onChange={(event) => {
+                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      setCreateErrors((prev) => ({ ...prev, gateCode: undefined }));
+                    }}
+                    placeholder={t("home.form.gateCode.placeholder")}
                   />
-                </label>
+                </Field>
 
                 <button
                   type="submit"
                   disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  className="btn-primary btn-md w-full"
                 >
                   {submitting ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  创建并进入
+                  {t("home.create.submit")}
                 </button>
               </form>
             )}
@@ -390,16 +439,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            {info ? (
-              <p className="mt-4 rounded-lg border border-line-subtle bg-panel/50 px-3 py-2 text-sm text-ink-soft">
-                {info}
-              </p>
-            ) : null}
-            {error ? (
-              <p className="mt-4 rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">
-                {error}
-              </p>
-            ) : null}
+            {info ? <p className="notice notice--success mt-4">{info}</p> : null}
+            {error ? <p className="notice notice--danger mt-4">{error}</p> : null}
           </section>
         </div>
       </section>
