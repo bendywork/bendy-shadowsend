@@ -42,12 +42,15 @@
   --ds-line-subtle: var(--ds-gray-4);
   --ds-line: var(--ds-gray-5);
   --ds-line-strong: var(--ds-gray-6);
+  /* Control boundary: ≥ 3:1 against panel/card in both themes (WCAG 1.4.11). */
+  --ds-line-control: #6e6e78;
 
   /* 04 · Ink */
   --ds-ink: var(--ds-gray-9);
   --ds-ink-soft: var(--ds-gray-8);
   --ds-ink-muted: var(--ds-gray-7);
-  --ds-ink-faint: color-mix(in srgb, var(--ds-gray-7) 70%, transparent);
+  /* Faint text stays ≥ 4.5:1 on canvas/panel/card; do not use opacity-based mixes. */
+  --ds-ink-faint: #85858f;
 
   /* 05 · Monochrome action (inverted primary button) */
   --ds-action-bg: #f5f5f7;
@@ -110,7 +113,9 @@
   --ds-overlay: rgb(0 0 0 / 0.4);
   --ds-overlay-strong: rgb(0 0 0 / 0.66);
   --ds-media-backdrop: #000000;
+  /* QR is theme-invariant: black modules on a white quiet zone in both themes. */
   --ds-qr-surface: #ffffff;
+  --ds-qr-border: #d4d4d8;
   --ds-qr-dark: #111113;
   --ds-qr-light: #ffffff;
   --ds-avatar-fg: #ffffff;
@@ -135,26 +140,31 @@
   --ds-gray-8: #56565e;
   --ds-gray-9: #111113;
 
+  /* Explicit per-theme overrides for tokens derived from the dark ramp. */
+  --ds-ink-muted: #5f5f67;
+  --ds-ink-faint: #6b6b74;
+  --ds-line-control: #8a8a92;
+
   /* Inverted primary action: black surface, white ink */
   --ds-action-bg: #111113;
   --ds-action-bg-hover: #000000;
   --ds-action-fg: #ffffff;
   --ds-action-soft: rgb(17 17 19 / 0.08);
   --ds-action-border: rgb(17 17 19 / 0.26);
-  --ds-focus-ring: rgb(17 17 19 / 0.42);
+  --ds-focus-ring: rgb(17 17 19 / 0.55);
   --ds-selection-bg: rgb(17 17 19 / 0.14);
 
-  /* Status colors adjusted for light-surface contrast */
-  --ds-success: #1a7f37;
-  --ds-success-soft: rgb(26 127 55 / 0.1);
-  --ds-success-border: rgb(26 127 55 / 0.32);
-  --ds-success-glow: rgb(26 127 55 / 0.35);
-  --ds-warning: #9a6700;
-  --ds-warning-soft: rgb(154 103 0 / 0.1);
-  --ds-warning-border: rgb(154 103 0 / 0.32);
-  --ds-danger: #d1242f;
-  --ds-danger-soft: rgb(209 36 47 / 0.09);
-  --ds-danger-border: rgb(209 36 47 / 0.3);
+  /* Status colors adjusted for light-surface and status-soft contrast (≥ 4.5:1). */
+  --ds-success: #166f31;
+  --ds-success-soft: rgb(22 111 49 / 0.1);
+  --ds-success-border: rgb(22 111 49 / 0.32);
+  --ds-success-glow: rgb(22 111 49 / 0.35);
+  --ds-warning: #855800;
+  --ds-warning-soft: rgb(133 88 0 / 0.1);
+  --ds-warning-border: rgb(133 88 0 / 0.32);
+  --ds-danger: #c11f2b;
+  --ds-danger-soft: rgb(193 31 43 / 0.09);
+  --ds-danger-border: rgb(193 31 43 / 0.3);
 
   --ds-shadow-xs: 0 1px 2px rgb(20 20 40 / 0.05);
   --ds-shadow-sm: 0 2px 8px rgb(20 20 40 / 0.06);
@@ -184,6 +194,7 @@
   --color-line-subtle: var(--ds-line-subtle);
   --color-line: var(--ds-line);
   --color-line-strong: var(--ds-line-strong);
+  --color-line-control: var(--ds-line-control);
 
   --color-ink: var(--ds-ink);
   --color-ink-soft: var(--ds-ink-soft);
@@ -210,6 +221,7 @@
   --color-overlay-strong: var(--ds-overlay-strong);
   --color-media: var(--ds-media-backdrop);
   --color-qr-surface: var(--ds-qr-surface);
+  --color-qr-border: var(--ds-qr-border);
   --color-avatar-fg: var(--ds-avatar-fg);
 
   --radius-xs: var(--ds-radius-xs);
@@ -324,7 +336,7 @@ button {
 .field {
   width: 100%;
   border-radius: var(--ds-radius-md);
-  border: 1px solid var(--ds-line);
+  border: 1px solid var(--ds-line-control);
   background: color-mix(in srgb, var(--ds-surface-card) 55%, transparent);
   color: var(--ds-ink);
   transition:
@@ -333,9 +345,21 @@ button {
     background-color var(--ds-duration-base) var(--ds-ease-standard);
 }
 
+/* Direct border-line utilities on interactive controls use the 3:1 boundary token. */
+input.border-line,
+textarea.border-line,
+select.border-line,
+button.border-line,
+a.border-line,
+label.border-line,
+[role="button"].border-line {
+  border-color: var(--ds-line-control);
+}
+
 .field::placeholder {
+  /* No opacity: placeholder text must keep the token's ≥ 4.5:1 contrast. */
   color: var(--ds-ink-muted);
-  opacity: 0.85;
+  opacity: 1;
 }
 
 .field:focus {
@@ -639,6 +663,26 @@ textarea[aria-invalid="true"]:focus {
   padding: 2px var(--ds-space-2);
   font-size: 10px;
   font-weight: 500;
+}
+
+/* QR pass: theme-invariant white quiet zone with a visible frame. */
+.qr-frame {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: var(--ds-space-2);
+  border: 1px solid var(--ds-qr-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-qr-surface);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.qr-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 .tooltip-bubble {

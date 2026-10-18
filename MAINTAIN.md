@@ -3,6 +3,33 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 双主题回归（REQ-202610-0501 / ui-38）
+
+### Scope
+- 清理主题层残留覆写，补齐浅色模式对比度，双主题全页面回归，二维码专项修复。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/app/globals.css`: removed the remaining theme-specific overrides; added `--ds-line-control` (≥ 3:1 control boundary) and theme-explicit `--ds-ink-muted` / `--ds-ink-faint` values so faint text stays ≥ 4.5:1 on canvas/panel/card; light focus ring raised from 0.42 to 0.55 alpha (4.07:1); light success/warning/danger colors retuned to 4.7–5.0:1 on their soft backgrounds; form controls with `.border-line` use `--ds-line-control`.
+- QR is now theme-invariant: `--ds-qr-surface` / `--ds-qr-border` / `--ds-qr-dark` / `--ds-qr-light` tokens and a `.qr-frame` white quiet zone with pixelated image rendering. QR colors resolve through `src/lib/qr-theme.ts`, falling back to black-on-white when tokens are missing, invalid or below 7:1.
+- `src/lib/color.ts` (new): hex normalization, WCAG relative luminance, contrast ratio and readable foreground selection.
+- `src/lib/avatar.ts` (new): `resolveAvatarForeground()` picks dark ink or white per avatar background; `src/components/chat/avatar.tsx` uses it so every palette color keeps the initial ≥ 4.5:1.
+- `src/app/room/[roomCode]/page.tsx`: QR generation reads the theme-invariant tokens, falls back safely on rejection, and renders inside `.qr-frame`; the QR dialog close button now has `aria-label`.
+- `src/lib/theme.test.ts` (new): locks the contract — no `!important`, light block only swaps `--ds-*` tokens, text ≥ 4.5:1 on all base surfaces, control boundary ≥ 3:1, status colors ≥ 4.5:1 on soft, light focus ring ≥ 3:1, QR tokens theme-invariant and ≥ 7:1.
+- `src/lib/color.test.ts`, `src/lib/avatar.test.ts`, `src/lib/qr-theme.test.ts` (new): 9 unit cases covering color math, the 9-color avatar pool and QR fallbacks; `theme.test.ts` adds 8 contract cases including the placeholder-opacity guard.
+- `docs/design-system-theme.md` (new): architecture, token/contrast matrix, QR and avatar specifics, automated coverage and manual acceptance checklist.
+
+### Regression Checklist
+- `npm test` green: 41/41 tests across 7 files.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+- Playwright + Chromium at 1440×900: `/` and `/room/DEMO01` in dark/light — correct `data-theme`, zero horizontal overflow, zero console errors; rendered-text contrast scan found no failures; QR pixels only `#111113` / `#ffffff` in both themes with `.qr-frame` background `#ffffff`.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

@@ -23,6 +23,7 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { resolveQrThemeColors } from "@/lib/qr-theme";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -625,9 +626,10 @@ export default function RoomPage() {
     if (!showQr || !joinLink) return;
     setQr(null);
     const styles = getComputedStyle(document.documentElement);
-    const dark = styles.getPropertyValue("--ds-qr-dark").trim();
-    const light = styles.getPropertyValue("--ds-qr-light").trim();
-    void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark, light } }).then(setQr);
+    const colors = resolveQrThemeColors((token) => styles.getPropertyValue(token));
+    void QRCode.toDataURL(joinLink, { width: 280, margin: 2, color: colors })
+      .then(setQr)
+      .catch(() => setQr(null));
   }, [showQr, joinLink]);
 
   useEffect(() => {
@@ -2796,13 +2798,16 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={() => setShowQr(false)}
+                aria-label={t("common.close")}
                 className="rounded-md border border-line p-1 text-ink-soft"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
+              <div className="qr-frame mx-auto h-64 w-64">
+                <img src={qr} alt={t("header.qr")} />
+              </div>
             ) : (
               <div className="flex h-64 items-center justify-center">
                 <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
