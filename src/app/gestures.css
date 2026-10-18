@@ -1,0 +1,212 @@
+/* ============================================================
+   Touch & gesture layer — REQ-202610-0747 (ui-47)
+
+   Rules:
+     · Only transform / opacity animate (no layout properties).
+     · All colors come from --ds-* tokens.
+     · Coarse pointers get at least 44×44 CSS px touch targets.
+     · prefers-reduced-motion disables drawer / zoom transitions.
+   ============================================================ */
+
+.app-shell {
+  /* Vertical scrolling and browser pinch-zoom stay native; horizontal edge
+     swipes are handled by the gesture layer. */
+  touch-action: pan-y pinch-zoom;
+}
+
+.drawer-panel {
+  /* Tailwind v4 emits the `translate` property for translate-x utilities. */
+  transition: translate var(--ds-duration-slow) var(--ds-ease-out);
+  will-change: translate;
+}
+
+@media (max-width: 1279px) {
+  .drawer-panel[data-open="false"] {
+    pointer-events: none;
+  }
+}
+
+.image-viewer-stage {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.image-viewer-image {
+  transform-origin: center;
+  transition: transform var(--ds-duration-fast) var(--ds-ease-out);
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+.image-viewer-image--dragging {
+  transition: none;
+}
+
+.image-viewer-image--zoomed {
+  cursor: grab;
+}
+
+.image-viewer-image--zoomed:active {
+  cursor: grabbing;
+}
+
+.message-bubble-surface {
+  touch-action: pan-y pinch-zoom;
+  -webkit-touch-callout: none;
+}
+
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ---- Message action sheet ---------------------------------- */
+
+@keyframes action-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes action-sheet-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.action-sheet-backdrop {
+  animation: action-sheet-backdrop-in var(--ds-duration-base) var(--ds-ease-out);
+}
+
+.action-sheet-panel {
+  animation: action-sheet-in var(--ds-duration-slow) var(--ds-ease-out);
+}
+
+.sheet-action {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: var(--ds-space-3);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  text-align: left;
+  color: var(--ds-ink-soft);
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.sheet-action:hover,
+.sheet-action:focus-visible,
+.sheet-action:active {
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+}
+
+.sheet-action:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---- Immersive image viewer -------------------------------- */
+
+.image-viewer-shell {
+  background: var(--ds-media-backdrop);
+  color: var(--ds-media-ink);
+  animation: action-sheet-backdrop-in var(--ds-duration-base) var(--ds-ease-out);
+}
+
+.image-viewer-title {
+  color: var(--ds-media-ink);
+}
+
+.image-viewer-meta {
+  color: var(--ds-media-ink-muted);
+}
+
+.image-viewer-control {
+  border: 1px solid var(--ds-media-line);
+  background: var(--ds-media-elevated);
+  color: var(--ds-media-ink-soft);
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.image-viewer-control:hover:not(:disabled) {
+  background: var(--ds-media-elevated-hover);
+  color: var(--ds-media-ink);
+}
+
+.image-viewer-control:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.image-viewer-control:focus-visible {
+  outline: 2px solid var(--ds-media-ink);
+  outline-offset: 2px;
+}
+
+.image-viewer-control:disabled {
+  opacity: 0.35;
+}
+
+@media (pointer: coarse) {
+  .message-bubble-surface {
+    user-select: none;
+  }
+
+  /* Every interactive control meets the 44px minimum on touch devices.
+     The tiny file-chip remove affordance opts out to avoid bloating chips. */
+  button:not(.chip-remove),
+  a[href],
+  [role="button"] {
+    min-height: 44px;
+  }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .btn-sm {
+    min-height: 44px;
+  }
+
+  .menu-item {
+    min-height: 44px;
+  }
+
+  .segmented-item {
+    min-height: 44px;
+  }
+
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-panel,
+  .image-viewer-image {
+    transition: none;
+  }
+
+  .action-sheet-backdrop,
+  .action-sheet-panel,
+  .image-viewer-shell {
+    animation: none;
+  }
+}

@@ -110,6 +110,12 @@
   --ds-overlay: rgb(0 0 0 / 0.4);
   --ds-overlay-strong: rgb(0 0 0 / 0.66);
   --ds-media-backdrop: #000000;
+  --ds-media-ink: #f5f5f7;
+  --ds-media-ink-soft: #c9c9d0;
+  --ds-media-ink-muted: #8e8e98;
+  --ds-media-line: rgb(255 255 255 / 0.18);
+  --ds-media-elevated: rgb(255 255 255 / 0.12);
+  --ds-media-elevated-hover: rgb(255 255 255 / 0.2);
   --ds-qr-surface: #ffffff;
   --ds-qr-dark: #111113;
   --ds-qr-light: #ffffff;

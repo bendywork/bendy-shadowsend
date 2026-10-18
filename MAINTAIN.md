@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 移动端触摸与手势交互优化（REQ-202610-0747 / ui-47）
+
+### Scope
+- 抽屉边缘滑动唤出/收起、长按消息操作、图片查看器双指缩放与滑动切换、触控目标 ≥44px；与 ui-11 / ui-20 / ui-39 联动验收。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/touch-gestures.ts` (new): pure gesture math — edge-swipe classification/thresholds, long-press predicate, pinch distance/midpoint/scale, contain-fit and pan clamping, image swipe direction, double-tap detection, 44px touch-target contract.
+- `src/lib/use-edge-swipe.ts` (new): one-finger window-level edge-swipe listener; opens the left/right drawer and closes toward the matching edge; ignores vertical scrolls and form controls, and is inert at the `xl` desktop breakpoint.
+- `src/lib/use-long-press.ts` (new): 450ms / 12px long-press detection for touch and pen, right-click fallback, vibration feedback, and synthetic-click suppression so the action sheet does not close immediately.
+- `src/components/room/message-action-sheet.tsx` (new): portal bottom sheet with copy / view image / download attachment / cancel, focus trap, Esc and backdrop close, and scroll lock.
+- `src/components/room/image-viewer.tsx` (new): full-screen viewer with 1×–4× pinch zoom, clamped panning, double-tap zoom, swipe previous/next at 1×, keyboard arrows/Esc/+/−/0, download and image counter.
+- `src/app/room/[roomCode]/page.tsx`: mobile rooms/members drawers with backdrop, edge-swipe wiring, body scroll lock, long-press action-sheet state, viewer image list derived from message attachments, and attachment download handler.
+- `src/app/gestures.css` (new): drawer `translate` transition, coarse-pointer 44px targets, action-sheet/viewer surfaces and reduced-motion rules; `src/app/globals.css`: media-surface tokens for the immersive viewer.
+- `src/lib/i18n/messages.ts`: zh/en keys for drawers, message actions and the image viewer.
+
+### Regression Checklist
+- `npm test` green: 51/51 tests (touch gestures 27, toast 8, feedback 10, form validation 6).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

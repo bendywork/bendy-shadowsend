@@ -19,10 +19,17 @@ import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
 import { FieldError } from "@/components/ui/field-error";
+import { ImageViewer, type ViewerImage } from "@/components/room/image-viewer";
+import {
+  MessageActionSheet,
+  type MessageActionState,
+} from "@/components/room/message-action-sheet";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { useEdgeSwipe } from "@/lib/use-edge-swipe";
+import { useLongPress } from "@/lib/use-long-press";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -39,7 +46,7 @@ type DirectUploadPreparePayload = {
 };
 type DownloadPayload = { url: string };
 type MessageListPayload = { messages: MessageItem[] };
-type ImageViewerState = { url: string; fileName: string };
+type ImageViewerState = { images: ViewerImage[]; index: number };
 type JoinResult = { joined: boolean; waitingApproval?: boolean; roomCode?: string };
 type CreateResult = { room: { roomCode: string } };
 type RoomMenuState = {
@@ -202,7 +209,7 @@ function RoomLinks({
                 aria-haspopup="menu"
                 data-room-menu-trigger={r.id}
                 onClick={(event) => onToggleMenu(r, event.currentTarget)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
+                className="touch-target inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </button>
@@ -299,6 +306,7 @@ function MessageBubble({
   renderAttachmentAction,
   onOpenImage,
   footerSlot,
+  onLongPress,
 }: {
   own: boolean;
   avatarInitial: string;
@@ -317,12 +325,18 @@ function MessageBubble({
   renderAttachmentAction?: (attachment: BubbleAttachment) => ReactNode;
   onOpenImage: (url: string | null | undefined, fileName: string) => void;
   footerSlot?: ReactNode;
+  onLongPress?: () => void;
 }) {
+  const longPressHandlers = useLongPress(onLongPress);
+
   return (
-    <article className={clsx("flex", own ? "justify-end" : "justify-start")}>
+    <article
+      className={clsx("flex", own ? "justify-end" : "justify-start")}
+      {...longPressHandlers}
+    >
       <div
         className={clsx(
-          "w-full max-w-[92%] rounded-2xl border p-3 shadow-sm sm:max-w-[85%]",
+          "message-bubble-surface w-full max-w-[92%] rounded-2xl border p-3 shadow-sm sm:max-w-[85%]",
           own ? "border-action-border bg-action-soft" : "border-line-subtle bg-panel/60",
         )}
       >
@@ -533,6 +547,8 @@ export default function RoomPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<"rooms" | "members" | null>(null);
+  const [messageAction, setMessageAction] = useState<MessageActionState | null>(null);
 
   const [showNoticeEditor, setShowNoticeEditor] = useState(false);
   const [noticeText, setNoticeText] = useState("");
@@ -579,6 +595,79 @@ export default function RoomPage() {
   const navVisible = !navCollapsed;
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
   const pollingEnabled = Boolean(snap && !snap.waitingApproval);
+
+  const viewerImages = useMemo<ViewerImage[]>(() => {
+    const items: ViewerImage[] = [];
+    const append = (attachment: BubbleAttachment) => {
+      if (attachment.previewType === "IMAGE" && attachment.previewUrl) {
+        items.push({
+          id: attachment.id,
+          url: attachment.previewUrl,
+          fileName: attachment.fileName,
+          attachmentId: attachment.id,
+        });
+      }
+    };
+    snap?.messages.forEach((message) => message.attachments.forEach(append));
+    pendingMessages.forEach((message) => message.attachments.forEach(append));
+    return items;
+  }, [snap?.messages, pendingMessages]);
+
+  const drawersEnabled =
+    !imageViewer &&
+    !messageAction &&
+    !showQr &&
+    !settingsOpen &&
+    !showNoticeEditor &&
+    !showNoticePopup &&
+    !roomEntryMode &&
+    !openRoomMenu &&
+    !openMemberMenuId;
+
+  useEdgeSwipe({
+    enabled: drawersEnabled,
+    openSide:
+      mobilePanel === "rooms"
+        ? "left"
+        : mobilePanel === "members"
+          ? "right"
+          : null,
+    onOpen: (side) => setMobilePanel(side === "left" ? "rooms" : "members"),
+    onClose: () => setMobilePanel(null),
+  });
+
+  useEffect(() => {
+    if (!mobilePanel) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const panel =
+      mobilePanel === "rooms"
+        ? roomsPanelRef.current
+        : membersPanelRef.current;
+    document.body.style.overflow = "hidden";
+    panel?.focus();
+    const onResize = () => {
+      if (window.innerWidth >= 1280) setMobilePanel(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobilePanel(null);
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [mobilePanel]);
+
+  useEffect(() => {
+    setMobilePanel(null);
+  }, [roomCode]);
 
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([apiFetch<BootstrapPayload>("/api/bootstrap"), apiFetch<RoomSnapshot>(`/api/rooms/${roomCode}`)]);
@@ -629,19 +718,6 @@ export default function RoomPage() {
     const light = styles.getPropertyValue("--ds-qr-light").trim();
     void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark, light } }).then(setQr);
   }, [showQr, joinLink]);
-
-  useEffect(() => {
-    if (!imageViewer) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setImageViewer(null);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [imageViewer]);
 
   useEffect(() => {
     if (!openRoomMenu) return;
@@ -1185,15 +1261,26 @@ export default function RoomPage() {
 
   function openImageViewer(url: string | null | undefined, fileName: string) {
     if (!url) return;
+    const index = viewerImages.findIndex((image) => image.url === url);
+    if (index >= 0) {
+      setImageViewer({ images: viewerImages, index });
+      return;
+    }
     setImageViewer({
-      url,
-      fileName,
+      images: [{ id: `external-${fileName}`, url, fileName }],
+      index: 0,
     });
   }
 
-  function scrollToPanel(target: "rooms" | "members") {
-    const panelRef = target === "rooms" ? roomsPanelRef : membersPanelRef;
-    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  async function downloadAttachment(attachmentId: string) {
+    try {
+      const payload = await apiFetch<DownloadPayload>(
+        `/api/rooms/${roomCode}/attachments/${attachmentId}/download`,
+      );
+      window.open(payload.url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toastError(error, t("toast.downloadFailed"), t);
+    }
   }
 
   async function runSend(localId: string, content: string, sendingFiles: File[]) {
@@ -1950,18 +2037,29 @@ export default function RoomPage() {
     <>
       <main
         className={clsx(
-          "grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-canvas xl:h-[100dvh] xl:overflow-hidden",
+          "app-shell grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-canvas xl:h-[100dvh] xl:overflow-hidden",
           navVisible && membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)_290px]",
           navVisible && !membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)]",
           !navVisible && membersVisible && "xl:grid-cols-[minmax(0,1fr)_290px]",
           !navVisible && !membersVisible && "xl:grid-cols-[minmax(0,1fr)]",
         )}
       >
+        {mobilePanel ? (
+          <div
+            className="fixed inset-0 z-30 bg-overlay xl:hidden"
+            aria-hidden="true"
+            onClick={() => setMobilePanel(null)}
+          />
+        ) : null}
+
         <aside
           ref={roomsPanelRef}
+          tabIndex={-1}
+          data-open={mobilePanel === "rooms"}
           className={clsx(
-            "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-1 xl:max-h-none",
-            navVisible ? "flex" : "hidden",
+            "drawer-panel fixed inset-y-0 left-0 z-40 flex w-[86vw] max-w-[320px] flex-col overflow-y-auto border-r border-line-subtle bg-canvas p-4 shadow-[var(--ds-shadow-lg)] xl:static xl:z-auto xl:order-1 xl:max-h-none xl:w-auto xl:max-w-none xl:translate-x-0 xl:overflow-visible xl:border xl:shadow-none",
+            mobilePanel === "rooms" ? "translate-x-0" : "-translate-x-full",
+            navVisible ? "xl:flex" : "xl:hidden",
           )}
         >
           <div className="mb-4 flex items-center justify-between gap-2">
@@ -1988,10 +2086,21 @@ export default function RoomPage() {
               </div>
             </div>
             <Tooltip label={t("nav.collapse")}>
-              <IconButton aria-label={t("nav.collapse")} onClick={toggleNavCollapsed}>
+              <IconButton
+                aria-label={t("nav.collapse")}
+                className="hidden xl:inline-flex"
+                onClick={toggleNavCollapsed}
+              >
                 <PanelLeftClose className="h-4 w-4" />
               </IconButton>
             </Tooltip>
+            <IconButton
+              aria-label={t("drawer.close")}
+              className="xl:hidden"
+              onClick={() => setMobilePanel(null)}
+            >
+              <X className="h-4 w-4" />
+            </IconButton>
           </div>
           <p className="mb-3 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-faint">
             <span>{t("nav.count", { count: roomCount, max: MAX_USER_ROOMS })}</span>
@@ -2016,7 +2125,7 @@ export default function RoomPage() {
                   title={t("nav.create")}
                   onClick={() => openRoomEntry("create")}
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
+                  className="touch-target inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
@@ -2043,7 +2152,7 @@ export default function RoomPage() {
                   title={t("nav.join")}
                   onClick={() => openRoomEntry("join")}
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
+                  className="touch-target inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
@@ -2093,24 +2202,20 @@ export default function RoomPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {navVisible ? (
-                <button
-                  type="button"
-                  onClick={() => scrollToPanel("rooms")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
-                >
-                  {t("nav.rooms")}
-                </button>
-              ) : null}
-              {membersVisible ? (
-                <button
-                  type="button"
-                  onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
-                >
-                  {t("members.list")}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => setMobilePanel("rooms")}
+                className="touch-target inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
+              >
+                {t("nav.rooms")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobilePanel("members")}
+                className="touch-target inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
+              >
+                {t("members.list")}
+              </button>
               <Tooltip label={navVisible ? t("control.nav.hide") : t("control.nav.show")}>
                 <IconButton
                   aria-label={navVisible ? t("control.nav.hide") : t("control.nav.show")}
@@ -2213,6 +2318,16 @@ export default function RoomPage() {
                   attachments={m.attachments}
                   renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} label={t("chat.download")} />}
                   onOpenImage={openImageViewer}
+                  onLongPress={() =>
+                    setMessageAction({
+                      messageId: m.id,
+                      content: m.content,
+                      attachments: m.attachments.map((attachment) => ({
+                        ...attachment,
+                        downloadable: true,
+                      })),
+                    })
+                  }
                 />
               );
             })}
@@ -2251,6 +2366,16 @@ export default function RoomPage() {
                   labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
                   attachments={message.attachments}
                   onOpenImage={openImageViewer}
+                  onLongPress={() =>
+                    setMessageAction({
+                      messageId: message.localId,
+                      content: message.content,
+                      attachments: message.attachments.map((attachment) => ({
+                        ...attachment,
+                        downloadable: false,
+                      })),
+                    })
+                  }
                   footerSlot={
                     message.status === "failed" && message.error ? (
                       <p className="mt-2 text-xs text-danger">{message.error}</p>
@@ -2277,7 +2402,7 @@ export default function RoomPage() {
                       type="button"
                       aria-label={t("composer.removeFile")}
                       onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
-                      className="ml-0.5 rounded-full p-0.5 text-ink-muted transition-ui hover:bg-elevated-strong hover:text-ink"
+                      className="chip-remove ml-0.5 rounded-full p-0.5 text-ink-muted transition-ui hover:bg-elevated-strong hover:text-ink"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -2298,7 +2423,7 @@ export default function RoomPage() {
               />
               <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated">
+                  <label className="touch-target inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated">
                     <Plus className="h-3.5 w-3.5" />
                     {t("composer.attach")}
                     <input
@@ -2366,9 +2491,12 @@ export default function RoomPage() {
 
         <aside
           ref={membersPanelRef}
+          tabIndex={-1}
+          data-open={mobilePanel === "members"}
           className={clsx(
-            "order-3 min-h-0 max-h-[56vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-3 xl:max-h-none",
-            membersVisible ? "flex" : "hidden",
+            "drawer-panel fixed inset-y-0 right-0 z-40 flex w-[86vw] max-w-[320px] flex-col overflow-y-auto border-l border-line-subtle bg-canvas p-4 shadow-[var(--ds-shadow-lg)] xl:static xl:z-auto xl:order-3 xl:max-h-none xl:w-auto xl:max-w-none xl:translate-x-0 xl:overflow-visible xl:border xl:shadow-none",
+            mobilePanel === "members" ? "translate-x-0" : "translate-x-full",
+            membersVisible ? "xl:flex" : "xl:hidden",
           )}
         >
             <div className="mb-3">
@@ -2379,12 +2507,19 @@ export default function RoomPage() {
                 <Tooltip label={t("members.collapse")}>
                   <IconButton
                     aria-label={t("members.collapse")}
-                    className="h-7 w-7"
+                    className="hidden h-7 w-7 xl:inline-flex"
                     onClick={toggleMembersCollapsed}
                   >
                     <PanelRightClose className="h-4 w-4" />
                   </IconButton>
                 </Tooltip>
+                <IconButton
+                  aria-label={t("drawer.close")}
+                  className="xl:hidden"
+                  onClick={() => setMobilePanel(null)}
+                >
+                  <X className="h-4 w-4" />
+                </IconButton>
               </div>
               {isOwner ? (
                 <div className="segmented mt-2 grid grid-cols-2 gap-1 p-1">
@@ -2967,32 +3102,32 @@ export default function RoomPage() {
         </div>
       ) : null}
 
+      {messageAction ? (
+        <MessageActionSheet
+          state={messageAction}
+          onClose={() => setMessageAction(null)}
+          onCopy={() => {
+            void copyMessageText(
+              messageAction.content,
+              `action-${messageAction.messageId}`,
+            );
+          }}
+          onOpenImage={openImageViewer}
+          onDownload={(attachmentId) => {
+            void downloadAttachment(attachmentId);
+          }}
+        />
+      ) : null}
+
       {imageViewer ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4"
-          onClick={() => setImageViewer(null)}
-        >
-          <section
-            className="w-full max-w-5xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-xs text-ink-soft">{imageViewer.fileName}</p>
-              <button
-                type="button"
-                onClick={() => setImageViewer(null)}
-                className="rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated"
-              >
-                关闭
-              </button>
-            </div>
-            <img
-              src={imageViewer.url}
-              alt={imageViewer.fileName}
-              className="max-h-[80vh] w-full rounded-lg border border-line bg-media object-contain"
-            />
-          </section>
-        </div>
+        <ImageViewer
+          images={imageViewer.images}
+          initialIndex={imageViewer.index}
+          onClose={() => setImageViewer(null)}
+          onDownload={(image) => {
+            if (image.attachmentId) void downloadAttachment(image.attachmentId);
+          }}
+        />
       ) : null}
     </>
   );
