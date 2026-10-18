@@ -16,7 +16,8 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
-import { useT } from "@/lib/i18n/context";
+import { useLanguage } from "@/lib/i18n/context";
+import { formatDateTime } from "@/lib/i18n/format";
 import { Popover } from "@/components/ui/popover";
 import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
@@ -82,7 +83,6 @@ type NoticeEditorImage = {
 
 const isPreviewable = (a: { previewType: AttachmentItem["previewType"] }) =>
   a.previewType === "IMAGE" || a.previewType === "VIDEO";
-const fmt = (v: string) => new Date(v).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const hasInlinePreview = (a: {
   previewType: AttachmentItem["previewType"];
   previewUrl?: string | null;
@@ -162,13 +162,14 @@ function RoomLinks({
   rooms,
   activeCode,
   onToggleMenu,
-  emptyLabel = "暂无",
+  emptyLabel,
 }: {
   rooms: RoomTreeItem[];
   activeCode: string;
   onToggleMenu: (room: RoomTreeItem, triggerButton: HTMLButtonElement) => void;
-  emptyLabel?: string;
+  emptyLabel: string;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-1">
       {rooms.length === 0 ? <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">{emptyLabel}</p> : rooms.map((r) => (
@@ -187,7 +188,7 @@ function RoomLinks({
                 <span className="truncate">{r.name}</span>
                 {activeCode === r.roomCode ? (
                   <span
-                    title="当前房间"
+                    title={t("room.currentRoom")}
                     className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-success shadow-[0_0_8px_var(--ds-success-glow)]"
                   />
                 ) : null}
@@ -198,7 +199,7 @@ function RoomLinks({
             {r.role === "MEMBER" ? (
               <button
                 type="button"
-                aria-label="房间操作"
+                aria-label={t("room.roomActions")}
                 aria-haspopup="menu"
                 data-room-menu-trigger={r.id}
                 onClick={(event) => onToggleMenu(r, event.currentTarget)}
@@ -216,7 +217,7 @@ function RoomLinks({
 
 function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
   const [loading, setLoading] = useState(false);
-  const t = useT();
+  const { t } = useLanguage();
   async function open() {
     setLoading(true);
     try {
@@ -318,6 +319,7 @@ function MessageBubble({
   onOpenImage: (url: string | null | undefined, fileName: string) => void;
   footerSlot?: ReactNode;
 }) {
+  const { lang } = useLanguage();
   return (
     <article className={clsx("flex", own ? "justify-end" : "justify-start")}>
       <div
@@ -332,7 +334,7 @@ function MessageBubble({
             <span className="text-sm font-medium text-ink-soft">{nickname}</span>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
-            <time className="tabular-nums">{fmt(createdAt)}</time>
+            <time className="tabular-nums">{formatDateTime(createdAt, lang)}</time>
             {metaSlot}
           </div>
         </div>
@@ -573,7 +575,7 @@ export default function RoomPage() {
   const latestMessageAtRef = useRef<string | null>(null);
   const [imageViewer, setImageViewer] = useState<ImageViewerState | null>(null);
 
-  const t = useT();
+  const { lang, t } = useLanguage();
   const isOwner = snap?.me.role === "OWNER";
   const membersVisible = !membersCollapsed;
   const navVisible = !navCollapsed;
@@ -1299,7 +1301,7 @@ export default function RoomPage() {
     void runSend(localId, content, sendingFiles);
   }
   async function kick(m: RoomMemberItem) {
-    if (!window.confirm(`确认将 ${m.user.nickname} 移出房间吗？`)) return;
+    if (!window.confirm(t("confirm.kick.message", { name: m.user.nickname }))) return;
     setAction(`kick-${m.id}`);
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) });
@@ -1310,7 +1312,7 @@ export default function RoomPage() {
   }
 
   async function transferOwner(m: RoomMemberItem) {
-    if (!window.confirm(`确认将房主身份转让给 ${m.user.nickname} 吗？转让后你将变为普通成员。`)) return;
+    if (!window.confirm(t("confirm.transfer.message", { name: m.user.nickname }))) return;
     setAction(`transfer-${m.id}`);
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/transfer`, {
@@ -1437,7 +1439,7 @@ export default function RoomPage() {
 
   async function leaveRoom(target: RoomTreeItem) {
     if (target.role !== "MEMBER") return;
-    if (!window.confirm(`确认退出房间「${target.name}」吗？`)) return;
+    if (!window.confirm(t("confirm.leave.message", { name: target.name }))) return;
 
     setOpenRoomMenu(null);
     setAction(`leave-${target.roomCode}`);
@@ -1674,7 +1676,7 @@ export default function RoomPage() {
   }
 
   async function dissolve() {
-    if (!window.confirm("确认解散当前房间？解散后成员将全部退出。")) return;
+    if (!window.confirm(t("confirm.dissolve.message"))) return;
     setAction("dissolve");
     try {
       const beforeSortedRooms = sortRooms([...rooms.created, ...rooms.joined]);
@@ -1897,7 +1899,7 @@ export default function RoomPage() {
             {t("common.retry")}
           </button>
           <Link href="/" className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft">
-            返回首页
+            {t("room.backHome")}
           </Link>
         </div>
       </main>
@@ -1911,10 +1913,10 @@ export default function RoomPage() {
       <main className="flex min-h-screen items-center justify-center px-4">
         <section className="w-full max-w-lg rounded-2xl border border-line bg-panel/90 p-8 text-center">
           <Clock3 className="mx-auto h-8 w-8 text-ink-soft" />
-          <h1 className="mt-4 text-xl font-semibold text-ink">等待房主审批</h1>
-          <p className="mt-2 text-sm text-ink-muted">你曾被移出该房间，再次加入需要房主审批。</p>
+          <h1 className="mt-4 text-xl font-semibold text-ink">{t("room.waitingApproval.title")}</h1>
+          <p className="mt-2 text-sm text-ink-muted">{t("room.waitingApproval.description")}</p>
           <Link href="/" className="mt-6 inline-flex rounded-xl bg-elevated-strong px-4 py-2 text-sm text-ink">
-            返回首页
+            {t("room.backHome")}
           </Link>
         </section>
       </main>
@@ -1969,14 +1971,14 @@ export default function RoomPage() {
               <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-line-subtle bg-panel/70 p-1">
                 <Image
                   src="/1.png"
-                  alt="Temp Bendy"
+                  alt={t("home.logoAlt")}
                   fill
                   sizes="36px"
                   className="theme-dark-only object-contain p-1"
                 />
                 <Image
                   src="/1-light.png"
-                  alt="Temp Bendy（日间）"
+                  alt={t("home.logoAltLight")}
                   fill
                   sizes="36px"
                   className="theme-light-only object-contain p-1"
@@ -2426,7 +2428,7 @@ export default function RoomPage() {
                           <div className="min-w-0">
                             <p className="truncate text-sm text-ink-soft">{m.user.nickname}</p>
                             <p className="text-xs text-ink-faint">
-                              {m.role === "OWNER" ? t("members.role.owner") : t("members.role.member")} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
+                              {m.role === "OWNER" ? t("members.role.owner") : t("members.role.member")} · {m.joinedAt ? formatDateTime(m.joinedAt, lang) : "--"}
                             </p>
                           </div>
                         </div>
@@ -2437,7 +2439,7 @@ export default function RoomPage() {
                           >
                             <button
                               type="button"
-                              aria-label="成员操作"
+                              aria-label={t("room.memberActions")}
                               aria-haspopup="menu"
                               aria-expanded={openMemberMenuId === m.id}
                               onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
@@ -2457,7 +2459,7 @@ export default function RoomPage() {
                                   disabled={action === `transfer-${m.id}`}
                                   className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
-                                  <Crown className="h-3 w-3" /> 房主转让
+                                  <Crown className="h-3 w-3" /> {t("room.transferOwner")}
                                 </button>
                                 <button
                                   type="button"
@@ -2469,7 +2471,7 @@ export default function RoomPage() {
                                   disabled={action === `kick-${m.id}`}
                                   className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
-                                  <UserMinus className="h-3 w-3" /> 移除房间
+                                  <UserMinus className="h-3 w-3" /> {t("room.removeMember")}
                                 </button>
                               </div>
                             ) : null}
@@ -2497,7 +2499,7 @@ export default function RoomPage() {
                           <Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" />
                           <div>
                             <p className="text-sm text-ink-soft">{r.user.nickname}</p>
-                            <p className="text-[11px] text-ink-faint">{fmt(r.createdAt)}</p>
+                            <p className="text-[11px] text-ink-faint">{formatDateTime(r.createdAt, lang)}</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -2656,7 +2658,7 @@ export default function RoomPage() {
               disabled={action === `leave-${openRoomMenu.room.roomCode}`}
               className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
             >
-              退出房间
+              {t("room.leave")}
             </button>
           </div>,
           document.body,
@@ -2669,15 +2671,16 @@ export default function RoomPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold text-ink">
-                  {roomEntryMode === "create" ? "创建房间" : "加入房间"}
+                  {roomEntryMode === "create" ? t("entry.create.title") : t("entry.join.title")}
                 </h3>
                 <p className="mt-1 text-[11px] text-ink-faint">
-                  当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
+                  {t("entry.roomCount", { count: roomCount, max: MAX_USER_ROOMS })}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setRoomEntryMode(null)}
+                aria-label={t("common.close")}
                 className="rounded-md border border-line p-1 text-ink-soft hover:bg-elevated"
               >
                 <X className="h-4 w-4" />
@@ -2687,7 +2690,7 @@ export default function RoomPage() {
             {roomEntryMode === "create" ? (
               <form className="space-y-3" onSubmit={quickCreateRoom} noValidate>
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间名称</span>
+                  <span className="text-xs text-ink-muted">{t("entry.name")}</span>
                   <input
                     value={createName}
                     onChange={(event) => {
@@ -2696,7 +2699,7 @@ export default function RoomPage() {
                         setRoomEntryErrors((prev) => ({ ...prev, name: undefined }));
                       }
                     }}
-                    placeholder="输入房间名"
+                    placeholder={t("entry.name.placeholder")}
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                     aria-invalid={roomEntryErrors.name ? true : undefined}
                     aria-describedby={roomEntryErrors.name ? "room-entry-create-name-error" : undefined}
@@ -2704,7 +2707,7 @@ export default function RoomPage() {
                   <FieldError id="room-entry-create-name-error" message={roomEntryErrors.name} />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
+                  <span className="text-xs text-ink-muted">{t("entry.gateCode.create")}</span>
                   <input
                     value={createGateCode}
                     onChange={(event) => {
@@ -2713,7 +2716,7 @@ export default function RoomPage() {
                         setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
                       }
                     }}
-                    placeholder="不填则加入无需门禁码"
+                    placeholder={t("entry.gateCode.create.placeholder")}
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                     aria-invalid={roomEntryErrors.gateCode ? true : undefined}
                     aria-describedby={roomEntryErrors.gateCode ? "room-entry-create-gate-code-error" : undefined}
@@ -2726,13 +2729,13 @@ export default function RoomPage() {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  创建并进入
+                  {t("entry.create.submit")}
                 </button>
               </form>
             ) : (
               <form className="space-y-3" onSubmit={quickJoinRoom} noValidate>
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
+                  <span className="text-xs text-ink-muted">{t("entry.roomCode")}</span>
                   <input
                     value={joinRoomCode}
                     onChange={(event) => {
@@ -2741,7 +2744,7 @@ export default function RoomPage() {
                         setRoomEntryErrors((prev) => ({ ...prev, roomCode: undefined }));
                       }
                     }}
-                    placeholder="例如：8DK1A2M7QX"
+                    placeholder={t("entry.roomCode.placeholder")}
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                     aria-invalid={roomEntryErrors.roomCode ? true : undefined}
                     aria-describedby={roomEntryErrors.roomCode ? "room-entry-join-room-code-error" : undefined}
@@ -2749,7 +2752,7 @@ export default function RoomPage() {
                   <FieldError id="room-entry-join-room-code-error" message={roomEntryErrors.roomCode} />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
+                  <span className="text-xs text-ink-muted">{t("entry.gateCode.join")}</span>
                   <input
                     value={joinGateCode}
                     onChange={(event) => {
@@ -2758,7 +2761,7 @@ export default function RoomPage() {
                         setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
                       }
                     }}
-                    placeholder="如果房间设置了门禁码则必填"
+                    placeholder={t("entry.gateCode.join.placeholder")}
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                     aria-invalid={roomEntryErrors.gateCode ? true : undefined}
                     aria-describedby={roomEntryErrors.gateCode ? "room-entry-join-gate-code-error" : undefined}
@@ -2766,11 +2769,11 @@ export default function RoomPage() {
                   <FieldError id="room-entry-join-gate-code-error" message={roomEntryErrors.gateCode} />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
+                  <span className="text-xs text-ink-muted">{t("entry.inviteToken")}</span>
                   <input
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
-                    placeholder="有邀请链接时填入"
+                    placeholder={t("entry.inviteToken.placeholder")}
                     className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                   />
                 </label>
@@ -2780,7 +2783,7 @@ export default function RoomPage() {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  加入房间
+                  {t("entry.join.submit")}
                 </button>
               </form>
             )}
@@ -2792,17 +2795,18 @@ export default function RoomPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
           <section className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">房间二维码</h3>
+              <h3 className="text-base font-semibold text-ink">{t("room.qrTitle")}</h3>
               <button
                 type="button"
                 onClick={() => setShowQr(false)}
+                aria-label={t("common.close")}
                 className="rounded-md border border-line p-1 text-ink-soft"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
+              <img src={qr} alt={t("room.qrAlt")} className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
             ) : (
               <div className="flex h-64 items-center justify-center">
                 <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
@@ -2817,10 +2821,11 @@ export default function RoomPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
           <section className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">配置公告</h3>
+              <h3 className="text-base font-semibold text-ink">{t("announcement.editor.title")}</h3>
               <button
                 type="button"
                 onClick={closeNoticeEditor}
+                aria-label={t("common.close")}
                 className="rounded-md border border-line p-1 text-ink-soft"
               >
                 <X className="h-4 w-4" />
@@ -2830,7 +2835,7 @@ export default function RoomPage() {
             <textarea
               value={noticeText}
               onChange={(e) => setNoticeText(e.target.value)}
-              placeholder="输入公告内容..."
+              placeholder={t("announcement.editor.placeholder")}
               className="min-h-[120px] w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none"
             />
 
@@ -2857,7 +2862,7 @@ export default function RoomPage() {
                       type="button"
                       className="h-full w-full"
                       onClick={() => openImageViewer(image.imageUrl, image.imageName)}
-                      title="预览原图"
+                      title={t("announcement.editor.previewImage")}
                     >
                       <img
                         src={image.imageUrl}
@@ -2869,7 +2874,7 @@ export default function RoomPage() {
                       type="button"
                       onClick={() => removeNoticeImage(image.id)}
                       className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-overlay-strong text-ink-soft opacity-100 transition-ui hover:bg-elevated group-hover:opacity-100"
-                      title="删除图片"
+                      title={t("announcement.editor.deleteImage")}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -2883,12 +2888,12 @@ export default function RoomPage() {
                     className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-panel/70 px-2 text-center text-[11px] text-ink-soft hover:bg-elevated"
                   >
                     <Plus className="mb-1 h-4 w-4" />
-                    上传公告图片
+                    {t("announcement.editor.uploadImage")}
                   </button>
                 ) : null}
               </div>
               <p className="mt-2 text-[11px] text-ink-faint">
-                最多上传 {MAX_ANNOUNCEMENT_IMAGES} 张图片
+                {t("announcement.editor.imageLimit", { max: MAX_ANNOUNCEMENT_IMAGES })}
               </p>
             </div>
 
@@ -2898,14 +2903,14 @@ export default function RoomPage() {
                 onClick={closeNoticeEditor}
                 className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft"
               >
-                取消
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
                 onClick={previewNoticeDraft}
                 className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft hover:bg-elevated"
               >
-                预览
+                {t("announcement.editor.preview")}
               </button>
               <button
                 type="button"
@@ -2913,7 +2918,7 @@ export default function RoomPage() {
                 disabled={action === "notice"}
                 className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink disabled:opacity-60"
               >
-                {action === "notice" ? "保存中..." : "保存公告"}
+                {action === "notice" ? t("announcement.editor.saving") : t("announcement.editor.save")}
               </button>
             </div>
 
@@ -2926,7 +2931,7 @@ export default function RoomPage() {
           <section className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
             <div className="mb-3 flex items-center gap-2 text-ink-soft">
               <Megaphone className="h-5 w-5" />
-              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
+              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? t("announcement.reader.previewTitle") : t("announcement.reader.title")}</h3>
             </div>
             {noticePopupContent.text ? (
               <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{noticePopupContent.text}</p>
@@ -2942,12 +2947,12 @@ export default function RoomPage() {
                   <button
                     key={`${image.imageUrl}-${index}`}
                     type="button"
-                    onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
+                    onClick={() => openImageViewer(image.imageUrl, image.imageName ?? t("announcement.reader.imageName", { index: index + 1 }))}
                     className="overflow-hidden rounded-lg border border-line bg-media"
                   >
                     <img
                       src={image.imageUrl}
-                      alt={image.imageName ?? "announcement"}
+                      alt={image.imageName ?? t("announcement.reader.imageName", { index: index + 1 })}
                       className="max-h-[42vh] w-full object-contain"
                     />
                   </button>
@@ -2960,7 +2965,7 @@ export default function RoomPage() {
                 onClick={closeNoticePopup}
                 className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink"
               >
-                {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
+                {isPreviewingNoticeDraft ? t("announcement.reader.closePreview") : t("announcement.reader.confirm")}
               </button>
             </div>
           </section>
@@ -2983,7 +2988,7 @@ export default function RoomPage() {
                 onClick={() => setImageViewer(null)}
                 className="rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated"
               >
-                关闭
+                {t("common.close")}
               </button>
             </div>
             <img

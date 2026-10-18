@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useT } from "@/lib/i18n/context";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -22,7 +23,7 @@ export function Popover({
   onClose,
   title,
   children,
-  closeLabel = "关闭",
+  closeLabel,
   className,
 }: {
   open: boolean;
@@ -32,6 +33,8 @@ export function Popover({
   closeLabel?: string;
   className?: string;
 }) {
+  const t = useT();
+  const resolvedCloseLabel = closeLabel ?? t("common.close");
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -110,7 +113,7 @@ export function Popover({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
-        aria-label={title ? undefined : closeLabel}
+        aria-label={title ? undefined : resolvedCloseLabel}
         tabIndex={-1}
       >
         {title ? (
@@ -119,7 +122,7 @@ export function Popover({
             <button
               type="button"
               onClick={onClose}
-              aria-label={closeLabel}
+              aria-label={resolvedCloseLabel}
               className="icon-btn h-7 w-7"
             >
               <X className="h-4 w-4" />

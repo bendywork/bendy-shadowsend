@@ -4,7 +4,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_USER_ROOMS } from "@/lib/constants";
 import { ApiRequestError, apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
@@ -52,12 +52,12 @@ type CreateFieldErrors = {
   gateCode?: string;
 };
 
-const slogans = [
-  "临时传递，阅后即散。",
-  "黑白极简，信息纯粹。",
-  "房间活跃，即刻续命。",
-  "Temporary Bendy Online.",
-];
+const sloganKeys = [
+  "home.slogan.1",
+  "home.slogan.2",
+  "home.slogan.3",
+  "home.slogan.4",
+] as const;
 
 export default function HomePage() {
   const router = useRouter();
@@ -160,7 +160,7 @@ export default function HomePage() {
   }, [router]);
 
   useEffect(() => {
-    const phrase = slogans[typedIndex % slogans.length];
+    const phrase = translateRef.current(sloganKeys[typedIndex % sloganKeys.length]);
     const interval = deleting ? 36 : 72;
     const timer = window.setTimeout(() => {
       if (!deleting) {
@@ -276,7 +276,7 @@ export default function HomePage() {
                 src="/2.png"
                 width={500}
                 height={155}
-                alt="临时笨迪 Logo"
+                alt={t("home.logoAlt")}
                 className="theme-dark-only h-auto w-full"
                 priority
               />
@@ -284,18 +284,18 @@ export default function HomePage() {
                 src="/2-light.png"
                 width={500}
                 height={155}
-                alt="临时笨迪 Logo（日间）"
+                alt={t("home.logoAltLight")}
                 className="theme-light-only h-auto w-full"
                 priority
               />
             </div>
 
             <h2 className="text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-4xl">
-              临时信息传递空间
+              {t("home.tagline")}
             </h2>
 
             <p className="max-w-md text-base leading-relaxed text-ink-muted sm:text-lg">
-              房间 10 分钟无活跃自动销毁，信息短驻留、低负担。
+              {t("home.description")}
             </p>
 
             <p className="min-h-[2rem] font-mono text-base text-ink-faint sm:text-lg">
@@ -309,9 +309,9 @@ export default function HomePage() {
           <section className="surface-card w-full p-6 sm:p-7">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-ink-faint">Session Entry</p>
-                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">临时笨迪</h1>
-                <p className="mt-1.5 text-sm text-ink-muted">加入或创建房间，消息仅在活跃期内保留。</p>
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-ink-faint">{t("home.sessionEntry")}</p>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{t("home.appName")}</h1>
+                <p className="mt-1.5 text-sm text-ink-muted">{t("home.subtitle")}</p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
                 <ThemeToggle />
@@ -323,7 +323,7 @@ export default function HomePage() {
                       className="h-10 w-10 text-sm"
                     />
                     <div>
-                      <p className="text-xs text-ink-faint">当前身份</p>
+                      <p className="text-xs text-ink-faint">{t("home.currentIdentity")}</p>
                       <p className="text-sm font-medium text-ink">{displayMe.nickname}</p>
                     </div>
                   </div>
@@ -338,7 +338,7 @@ export default function HomePage() {
                 data-active={tab === "join"}
                 className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
               >
-                <DoorOpen className="h-4 w-4" /> 加入
+                <DoorOpen className="h-4 w-4" /> {t("entry.tab.join")}
               </button>
               <button
                 type="button"
@@ -346,14 +346,14 @@ export default function HomePage() {
                 data-active={tab === "create"}
                 className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
               >
-                <PlusCircle className="h-4 w-4" /> 创建
+                <PlusCircle className="h-4 w-4" /> {t("entry.tab.create")}
               </button>
             </div>
 
             {tab === "join" ? (
               <form className="space-y-4" onSubmit={handleJoin} noValidate>
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
+                  <span className="text-xs text-ink-muted">{t("entry.roomCode")}</span>
                   <input
                     value={joinRoomCode}
                     onChange={(event) => {
@@ -362,7 +362,7 @@ export default function HomePage() {
                         setJoinErrors((prev) => ({ ...prev, roomCode: undefined }));
                       }
                     }}
-                    placeholder="例如：8DK1A2M7QX"
+                    placeholder={t("entry.roomCode.placeholder")}
                     className="field px-4 py-2.5 text-sm"
                     aria-invalid={joinErrors.roomCode ? true : undefined}
                     aria-describedby={joinErrors.roomCode ? "home-join-room-code-error" : undefined}
@@ -371,7 +371,7 @@ export default function HomePage() {
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6 位数字）</span>
+                  <span className="text-xs text-ink-muted">{t("entry.gateCode.join")}</span>
                   <input
                     value={joinGateCode}
                     onChange={(event) => {
@@ -380,7 +380,7 @@ export default function HomePage() {
                         setJoinErrors((prev) => ({ ...prev, gateCode: undefined }));
                       }
                     }}
-                    placeholder="如果房间设置了门禁码则必填"
+                    placeholder={t("entry.gateCode.join.placeholder")}
                     className="field px-4 py-2.5 text-sm"
                     inputMode="numeric"
                     aria-invalid={joinErrors.gateCode ? true : undefined}
@@ -390,11 +390,11 @@ export default function HomePage() {
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
+                  <span className="text-xs text-ink-muted">{t("entry.inviteToken")}</span>
                   <input
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
-                    placeholder="有邀请链接时自动填充"
+                    placeholder={t("entry.inviteToken.placeholder")}
                     className="field px-4 py-2.5 text-sm"
                   />
                 </label>
@@ -409,13 +409,13 @@ export default function HomePage() {
                   ) : (
                     <DoorOpen className="h-4 w-4" />
                   )}
-                  进入房间
+                  {t("entry.join.submit")}
                 </button>
               </form>
             ) : (
               <form className="space-y-4" onSubmit={handleCreate} noValidate>
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间名称</span>
+                  <span className="text-xs text-ink-muted">{t("entry.name")}</span>
                   <input
                     value={createName}
                     onChange={(event) => {
@@ -424,7 +424,7 @@ export default function HomePage() {
                         setCreateErrors((prev) => ({ ...prev, name: undefined }));
                       }
                     }}
-                    placeholder="输入房间名"
+                    placeholder={t("entry.name.placeholder")}
                     className="field px-4 py-2.5 text-sm"
                     maxLength={48}
                     aria-invalid={createErrors.name ? true : undefined}
@@ -434,7 +434,7 @@ export default function HomePage() {
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选）</span>
+                  <span className="text-xs text-ink-muted">{t("entry.gateCode.create")}</span>
                   <input
                     value={createGateCode}
                     onChange={(event) => {
@@ -443,7 +443,7 @@ export default function HomePage() {
                         setCreateErrors((prev) => ({ ...prev, gateCode: undefined }));
                       }
                     }}
-                    placeholder="不填则加入无需门禁码"
+                    placeholder={t("entry.gateCode.create.placeholder")}
                     className="field px-4 py-2.5 text-sm"
                     inputMode="numeric"
                     aria-invalid={createErrors.gateCode ? true : undefined}
@@ -462,19 +462,18 @@ export default function HomePage() {
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  创建并进入
+                  {t("entry.create.submit")}
                 </button>
               </form>
             )}
 
             <div className="mt-5 space-y-2 text-xs">
               <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
-                当前已加入/创建房间数：
-                <span className="ml-1 font-semibold text-ink-soft">{roomCount}/10</span>
+                {t("entry.roomCount", { count: roomCount, max: MAX_USER_ROOMS })}
               </div>
               <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
                 <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />
-                门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
+                {t("entry.gateCode.hint")}
               </div>
             </div>
           </section>

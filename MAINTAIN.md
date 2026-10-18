@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 i18n 收尾（硬编码清零，REQ-202610-0500）
+
+### Scope
+- Remove the remaining hardcoded Chinese UI copy from the home page, room page dialogs/menus/confirm boxes and shared popover; route every user-facing string through `t()` with zh/en parity.
+- Make timestamp rendering follow the active language instead of always using `zh-CN`.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/i18n/messages.ts`: added `home.*`, `entry.*`, `room.*`, `confirm.*`, `announcement.editor.*`, `announcement.reader.*` and `common.cancel` keys in zh + en (compile-time parity check enforced).
+- `src/app/page.tsx`: slogan rotation now uses message keys; logo alt text, tagline, description, session entry heading, identity label, tab labels, join/create form labels, placeholders, submit buttons, room count and gate-code hint all use `t()`; room count reads `MAX_USER_ROOMS`.
+- `src/app/room/[roomCode]/page.tsx`: room menu/aria labels, member menu items, leave/transfer/kick/dissolve confirmations, waiting-approval screen, back-home links, room entry dialog, QR dialog, announcement editor/reader and image viewer copy all use `t()`; close buttons gained localized `aria-label`; timestamp rendering switched to `formatDateTime(value, lang)`.
+- `src/components/ui/popover.tsx`: default close label now resolves from `t("common.close")` instead of a hardcoded string.
+- `src/lib/i18n/format.ts` (new): `formatDateTime` selects `zh-CN` / `en-US` and returns `--` for invalid timestamps.
+- `src/lib/i18n/messages.test.ts` (new): zh/en key parity, non-empty copy, interpolation-parameter parity, existing-key references and a hardcoded-Chinese guard for the touched UI files.
+- `src/lib/i18n/format.test.ts` (new): invalid input and both-language formatting coverage.
+
+### Regression Checklist
+- `npm test` green: 31/31 tests (5 files).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
