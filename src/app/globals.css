@@ -644,6 +644,106 @@ button {
   transform: translateX(-50%) translateY(0);
 }
 
+/* ============================================================
+   Overlay system — Modal / Drawer / Sheet (REQ-202610-0468)
+   Entrance uses keyframes; only transform / opacity animate.
+   ============================================================ */
+[data-overlay-backdrop] {
+  animation: overlay-backdrop-in var(--ds-duration-base) var(--ds-ease-out) both;
+}
+
+[data-overlay-panel][data-kind="modal"] {
+  animation: overlay-modal-in var(--ds-duration-slow) var(--ds-ease-out) both;
+}
+
+[data-overlay-panel][data-kind="drawer"][data-side="right"] {
+  animation: overlay-drawer-right-in var(--ds-duration-slow) var(--ds-ease-out) both;
+}
+
+[data-overlay-panel][data-kind="drawer"][data-side="left"] {
+  animation: overlay-drawer-left-in var(--ds-duration-slow) var(--ds-ease-out) both;
+}
+
+[data-overlay-panel][data-kind="sheet"] {
+  animation: overlay-sheet-in var(--ds-duration-slow) var(--ds-ease-out) both;
+}
+
+/* Media viewer: the panel is only a positioning shell. */
+[data-overlay-panel][data-tone="media"] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-overlay-panel][data-tone="media"] [data-overlay-header] {
+  border-color: transparent;
+}
+
+[data-overlay-panel][data-tone="media"] [data-overlay-body] {
+  padding: 0;
+}
+
+@keyframes overlay-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlay-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes overlay-drawer-right-in {
+  from {
+    opacity: 0.6;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes overlay-drawer-left-in {
+  from {
+    opacity: 0.6;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes overlay-sheet-in {
+  from {
+    opacity: 0.7;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-overlay-backdrop],
+  [data-overlay-panel] {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* Theme-specific artwork (logos) without !important overrides. */
 :root[data-theme="light"] .theme-dark-only {
   display: none;

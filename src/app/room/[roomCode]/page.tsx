@@ -17,7 +17,8 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
-import { Popover } from "@/components/ui/popover";
+import { Drawer } from "@/components/ui/drawer";
+import { Modal } from "@/components/ui/modal";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
@@ -616,19 +617,6 @@ export default function RoomPage() {
     const light = styles.getPropertyValue("--ds-qr-light").trim();
     void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark, light } }).then(setQr);
   }, [showQr, joinLink]);
-
-  useEffect(() => {
-    if (!imageViewer) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setImageViewer(null);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [imageViewer]);
 
   useEffect(() => {
     if (!openRoomMenu) return;
@@ -2451,17 +2439,20 @@ export default function RoomPage() {
             ) : null}
 
             {isOwner ? (
-              <Popover
+              <Drawer
                 open={settingsOpen}
                 onClose={() => setSettingsOpen(false)}
                 title={t("settings.title")}
                 closeLabel={t("common.close")}
+                side="right"
+                size="md"
               >
                 <div className="space-y-3">
                   <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
                     <p className="text-xs font-medium text-ink-soft">{t("settings.roomName")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
+                        data-autofocus
                         value={roomNameInput}
                         onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
                         placeholder={t("settings.roomName.placeholder")}
@@ -2542,7 +2533,7 @@ export default function RoomPage() {
                     </div>
                   </div>
                 </div>
-              </Popover>
+              </Drawer>
             ) : null}
 
             {error ? <p className="mt-3 text-xs text-ink-soft">{error}</p> : null}
@@ -2566,316 +2557,321 @@ export default function RoomPage() {
               disabled={action === `leave-${openRoomMenu.room.roomCode}`}
               className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
             >
-              退出房间
+              {t("roomMenu.leave")}
             </button>
           </div>,
           document.body,
         )
         : null}
 
-      {roomEntryMode ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-ink">
-                  {roomEntryMode === "create" ? "创建房间" : "加入房间"}
-                </h3>
-                <p className="mt-1 text-[11px] text-ink-faint">
-                  当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRoomEntryMode(null)}
-                className="rounded-md border border-line p-1 text-ink-soft hover:bg-elevated"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+      <Modal
+        open={roomEntryMode !== null}
+        onClose={() => setRoomEntryMode(null)}
+        title={
+          roomEntryMode === "create"
+            ? t("roomEntry.create.title")
+            : t("roomEntry.join.title")
+        }
+        description={t("roomEntry.count", {
+          count: roomCount,
+          max: MAX_USER_ROOMS,
+        })}
+        closeLabel={t("common.close")}
+        size="md"
+      >
+        {roomEntryMode === "create" ? (
+          <form className="space-y-4" onSubmit={quickCreateRoom}>
+            <label className="block space-y-1.5">
+              <span className="text-xs text-ink-muted">{t("roomEntry.name.label")}</span>
+              <input
+                data-autofocus
+                required
+                value={createName}
+                onChange={(event) => setCreateName(event.target.value)}
+                placeholder={t("roomEntry.name.placeholder")}
+                className="field px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs text-ink-muted">{t("roomEntry.gateCode.label")}</span>
+              <input
+                value={createGateCode}
+                onChange={(event) =>
+                  setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder={t("roomEntry.gateCode.createPlaceholder")}
+                className="field px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={roomEntrySubmitting || !canAddMoreRooms}
+              className="btn-primary btn-md w-full"
+            >
+              {roomEntrySubmitting ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {t("roomEntry.create.submit")}
+            </button>
+          </form>
+        ) : (
+          <form className="space-y-4" onSubmit={quickJoinRoom}>
+            <label className="block space-y-1.5">
+              <span className="text-xs text-ink-muted">{t("roomEntry.join.codeLabel")}</span>
+              <input
+                data-autofocus
+                required
+                value={joinRoomCode}
+                onChange={(event) => setJoinRoomCode(event.target.value.trim())}
+                placeholder={t("roomEntry.join.codePlaceholder")}
+                className="field px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs text-ink-muted">{t("roomEntry.gateCode.label")}</span>
+              <input
+                value={joinGateCode}
+                onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder={t("roomEntry.gateCode.joinPlaceholder")}
+                className="field px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs text-ink-muted">{t("roomEntry.invite.label")}</span>
+              <input
+                value={joinInviteToken}
+                onChange={(event) => setJoinInviteToken(event.target.value.trim())}
+                placeholder={t("roomEntry.invite.placeholder")}
+                className="field px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={roomEntrySubmitting || !canAddMoreRooms}
+              className="btn-primary btn-md w-full"
+            >
+              {roomEntrySubmitting ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {t("roomEntry.join.submit")}
+            </button>
+          </form>
+        )}
+      </Modal>
 
-            {roomEntryMode === "create" ? (
-              <form className="space-y-3" onSubmit={quickCreateRoom}>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间名称</span>
-                  <input
-                    required
-                    value={createName}
-                    onChange={(event) => setCreateName(event.target.value)}
-                    placeholder="输入房间名"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
-                  <input
-                    value={createGateCode}
-                    onChange={(event) =>
-                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                  />
-                </label>
-                <button
-                  type="submit"
-                  disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
+      <Modal
+        open={showQr}
+        onClose={() => setShowQr(false)}
+        title={t("qr.title")}
+        closeLabel={t("common.close")}
+        size="sm"
+      >
+        {qr ? (
+          <img
+            src={qr}
+            alt={t("qr.title")}
+            className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2"
+          />
+        ) : (
+          <div className="flex h-64 items-center justify-center">
+            <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
+          </div>
+        )}
+        <p className="mt-3 break-all text-xs text-ink-muted">{joinLink}</p>
+      </Modal>
+
+      <Drawer
+        open={showNoticeEditor}
+        onClose={closeNoticeEditor}
+        title={t("noticeEditor.title")}
+        closeLabel={t("common.close")}
+        side="right"
+        size="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeNoticeEditor}
+              className="btn-secondary btn-sm"
+            >
+              {t("noticeEditor.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={previewNoticeDraft}
+              className="btn-secondary btn-sm"
+            >
+              {t("noticeEditor.preview")}
+            </button>
+            <button
+              type="button"
+              onClick={saveNotice}
+              disabled={action === "notice"}
+              className="btn-primary btn-sm"
+            >
+              {action === "notice"
+                ? t("noticeEditor.saving")
+                : t("noticeEditor.save")}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <textarea
+            data-autofocus
+            value={noticeText}
+            onChange={(e) => setNoticeText(e.target.value)}
+            placeholder={t("noticeEditor.placeholder")}
+            className="field min-h-[160px] resize-y px-3 py-2 text-sm"
+          />
+
+          <input
+            ref={noticeImageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            multiple
+            onChange={(e) => {
+              addNoticeImages(e.target.files);
+              e.target.value = "";
+            }}
+          />
+
+          <div>
+            <div className="flex flex-wrap items-start gap-3">
+              {noticeImages.map((image) => (
+                <div
+                  key={image.id}
+                  className="group relative h-24 w-24 overflow-hidden rounded-xl border border-line bg-panel"
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  创建并进入
-                </button>
-              </form>
-            ) : (
-              <form className="space-y-3" onSubmit={quickJoinRoom}>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
-                  <input
-                    required
-                    value={joinRoomCode}
-                    onChange={(event) => setJoinRoomCode(event.target.value.trim())}
-                    placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
-                  <input
-                    value={joinGateCode}
-                    onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                  />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
-                  <input
-                    value={joinInviteToken}
-                    onChange={(event) => setJoinInviteToken(event.target.value.trim())}
-                    placeholder="有邀请链接时填入"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                  />
-                </label>
-                <button
-                  type="submit"
-                  disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  加入房间
-                </button>
-              </form>
-            )}
-          </section>
-        </div>
-      ) : null}
-
-      {showQr ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">房间二维码</h3>
-              <button
-                type="button"
-                onClick={() => setShowQr(false)}
-                className="rounded-md border border-line p-1 text-ink-soft"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
-            ) : (
-              <div className="flex h-64 items-center justify-center">
-                <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
-              </div>
-            )}
-            <p className="mt-3 break-all text-xs text-ink-muted">{joinLink}</p>
-          </section>
-        </div>
-      ) : null}
-
-      {showNoticeEditor ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">配置公告</h3>
-              <button
-                type="button"
-                onClick={closeNoticeEditor}
-                className="rounded-md border border-line p-1 text-ink-soft"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <textarea
-              value={noticeText}
-              onChange={(e) => setNoticeText(e.target.value)}
-              placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none"
-            />
-
-            <input
-              ref={noticeImageInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              multiple
-              onChange={(e) => {
-                addNoticeImages(e.target.files);
-                e.target.value = "";
-              }}
-            />
-
-            <div className="mt-3">
-              <div className="flex flex-wrap items-start gap-3">
-                {noticeImages.map((image) => (
-                  <div
-                    key={image.id}
-                    className="group relative h-24 w-24 overflow-hidden rounded-xl border border-line bg-panel"
-                  >
-                    <button
-                      type="button"
-                      className="h-full w-full"
-                      onClick={() => openImageViewer(image.imageUrl, image.imageName)}
-                      title="预览原图"
-                    >
-                      <img
-                        src={image.imageUrl}
-                        alt={image.imageName}
-                        className="h-full w-full object-cover"
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeNoticeImage(image.id)}
-                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-overlay-strong text-ink-soft opacity-100 transition-ui hover:bg-elevated group-hover:opacity-100"
-                      title="删除图片"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-
-                {noticeImages.length < MAX_ANNOUNCEMENT_IMAGES ? (
                   <button
                     type="button"
-                    onClick={() => noticeImageInputRef.current?.click()}
-                    className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-panel/70 px-2 text-center text-[11px] text-ink-soft hover:bg-elevated"
-                  >
-                    <Plus className="mb-1 h-4 w-4" />
-                    上传公告图片
-                  </button>
-                ) : null}
-              </div>
-              <p className="mt-2 text-[11px] text-ink-faint">
-                最多上传 {MAX_ANNOUNCEMENT_IMAGES} 张图片
-              </p>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeNoticeEditor}
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={previewNoticeDraft}
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft hover:bg-elevated"
-              >
-                预览
-              </button>
-              <button
-                type="button"
-                onClick={saveNotice}
-                disabled={action === "notice"}
-                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink disabled:opacity-60"
-              >
-                {action === "notice" ? "保存中..." : "保存公告"}
-              </button>
-            </div>
-
-          </section>
-        </div>
-      ) : null}
-
-      {showNoticePopup ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
-            <div className="mb-3 flex items-center gap-2 text-ink-soft">
-              <Megaphone className="h-5 w-5" />
-              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
-            </div>
-            {noticePopupContent.text ? (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{noticePopupContent.text}</p>
-            ) : null}
-            {noticePopupContent.images.length > 0 ? (
-              <div
-                className={clsx(
-                  "mt-3 grid gap-3",
-                  noticePopupContent.images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2",
-                )}
-              >
-                {noticePopupContent.images.map((image, index) => (
-                  <button
-                    key={`${image.imageUrl}-${index}`}
-                    type="button"
-                    onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
-                    className="overflow-hidden rounded-lg border border-line bg-media"
+                    className="h-full w-full"
+                    onClick={() => openImageViewer(image.imageUrl, image.imageName)}
+                    title={t("noticeEditor.previewImage")}
                   >
                     <img
                       src={image.imageUrl}
-                      alt={image.imageName ?? "announcement"}
-                      className="max-h-[42vh] w-full object-contain"
+                      alt={image.imageName}
+                      className="h-full w-full object-cover"
                     />
                   </button>
-                ))}
-              </div>
-            ) : null}
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={closeNoticePopup}
-                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink"
-              >
-                {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
+                  <button
+                    type="button"
+                    onClick={() => removeNoticeImage(image.id)}
+                    className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-overlay-strong text-ink-soft opacity-100 transition-ui hover:bg-elevated group-hover:opacity-100"
+                    title={t("noticeEditor.removeImage")}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
 
-      {imageViewer ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4"
-          onClick={() => setImageViewer(null)}
-        >
-          <section
-            className="w-full max-w-5xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-xs text-ink-soft">{imageViewer.fileName}</p>
-              <button
-                type="button"
-                onClick={() => setImageViewer(null)}
-                className="rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated"
-              >
-                关闭
-              </button>
+              {noticeImages.length < MAX_ANNOUNCEMENT_IMAGES ? (
+                <button
+                  type="button"
+                  onClick={() => noticeImageInputRef.current?.click()}
+                  className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-panel/70 px-2 text-center text-[11px] text-ink-soft hover:bg-elevated"
+                >
+                  <Plus className="mb-1 h-4 w-4" />
+                  {t("noticeEditor.uploadImage")}
+                </button>
+              ) : null}
             </div>
-            <img
-              src={imageViewer.url}
-              alt={imageViewer.fileName}
-              className="max-h-[80vh] w-full rounded-lg border border-line bg-media object-contain"
-            />
-          </section>
+            <p className="mt-2 text-[11px] text-ink-faint">
+              {t("noticeEditor.maxImages", { count: MAX_ANNOUNCEMENT_IMAGES })}
+            </p>
+          </div>
         </div>
-      ) : null}
+      </Drawer>
+
+      <Modal
+        open={showNoticePopup}
+        onClose={closeNoticePopup}
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-ink-muted" />
+            {isPreviewingNoticeDraft
+              ? t("noticePopup.previewTitle")
+              : t("noticePopup.title")}
+          </span>
+        }
+        closeLabel={t("common.close")}
+        size="lg"
+        footer={
+          <button
+            type="button"
+            onClick={closeNoticePopup}
+            className="btn-primary btn-sm"
+          >
+            {isPreviewingNoticeDraft
+              ? t("noticePopup.closePreview")
+              : t("noticePopup.ack")}
+          </button>
+        }
+      >
+        {noticePopupContent.text ? (
+          <p className="whitespace-pre-wrap text-sm leading-6 text-ink">
+            {noticePopupContent.text}
+          </p>
+        ) : null}
+        {noticePopupContent.images.length > 0 ? (
+          <div
+            className={clsx(
+              "mt-3 grid gap-3",
+              noticePopupContent.images.length === 1
+                ? "grid-cols-1"
+                : "grid-cols-1 sm:grid-cols-2",
+            )}
+          >
+            {noticePopupContent.images.map((image, index) => (
+              <button
+                key={`${image.imageUrl}-${index}`}
+                type="button"
+                onClick={() =>
+                  openImageViewer(
+                    image.imageUrl,
+                    image.imageName ?? `announcement-${index + 1}`,
+                  )
+                }
+                className="overflow-hidden rounded-lg border border-line bg-media"
+              >
+                <img
+                  src={image.imageUrl}
+                  alt={image.imageName ?? "announcement"}
+                  className="max-h-[42vh] w-full object-contain"
+                />
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={imageViewer !== null}
+        onClose={() => setImageViewer(null)}
+        title={
+          <span className="block truncate text-xs font-normal text-ink-soft">
+            {imageViewer?.fileName ?? ""}
+          </span>
+        }
+        closeLabel={t("common.close")}
+        size="full"
+        tone="media"
+        bodyClassName="flex items-center justify-center"
+      >
+        {imageViewer ? (
+          <img
+            src={imageViewer.url}
+            alt={imageViewer.fileName}
+            className="max-h-[80vh] w-full rounded-lg border border-line bg-media object-contain"
+          />
+        ) : null}
+      </Modal>
     </>
   );
 }

@@ -366,6 +366,11 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-18
+
+- `0.1.66` 弹层组件体系（REQ-202610-0468 / ui-02）：新增 Modal / Drawer / Sheet 共享底层，统一 portal、入场动画、焦点陷阱、Esc/遮罩关闭、滚动锁定与层级栈；房间页 5 处手写弹窗与设置面板全部迁移，公告编辑器改为右侧 Drawer、图片查看器使用媒体模式。
+- 新增 Vitest + Testing Library 测试设施与 8 条弹层回归测试；`npm run lint`、`npm test`、`npm run build` 全部通过。
+
 ### 2026-10-17
 
 - `0.1.65` 设计令牌体系重建（REQ-202610-0464 / ui-01）：`globals.css` 重建 10 级中性灰 primitive ramp 与语义 surface/line/ink/action 令牌，补齐圆角、4px 间距、阴影、动效时长/缓动及 success/warning/danger 状态色；全部令牌经 `@theme inline` 暴露为 Tailwind 工具类。

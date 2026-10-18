@@ -3,6 +3,36 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.66 弹层组件体系（REQ-202610-0468 / ui-02）
+
+### Scope
+- Introduce one overlay foundation for Modal / Drawer / Sheet: portal rendering, entrance keyframes, focus trap, Esc and backdrop close, body scroll lock, and an overlay z-index stack.
+- Replace the room page's hand-written dialogs with the shared components: room entry, QR code, announcement reader, image viewer, announcement editor, and room settings.
+- Add the first Vitest + Testing Library test setup so overlay behavior is covered by regression tests.
+- Bump app version to `0.1.66`.
+
+### Changes
+- `src/components/ui/overlay/overlay-surface.tsx`: shared portal shell with `modal` / `drawer` / `sheet` variants, sizes, media tone, header/body/footer, ARIA dialog wiring, and reduced-motion-safe entrance animations.
+- `src/components/ui/overlay/overlay-stack.ts`: module-level overlay stack with `useSyncExternalStore`; z-index is `100 + index * 10` and only the top layer receives Esc / Tab handling.
+- `src/components/ui/overlay/use-focus-trap.ts`: stores the previously focused element, focuses `data-autofocus` / `initialFocusRef` / first focusable, cycles Tab and Shift+Tab, and restores focus without stealing it from a newer overlay.
+- `src/components/ui/overlay/use-body-scroll-lock.ts`: reference-counted body lock with scrollbar-width compensation.
+- `src/components/ui/modal.tsx`, `drawer.tsx`, `sheet.tsx`: public wrappers; `popover.tsx` now delegates to Modal so existing call sites keep the same API.
+- `src/app/globals.css`: overlay keyframes for backdrop, modal, left/right drawer, and bottom sheet; media tone overrides; `prefers-reduced-motion` fallback.
+- `src/app/room/[roomCode]/page.tsx`: five hand-written dialogs replaced with Modal/Drawer; settings Popover replaced with a right-side Drawer; initial focus added to room name, room entry, and announcement inputs.
+- `src/lib/i18n/messages.ts`: zh/en keys for room entry, QR, announcement editor/reader, and leave-room actions.
+- `vitest.config.mts` / `vitest.setup.ts` / `src/components/ui/overlay/overlay.test.tsx`: jsdom setup plus 8 tests covering ARIA, initial focus, Esc, backdrop, Tab loop, scroll lock, stacking, Drawer/Sheet variants, and unmount cleanup.
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`: version synced to `0.1.66`; added `test` and `test:watch` scripts.
+
+### Regression Checklist
+- `npm run lint` green.
+- `npm test` green: 1 file, 8 tests.
+- `npm run build` green (Next.js 16.2.1, TypeScript strict, 12 static pages).
+- Manual focus/scroll checks: open each room overlay, Tab stays inside, Esc/backdrop closes only the top layer, closing restores the trigger focus, and body scrolling resumes after the last overlay closes.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.66`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
 
 ### Scope
