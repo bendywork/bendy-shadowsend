@@ -1,15 +1,15 @@
 ﻿"use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_USER_ROOMS } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useT } from "@/lib/i18n/context";
-import { Avatar } from "@/components/chat/avatar";
+import { IdentityCard, IdentityCardSkeleton } from "@/components/home/identity-card";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
@@ -39,6 +39,8 @@ type MePayload = {
 export default function HomePage() {
   const router = useRouter();
   const t = useT();
+  const joinRoomInputRef = useRef<HTMLInputElement>(null);
+  const createNameInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<TabType>("join");
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
   const [fallbackMe, setFallbackMe] = useState<MePayload["user"] | null>(null);
@@ -116,12 +118,20 @@ export default function HomePage() {
     };
   }, [router]);
 
-  const roomCount = useMemo(() => {
-    if (!bootstrap) return 0;
-    return bootstrap.tree.createdRooms.length + bootstrap.tree.joinedRooms.length;
-  }, [bootstrap]);
-
   const displayMe = bootstrap?.me ?? fallbackMe;
+
+  function focusEntry(nextTab: TabType) {
+    setTab(nextTab);
+    window.requestAnimationFrame(() => {
+      const target = nextTab === "join" ? joinRoomInputRef.current : createNameInputRef.current;
+      target?.focus();
+    });
+  }
+
+  function handleEnterRoom(roomCode: string) {
+    localStorage.setItem(LAST_ROOM_STORAGE_KEY, roomCode);
+    router.push(`/room/${roomCode}`);
+  }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -237,29 +247,29 @@ export default function HomePage() {
           <p className="home-hero__signature">{t("home.hero.signature")}</p>
         </div>
 
-        <section className="surface-card home-entry" aria-labelledby="home-entry-title">
-          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-            <div>
+        <div className="home-side">
+          {displayMe ? (
+            <IdentityCard
+              me={displayMe}
+              createdRooms={bootstrap?.tree.createdRooms ?? []}
+              joinedRooms={bootstrap?.tree.joinedRooms ?? []}
+              roomsLoaded={Boolean(bootstrap)}
+              onEnterRoom={handleEnterRoom}
+              onJoin={() => focusEntry("join")}
+              onCreate={() => focusEntry("create")}
+            />
+          ) : loading ? (
+            <IdentityCardSkeleton />
+          ) : null}
+
+          <section className="surface-card home-entry" aria-labelledby="home-entry-title">
+            <div className="mb-6">
               <p className="home-entry__kicker">{t("home.entry.kicker")}</p>
               <h2 id="home-entry-title" className="mt-2 text-2xl font-semibold tracking-tight text-ink">
                 {t("home.entry.title")}
               </h2>
               <p className="mt-1.5 text-sm text-ink-muted">{t("home.entry.subtitle")}</p>
             </div>
-            {displayMe ? (
-              <div className="flex items-center gap-3 rounded-2xl border border-line-subtle bg-panel/80 px-3 py-2">
-                <Avatar
-                  initial={displayMe.avatarInitial}
-                  color={displayMe.avatarColor}
-                  className="h-10 w-10 text-sm"
-                />
-                <div>
-                  <p className="text-xs text-ink-faint">{t("home.identity.current")}</p>
-                  <p className="text-sm font-medium text-ink">{displayMe.nickname}</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
 
           <div className="segmented mb-5 inline-flex w-full p-1 sm:w-auto">
             <button
@@ -285,6 +295,7 @@ export default function HomePage() {
               <label className="block space-y-1">
                 <span className="text-xs text-ink-muted">{t("home.join.roomCode.label")}</span>
                 <input
+                  ref={joinRoomInputRef}
                   required
                   value={joinRoomCode}
                   onChange={(event) => setJoinRoomCode(event.target.value.trim())}
@@ -334,6 +345,7 @@ export default function HomePage() {
               <label className="block space-y-1">
                 <span className="text-xs text-ink-muted">{t("home.create.name.label")}</span>
                 <input
+                  ref={createNameInputRef}
                   required
                   value={createName}
                   onChange={(event) => setCreateName(event.target.value)}
@@ -372,12 +384,6 @@ export default function HomePage() {
 
           <div className="mt-5 space-y-2 text-xs">
             <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
-              {t("home.stats.rooms")}
-              <span className="ml-1 font-semibold text-ink-soft">
-                {roomCount}/{MAX_USER_ROOMS}
-              </span>
-            </div>
-            <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
               <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />
               {t("home.stats.gateHint")}
             </div>
@@ -393,7 +399,8 @@ export default function HomePage() {
               {errorText ?? (errorKey ? t(errorKey) : null)}
             </p>
           ) : null}
-        </section>
+          </section>
+        </div>
       </section>
     </main>
   );

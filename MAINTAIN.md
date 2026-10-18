@@ -3,6 +3,33 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 首页身份卡信息完整化（REQ-202610-0479 / ui-16）
+
+### Scope
+- Replace the inline identity chip and the bare room-count row on `/` with a dedicated identity card: avatar, nickname, anonymous badge, created/joined counts, room quota `n/10`, quota meter, most recent room entry, and join/create quick actions.
+- Quick actions switch the entry card to the matching tab and focus its first field; the recent-room row restores the last-room key and navigates to the room.
+- Add Vitest + Testing Library infrastructure to this branch and cover the new card (4 tests).
+
+### Changes
+- `src/components/home/identity-card.tsx` (new): `IdentityCard` / `IdentityCardSkeleton`; derives the newest room from created+joined lists by `createdAt`; exposes `aria-labelledby`, `role="progressbar"` with `aria-valuenow`; all copy through `useT()`.
+- `src/app/page.tsx`: removed the old avatar/nickname chip, room-count row and `roomCount` memo; added `joinRoomInputRef` / `createNameInputRef`, `focusEntry()` (tab switch + rAF focus) and `handleEnterRoom()` (persist `LAST_ROOM_STORAGE_KEY` + route push); the right column now stacks the identity card (or skeleton while loading) above the entry card.
+- `src/lib/i18n/messages.ts`: added 12 `home.identity.*` keys in zh and en (badge, counts, quota, recent room, empty/loading, actions).
+- `src/app/globals.css`: added `.home-side` and `.home-identity*` styles built only from design tokens: layered surface, top highlight, tabular-nums stats, transform-based quota meter, hover/active/focus-visible states, skeleton pulse, reduced-motion fallback.
+- `vitest.config.mts` / `vitest.setup.ts` (new) + `package.json` / `package-lock.json`: jsdom + Testing Library setup, `test` / `test:watch` scripts.
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`: version synced to `0.1.69`.
+
+### Regression Checklist
+- `npm test` 4/4 green (identity card rendering, recent-room entry, empty state + actions, loading placeholders).
+- `npx tsc --noEmit` green.
+- `npm run lint` green.
+- `npm run build` green (Next.js 16.2.1).
+- Headless Chromium with mocked `/api/me` + `/api/bootstrap`: 1440×900 dark/light, 390×844 dark, 360×800 light+en — card visible, no horizontal overflow, one `h1`, quota `2/10` with `aria-valuenow=2`; create/join quick actions focus the matching input.
+- Local `/api/bootstrap` 500s in the real dev environment are due to no database; visual checks used mocked envelopes.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 首页 Hero 降噪（REQ-202610-0477 / ui-14）
 
 ### Scope
