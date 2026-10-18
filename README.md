@@ -61,14 +61,15 @@ Copy-Item .env.example .env
 > 
 > 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
 >
-> 当前上传策略：
+> 当前上传策略（up-02 后）：
 >
-> - 所有文件（含 `image/*`）：
->   - 若已配置 S3：优先走 S3 预签名直传；失败时（且文件不超过 `200MB`）回退后端中转（`/api/rooms/[roomCode]/upload`）。
->   - 若未配置 S3 且已配置 DUFS：走后端中转并写入 DUFS。
+> - 非图片文件：统一经服务端 `/api/rooms/[roomCode]/upload/pic-sl` 转发到 `pic.sl.al`，无需新增环境变量；单请求上限 `4MB`，更大的文件等待 up-04 分片（当前会明确报错，不会静默回退到 S3/DUFS）。
+> - 图片文件：沿用原有链路——若已配置 S3，优先走 S3 预签名直传；失败且文件不超过 `200MB` 时回退后端中转（`/api/rooms/[roomCode]/upload`）；若未配置 S3 且已配置 DUFS，则写入 DUFS。图片通道将在 up-01 接入 `file.sang.pub`。
 > - 公告图片与普通聊天附件使用同一套策略。
 >
-> 单文件大小上限为 `10GB`（服务端会校验）。
+> 单文件大小上限为 `10GB`（服务端会校验）；pic.sl.al 自身单文件上限为 `200MB`。
+>
+> 详细协议、token/cookie 处理与错误码见 `docs/pic-sl-upload.md`。
 >
 > 若部署在 Vercel 等函数平台，后端中转会受到函数请求体大小限制（可能触发 `413 FUNCTION_PAYLOAD_TOO_LARGE`），建议优先保证 S3 直传链路可用（含 CORS）。
 >
@@ -368,6 +369,8 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 非图片上传接入 pic.sl.al（REQ-202610-0511 / up-02）：新增 `src/lib/pic-sl.ts` 服务端封装与 `src/lib/pic-sl-rules.ts` 纯规则；非图片文件改走 `/api/rooms/[roomCode]/upload/pic-sl`，服务端完成 token 两段式换取、UA/cookie 一致性、一次性 token 槽位与预取、`[408,409,429,500,502,503,504,520,522,524]` 有限重试（支持 `Retry-After`）及 401/403 换 token；`AttachmentStorage` 新增 `PIC_SL` 枚举并复用 `s3Key` 存公网直链，下载/预览/公告图片读取兼容直链；单请求按 Vercel 约束收敛为 4MB，超过时明确提示等待 up-04 分片。
+- 新增 `docs/pic-sl-upload.md`（协议、错误码、token/cookie 细节、测试与后续），并更新 README 上传策略说明。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

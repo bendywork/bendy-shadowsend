@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 非图片上传接入 pic.sl.al（REQ-202610-0511 / up-02）
+
+### Scope
+- 非图片附件主上传路径切换到 `pic.sl.al`；图片链路保持原状，等待 up-01。
+- 服务端完成 token 两段式换取、UA/cookie 一致性、有限重试与错误映射（dc-01 = B，不新建中转组件）。
+- 新增 `AttachmentStorage.PIC_SL`，`s3Key` 复用为远端公网直链；本阶段单请求 ≤4MB，更大文件等待 up-04。
+
+### Changes
+- `src/lib/pic-sl-rules.ts`（new）：pic.sl.al 58 项扩展名白名单、200MB/4MB 限额、ASCII 远端文件名、直链校验、MIME 规范化。
+- `src/lib/pic-sl.ts`（new）：`PicSlClient` 封装 `/api/upload-token` + `/api/upload`；固定 UA、`__Host-imgsess` cookie 复用、一次性 token 槽位与预取、3 次有限重试（含 `Retry-After`、401/403 换 token）、超时与错误分类。
+- `src/app/api/rooms/[roomCode]/upload/pic-sl/route.ts`（new）：原始字节转发路由；房间成员鉴权、文件名/大小/扩展名/Content-Length 校验，返回 `storage: PIC_SL` 与公网直链；`maxDuration = 60`。
+- `src/app/room/[roomCode]/page.tsx`：新增 `uploadByPicSl()`（XHR 原始体 + 进度），`upload()` 将非图片文件路由到新通道；4MB/扩展名在客户端先校验。
+- `prisma/schema.prisma` + `prisma/migrations/20261018130000_add_pic_sl_storage`：`AttachmentStorage` 新增 `PIC_SL`（仅加枚举值，不改表）。
+- `src/lib/validators.ts`、`src/lib/announcement.ts`：接受 `PIC_SL`；下载/预览/公告图片路由对 `PIC_SL` 直接返回或 307 跳转公网直链；`attachment-preview.ts` 预览直链。
+- `src/lib/i18n/messages.ts`：新增 `toast.uploadUnsupportedType`、`toast.uploadChunkPending`（zh/en）。
+- `docs/pic-sl-upload.md`（new）：协议、token/cookie、重试、错误码、读取兼容、测试与后续；README 上传策略与更新记录同步。
+
+### Regression Checklist
+- `npm test` green: 41/41 tests（新增 pic-sl-rules 6、pic-sl 9、validators 2）。
+- `npm run lint` green（0 errors）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1，路由表含 `/api/rooms/[roomCode]/upload/pic-sl`）。
+- 真实 pic.sl.al 端到端上传通过（`live-test.txt` → `https://pic.sl.al/f/...`）。
+
+### Versioning / History
+- `package.json`、`package-lock.json`、`APP_VERSION` 同步至 `0.1.69`。
+- 本条目与 README 更新记录同步追加。
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

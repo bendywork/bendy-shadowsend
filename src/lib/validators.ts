@@ -63,7 +63,7 @@ export const sendMessageSchema = z.object({
           .positive()
           .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
         s3Key: z.string().trim().min(1).max(512),
-        storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
+        storage: z.enum(["S3", "DUFS", "PIC_SL"]).optional().default("S3"),
       }),
     )
     .optional()
@@ -118,7 +118,7 @@ const announcementImagePayloadSchema = z.object({
     .int()
     .positive()
     .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
-  storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
+  storage: z.enum(["S3", "DUFS", "PIC_SL"]).optional().default("S3"),
 });
 
 export const roomAnnouncementSchema = z.object({
