@@ -62,14 +62,16 @@ Copy-Item .env.example .env
 > 
 > 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
 >
-> 当前上传策略（v0.1.69 起，up-01 + up-02 合并后）：
+> 当前上传策略（v0.1.69 起，up-01 + up-02 + up-07）：
 >
 > - 图片（`image/*` 或常见图片扩展名）：
 >   - 单文件 ≤ `4MB`：经后端中转（`/api/rooms/[roomCode]/upload`）调用 `file.sang.pub`。服务端按扩展名/大小选择通道：`meitu`（jpg/jpeg/png/gif/webp，≤20MB）或 `icve`（除 html/htm，≤100MB）；返回的远端 URL 写入 `s3Key`，`storage=SANG`。
->   - 单文件 > `4MB`：当前暂走 DUFS 分片上传（`/api/rooms/[roomCode]/upload/chunk`），待 up-04 分片能力接入后切换为 `file.sang.pub` 分片。
+>   - 单文件 > `4MB`：分片上传尚未接入（up-04），当前会明确报错，不再回退 DUFS。
 >   - 图片上传失败按 dc-06 仅做同服务有限重试（最多 3 次），不回退到 S3/DUFS。
 > - 非图片文件：统一经服务端 `/api/rooms/[roomCode]/upload/pic-sl` 转发到 `pic.sl.al`，无需新增环境变量；单请求上限 `4MB`，更大的文件等待 up-04 分片（当前会明确报错，不会静默回退到 S3/DUFS）。
 > - 公告图片与普通聊天附件使用同一套策略。
+>
+> **旧存储配置（S3 / DUFS / OSS Preview）自 up-07 起只用于读取存量附件，不再参与任何新上传。** 即使环境变量仍然配置，`/upload-url`（S3 预签名）与 `/upload/chunk`（DUFS 分片）也会返回 `410 LEGACY_STORAGE_UPLOAD_DISABLED`。详见 `docs/legacy-storage-readonly.md`。
 >
 > 单文件大小上限为 `10GB`（服务端会校验）；pic.sl.al 自身单文件上限为 `200MB`。
 >
@@ -77,7 +79,7 @@ Copy-Item .env.example .env
 >
 > 若部署在 Vercel 等函数平台，后端中转会受到函数请求体大小限制（单请求约 `4.5MB`，本项目按 `4MB` 控制）；更大的文件依赖分片上传。
 >
-> 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
+> DUFS 相关环境变量现在只影响存量附件读取；若读取返回 `403 Forbidden`，请检查 `DUFS_AUTH` 与服务路径前缀 `DUFS_PATH_PREFIX`。
 
 ### 3. 推荐配置样例
 
@@ -179,23 +181,23 @@ npm run dev
 
 ### 2. Vercel 需要配置的环境变量
 
-至少在 **Production / Preview / Development** 三个环境都配置以下变量（`S3_REGION` 可选）：
+至少在 **Production / Preview / Development** 三个环境配置以下变量；其中仅 `DATABASE_URL` 与 `CHAT_ENCRYPTION_KEY` 为必需。S3 / DUFS / OSS Preview 变量自 up-07 起只用于读取存量附件，不再参与新上传：
 
 | 变量名 | 必填 | 用途 |
 | --- | --- | --- |
 | `DATABASE_URL` | 是 | Prisma 数据库连接串 |
 | `CHAT_ENCRYPTION_KEY` | 是 | 聊天消息加密 Key（至少 32 字符） |
 | `APP_AUTH` | 否 | 外部管理接口鉴权参数，长度 1~32，默认 `bendywork` |
-| `S3_REGION` | 否 | S3 区域（可不填，默认空值） |
-| `S3_ENDPOINT` | 是 | S3 兼容 API Endpoint |
-| `S3_BUCKET` | 是 | Bucket 名称 |
-| `S3_ACCESS_KEY_ID` | 是 | S3 Access Key |
-| `S3_SECRET_ACCESS_KEY` | 是 | S3 Secret Key |
-| `S3_FORCE_PATH_STYLE` | 建议 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用） |
-| `DUFS_BASE_URL` | 可选 | 图片专用 DUFS 服务地址 |
-| `DUFS_PUBLIC_BASE_URL` | 可选 | 图片公开访问地址（默认同 DUFS_BASE_URL） |
-| `DUFS_PATH_PREFIX` | 可选 | DUFS 路径前缀（如 `/dufs` 或 `/data`） |
-| `DUFS_AUTH` | 可选 | DUFS 上传 Authorization 头 |
+| `S3_REGION` | 否 | S3 区域（仅存量读取） |
+| `S3_ENDPOINT` | 否 | S3 兼容 API Endpoint（仅存量读取） |
+| `S3_BUCKET` | 否 | Bucket 名称（仅存量读取） |
+| `S3_ACCESS_KEY_ID` | 否 | S3 Access Key（仅存量读取） |
+| `S3_SECRET_ACCESS_KEY` | 否 | S3 Secret Key（仅存量读取） |
+| `S3_FORCE_PATH_STYLE` | 否 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用；仅存量读取） |
+| `DUFS_BASE_URL` | 否 | DUFS 服务地址（仅存量读取） |
+| `DUFS_PUBLIC_BASE_URL` | 否 | DUFS 公开访问地址（默认同 DUFS_BASE_URL；仅存量读取） |
+| `DUFS_PATH_PREFIX` | 否 | DUFS 路径前缀（如 `/dufs` 或 `/data`；仅存量读取） |
+| `DUFS_AUTH` | 否 | DUFS 读取 Authorization 头（仅存量读取） |
 | `SANG_UPLOAD_URL` | 可选 | `file.sang.pub` 上传端点（默认 `https://file.sang.pub/api/upload`） |
 | `OSS_PREVIEW_RPC_URL` | 可选 | 外部预览 URL 的 JSON-RPC 接口 |
 | `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |
@@ -374,6 +376,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 旧存储配置旁路与存量兼容（REQ-202610-0516 / up-07）：新增 `src/lib/storage-policy.ts`，明确旧 S3/DUFS/OSS 配置只读、不参与新上传；`/upload-url` 与 `/upload/chunk` 统一返回 `410 LEGACY_STORAGE_UPLOAD_DISABLED`；`/upload` 仅保留 `file.sang.pub` 图片通道，非图片返回 410；前端移除 S3 直传、DUFS 分片与旧配置回退，>4MB 文件明确提示等待 up-04；S3/DUFS 存量附件下载、预览与公告图片读取保持不变；新增 `docs/legacy-storage-readonly.md`。
 - `0.1.69` 图片上传接入 `file.sang.pub`（REQ-202610-0510 / up-01）：新增 `src/lib/sang.ts` 服务端封装（`X-Upload-Type` / `X-File-Name` / `X-File-Size` 协议头、meitu/icve 通道选择、同服务最多 3 次有限重试、远端 URL 校验）；`AttachmentStorage` 新增 `SANG` 枚举及迁移；图片经 `/api/rooms/[roomCode]/upload` 中转后回填远端 URL，`/upload-url` 拒绝图片直传；附件预览/下载与公告图片读取适配 `SANG`；新增 31 条单元测试。
 - `0.1.69` 非图片上传接入 pic.sl.al（REQ-202610-0511 / up-02）：新增 `src/lib/pic-sl.ts` 服务端封装与 `src/lib/pic-sl-rules.ts` 纯规则；非图片文件改走 `/api/rooms/[roomCode]/upload/pic-sl`，服务端完成 token 两段式换取、UA/cookie 一致性、一次性 token 槽位与预取、`[408,409,429,500,502,503,504,520,522,524]` 有限重试（支持 `Retry-After`）及 401/403 换 token；`AttachmentStorage` 新增 `PIC_SL` 枚举并复用 `s3Key` 存公网直链，下载/预览/公告图片读取兼容直链；单请求按 Vercel 约束收敛为 4MB，超过时明确提示等待 up-04 分片。
 - 新增 `docs/pic-sl-upload.md`（协议、错误码、token/cookie 细节、测试与后续），并更新 README 上传策略说明。

@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 旧存储配置旁路与存量兼容（REQ-202610-0516 / up-07）
+
+### Scope
+- 按 dc-05 = A：S3 / DUFS / OSS Preview 配置不再参与任何新上传，即使环境变量仍然存在也不生效；只保留存量附件读取。
+- 新上传全部走新通道：图片 `file.sang.pub`、非图片 `pic.sl.al`；>4MB 分片等待 up-04。
+- 不迁移、不删除存量对象；旧读取代码保留到 up-12 存量清零后下线。
+
+### Changes
+- `src/lib/storage-policy.ts`（new）：`LEGACY_STORAGE_UPLOAD_ENABLED = false`、`LEGACY_STORAGE_READ_ENABLED = true`、`410 LEGACY_STORAGE_UPLOAD_DISABLED` 错误构造与写入口守卫。
+- `src/app/api/rooms/[roomCode]/upload-url/route.ts`：S3 预签名入口整体返回 410，不再读取 `S3_*` 或签发 URL。
+- `src/app/api/rooms/[roomCode]/upload/chunk/route.ts`：DUFS 分片 POST/DELETE 整体返回 410，不再读写 DUFS。
+- `src/app/api/rooms/[roomCode]/upload/route.ts`：删除非图片 S3/DUFS 写入分支；仅保留 `file.sang.pub` 图片通道，非图片返回 410。
+- `src/app/room/[roomCode]/page.tsx`：删除 `uploadDirectToS3()`、`uploadByChunkedProxy()` 与旧配置回退；图片 >4MB 明确提示分片待 up-04，非图片统一走 pic.sl.al。
+- `src/lib/storage-policy.test.ts`（new）：策略常量、读取开关、410 错误契约与守卫测试；`src/app/api/rooms/[roomCode]/upload/legacy-routes.test.ts`（new）：`/upload-url`、`/upload/chunk` 的 410 契约测试。
+- `docs/legacy-storage-readonly.md`（new）：写入停用清单、读取兼容矩阵、代码位置、验收与后续。
+- `README.md`：上传策略与更新记录同步；旧配置仅读说明。
+
+### Regression Checklist
+- `npm test` green：79/79 tests（新增 storage-policy 4 条、旧写入入口 3 条）。
+- `npm run lint` green（0 errors）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+- 手工验证：配置 `S3_*`/`DUFS_*` 时 `/upload-url`、`/upload/chunk` 仍返回 410；S3/DUFS 存量附件下载/预览/公告图片读取正常。
+
+### Versioning / History
+- 版本保持 `0.1.69`（与 up-01/up-02 同一发布批次）。
+- 本条目与 README 更新记录同步追加。
+
 ## 2026-10-18: v0.1.69 图片上传接入 file.sang.pub（REQ-202610-0510 / up-01）
 
 ### Scope
