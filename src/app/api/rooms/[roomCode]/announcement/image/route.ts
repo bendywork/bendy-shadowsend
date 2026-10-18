@@ -2,6 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseAnnouncementImages } from "@/lib/announcement";
 import { ApiError, jsonError } from "@/lib/api";
+import {
+  isAllowedRemoteAttachmentUrl,
+  isRemoteAttachmentStorage,
+} from "@/lib/attachment-storage";
 import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
@@ -56,6 +60,15 @@ export async function GET(
 
     if (!image) {
       throw new ApiError(404, "公告图片不存在", "ANNOUNCEMENT_IMAGE_NOT_FOUND");
+    }
+
+    if (isRemoteAttachmentStorage(image.storage)) {
+      if (!isAllowedRemoteAttachmentUrl(image.storage, image.s3Key)) {
+        throw new ApiError(502, "公告图片地址无效", "REMOTE_ATTACHMENT_URL_INVALID");
+      }
+
+      const response = NextResponse.redirect(image.s3Key, 307);
+      return applyUserCookie(response, cookieToSet);
     }
 
     if (image.storage === AttachmentStorage.DUFS) {
