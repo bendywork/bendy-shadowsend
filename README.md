@@ -311,18 +311,18 @@ npm run dev
 
 ```json
 [
-  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" },
-  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" },
-  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" },
-  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" },
-  { "content": "XXXXXXXXXXXXXXX", "color": "#222333", "url": "https://ai.polofox.com" }
+  { "content": "XXXXXXXXXXXXXXX", "url": "https://ai.polofox.com" },
+  { "content": "XXXXXXXXXXXXXXX", "url": "https://ai.polofox.com" },
+  { "content": "XXXXXXXXXXXXXXX", "url": "https://ai.polofox.com" },
+  { "content": "XXXXXXXXXXXXXXX", "url": "https://ai.polofox.com" },
+  { "content": "XXXXXXXXXXXXXXX", "url": "https://ai.polofox.com" }
 ]
 ```
 
 - 校验规则：
   - `content` 最大 120 字符
-  - `color` 支持 `#RGB` 或 `#RRGGBB`
   - `url` 可为空；非空时需为合法 URL
+  - 广告文字统一使用主题 `--ds-ink-soft` 颜色；历史数据中的 `color` 字段会被忽略，不再支持自定义颜色（dc-02）
 
 ## 目录结构
 
@@ -368,6 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 全站强调色清理（REQ-202610-0749 / ui-49，dc-02 = A）：清除广告位服务端 `color` 字段与头像历史彩色值两条运行时强调色来源；广告文字固定使用 `--ds-ink-soft`，头像颜色经 `resolveAvatarColor()` 白名单校验并回落到中性灰；新增 `scripts/accent-audit.mjs` 与 `test:accent` 防回归检查（遗留系统蓝、Tailwind 彩色工具类、硬编码色值、`!important`、主按钮反色与对比度）。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

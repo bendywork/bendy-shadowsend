@@ -100,7 +100,6 @@ const MESSAGE_COLLAPSE_PREVIEW_MAX = 1600;
 const MESSAGE_COLLAPSE_PREVIEW_MIN = 360;
 const AD_CAROUSEL_INTERVAL_MS = 4200;
 const AD_CAROUSEL_SLIDE_MS = 320;
-const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 function withStableAttachmentPreviewUrls(
   prev: RoomSnapshot | null,
@@ -429,8 +428,6 @@ function AdCarouselItem({
   item: AdBoardItem;
   className: string;
 }) {
-  const textColor = HEX_COLOR_RE.test(item.color) ? item.color : "var(--ds-ink-soft)";
-
   if (item.url) {
     return (
       <a
@@ -438,10 +435,9 @@ function AdCarouselItem({
         target="_blank"
         rel="noopener noreferrer"
         className={clsx(
-          "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-slow ease-out",
+          "absolute inset-0 flex items-center px-3 text-sm text-ink-soft transition-transform duration-slow ease-out",
           className,
         )}
-        style={{ color: textColor }}
         title={item.content}
       >
         <span className="truncate">{item.content}</span>
@@ -452,10 +448,9 @@ function AdCarouselItem({
   return (
     <div
       className={clsx(
-        "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-slow ease-out",
+        "absolute inset-0 flex items-center px-3 text-sm text-ink-soft transition-transform duration-slow ease-out",
         className,
       )}
-      style={{ color: textColor }}
       title={item.content}
     >
       <span className="truncate">{item.content}</span>

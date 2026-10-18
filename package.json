@@ -1,6 +1,6 @@
 {
   "name": "bendy-shadowsend",
-  "version": "0.1.68",
+  "version": "0.1.69",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,7 +14,9 @@
     "prisma:studio": "prisma studio",
     "db:reinit:prefixed": "prisma db execute --file prisma/reinit_prefixed.sql --schema prisma/schema.prisma",
     "release:tag": "node scripts/release-tag.mjs",
-    "test:release-tag": "node --test scripts/release-tag.test.mjs"
+    "test:release-tag": "node --test scripts/release-tag.test.mjs",
+    "accent:audit": "node scripts/accent-audit.mjs",
+    "test:accent": "node --test scripts/accent-audit.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",

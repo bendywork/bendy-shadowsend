@@ -83,7 +83,6 @@ export type MessageItem = {
 
 export type AdBoardItem = {
   content: string;
-  color: string;
   url: string;
 };
 

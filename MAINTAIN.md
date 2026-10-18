@@ -3,6 +3,36 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 全站强调色清理（REQ-202610-0749 / ui-49）
+
+### Scope
+- Close the last coloured-accent paths left after the v0.1.65 token rebuild: server-provided ad `color` values and legacy coloured avatar values stored in the database.
+- Keep colour exclusively for semantic success/warning/danger feedback; primary buttons stay inverted in both themes (dc-02 = A).
+- Add an automated accent audit so the monochrome contract cannot regress silently.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/avatar-color.ts` (new): neutral `AVATAR_COLOR_POOL`, `isNeutralAvatarColor()` channel-spread check, and `resolveAvatarColor()` with an FNV-1a deterministic fallback for coloured/malformed legacy values.
+- `src/lib/identity.ts`: user creation now draws from the shared neutral avatar palette instead of a local colour list.
+- `src/components/chat/avatar.tsx`: every avatar colour passes through `resolveAvatarColor()`, so historical blue/teal/amber values can never render as accents.
+- `src/lib/ad-board.ts` / `src/types/chat.ts`: dropped the ad `color` field from the schema and item type; legacy records are accepted but the field is stripped. Rendering always uses `--ds-ink-soft`.
+- `src/app/room/[roomCode]/page.tsx`: removed the hex-colour regex and inline ad text colour; carousel text uses the `text-ink-soft` token.
+- `scripts/accent-audit.mjs` (new) + `scripts/accent-audit.test.mjs` (new): scans `src` for legacy `#0a84ff`/`#0071e3`, default Tailwind palette utilities, hard-coded colours outside the token files, inline text colours, `!important`, and verifies inverted primary tokens with ≥ 4.5:1 contrast.
+- `package.json`: added `accent:audit` and `test:accent` scripts.
+- `README.md`: ad data structure no longer documents `color`; update history records the cleanup.
+
+### Regression Checklist
+- `npm test` green (unit tests include avatar guard and ad-board parsing).
+- `npm run lint` green.
+- `npx tsc --noEmit` green.
+- `npm run build` green.
+- `npm run accent:audit` green (0 violations).
+- `npm run test:accent` green.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

@@ -2,18 +2,7 @@
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { USER_COOKIE_NAME } from "@/lib/constants";
-
-const colorPool = [
-  "#3f3f46",
-  "#52525b",
-  "#71717a",
-  "#a1a1aa",
-  "#27272a",
-  "#404040",
-  "#737373",
-  "#6b6b73",
-  "#4b4b52",
-];
+import { AVATAR_COLOR_POOL } from "@/lib/avatar-color";
 
 const adjectivePool = [
   "敏捷",
@@ -41,7 +30,7 @@ const nounPool = [
   "访客",
 ];
 
-function randomItem<T>(items: T[]): T {
+function randomItem<T>(items: readonly T[]): T {
   const index = Math.floor(Math.random() * items.length);
   return items[index];
 }
@@ -83,7 +72,7 @@ export async function getOrCreateUser(request: NextRequest): Promise<{
         data: {
           nickname,
           avatarInitial: resolveInitial(nickname),
-          avatarColor: randomItem(colorPool),
+          avatarColor: randomItem(AVATAR_COLOR_POOL),
         },
       });
 
