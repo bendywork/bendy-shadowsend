@@ -4,6 +4,7 @@ import { parseAnnouncementImages } from "@/lib/announcement";
 import { ApiError, jsonError } from "@/lib/api";
 import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
+import { normalizePicSlPublicUrl } from "@/lib/pic-sl-rules";
 import { prisma } from "@/lib/prisma";
 import { createInlineReadUrl } from "@/lib/s3";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
@@ -60,6 +61,16 @@ export async function GET(
 
     if (image.storage === AttachmentStorage.SANG) {
       const response = NextResponse.redirect(image.s3Key, 307);
+      return applyUserCookie(response, cookieToSet);
+    }
+
+    if (image.storage === AttachmentStorage.PIC_SL) {
+      const publicUrl = normalizePicSlPublicUrl(image.s3Key);
+      if (!publicUrl) {
+        throw new ApiError(502, "公告图片地址无效", "PIC_SL_INVALID_URL");
+      }
+
+      const response = NextResponse.redirect(publicUrl, 307);
       return applyUserCookie(response, cookieToSet);
     }
 

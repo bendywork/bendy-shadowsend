@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, jsonError } from "@/lib/api";
 import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
+import { normalizePicSlPublicUrl } from "@/lib/pic-sl-rules";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 import { createAttachmentPreviewUrl } from "@/lib/s3";
@@ -58,6 +59,16 @@ export async function GET(
 
     if (attachment.storage === AttachmentStorage.SANG) {
       const response = NextResponse.redirect(attachment.s3Key, 307);
+      return applyUserCookie(response, cookieToSet);
+    }
+
+    if (attachment.storage === AttachmentStorage.PIC_SL) {
+      const publicUrl = normalizePicSlPublicUrl(attachment.s3Key);
+      if (!publicUrl) {
+        throw new ApiError(502, "附件地址无效", "PIC_SL_INVALID_URL");
+      }
+
+      const response = NextResponse.redirect(publicUrl, 307);
       return applyUserCookie(response, cookieToSet);
     }
 

@@ -66,6 +66,7 @@ enum AttachmentStorage {
   S3
   DUFS
   SANG
+  PIC_SL
 
   @@map("bendy_shadowsend_attachment_storage")
 }

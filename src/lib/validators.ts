@@ -5,12 +5,26 @@ import {
   MAX_ATTACHMENT_SIZE_BYTES,
   MAX_MESSAGE_TEXT_CHARS,
 } from "@/lib/constants";
+import { normalizePicSlPublicUrl } from "@/lib/pic-sl-rules";
 import { isAllowedSangUrl } from "@/lib/upload-rules";
 
-const sangUrlRefinement = {
-  message: "SANG 附件必须使用 file.sang.pub 返回的 URL",
+const remoteStorageUrlRefinement = {
+  message: "远端附件必须使用对应存储服务返回的 URL",
   path: ["s3Key"],
 };
+
+function hasValidRemoteStorageUrl(attachment: {
+  storage?: "S3" | "DUFS" | "SANG" | "PIC_SL";
+  s3Key: string;
+}) {
+  if (attachment.storage === "SANG") {
+    return isAllowedSangUrl(attachment.s3Key);
+  }
+  if (attachment.storage === "PIC_SL") {
+    return normalizePicSlPublicUrl(attachment.s3Key) !== null;
+  }
+  return true;
+}
 
 export const gateCodeSchema = z
   .string()
@@ -69,13 +83,11 @@ export const sendMessageSchema = z.object({
           .positive()
           .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
         s3Key: z.string().trim().min(1).max(2048),
-        storage: z.enum(["S3", "DUFS", "SANG"]).optional().default("S3"),
-      }).refine(
-        (attachment) =>
-          attachment.storage !== "SANG" ||
-          isAllowedSangUrl(attachment.s3Key),
-        sangUrlRefinement,
-      ),
+        storage: z
+          .enum(["S3", "DUFS", "SANG", "PIC_SL"])
+          .optional()
+          .default("S3"),
+      }).refine(hasValidRemoteStorageUrl, remoteStorageUrlRefinement),
     )
     .optional()
     .default([]),
@@ -129,11 +141,11 @@ const announcementImagePayloadSchema = z.object({
     .int()
     .positive()
     .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
-  storage: z.enum(["S3", "DUFS", "SANG"]).optional().default("S3"),
-}).refine(
-  (image) => image.storage !== "SANG" || isAllowedSangUrl(image.s3Key),
-  sangUrlRefinement,
-);
+  storage: z
+    .enum(["S3", "DUFS", "SANG", "PIC_SL"])
+    .optional()
+    .default("S3"),
+}).refine(hasValidRemoteStorageUrl, remoteStorageUrlRefinement);
 
 export const roomAnnouncementSchema = z.object({
   text: z

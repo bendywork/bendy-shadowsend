@@ -17,7 +17,10 @@ type AnnouncementFields = {
 const isAttachmentStorage = (
   value: unknown,
 ): value is AttachmentStorage =>
-  value === "S3" || value === "DUFS" || value === "SANG";
+  value === "S3" ||
+  value === "DUFS" ||
+  value === "SANG" ||
+  value === "PIC_SL";
 
 function normalizeAnnouncementImage(value: unknown): AnnouncementImage | null {
   if (!value || typeof value !== "object") return null;

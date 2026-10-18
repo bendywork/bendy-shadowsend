@@ -11,6 +11,7 @@ import QRCode from "qrcode";
 import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { SANG_SINGLE_REQUEST_MAX_BYTES, isImageFile, resolveImageMimeType } from "@/lib/upload-rules";
+import { isPicSlSupportedFileName, PIC_SL_MAX_FILE_BYTES, PIC_SL_MAX_REQUEST_BYTES } from "@/lib/pic-sl-rules";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -993,6 +994,110 @@ export default function RoomPage() {
     return payload;
   }
 
+  async function uploadByPicSl(file: File, onProgress?: (percent: number) => void) {
+    if (!isPicSlSupportedFileName(file.name)) {
+      throw new Error(t("toast.uploadUnsupportedType", { name: file.name }));
+    }
+
+    if (file.size > PIC_SL_MAX_FILE_BYTES) {
+      throw new Error(
+        t("toast.uploadTooLarge", {
+          max: Math.floor(PIC_SL_MAX_FILE_BYTES / 1024 / 1024),
+        }),
+      );
+    }
+
+    if (file.size > PIC_SL_MAX_REQUEST_BYTES) {
+      throw new Error(
+        t("toast.uploadChunkPending", {
+          max: Math.floor(PIC_SL_MAX_REQUEST_BYTES / 1024 / 1024),
+        }),
+      );
+    }
+
+    const mimeType = file.type?.trim() || "application/octet-stream";
+    const requestUrl = `/api/rooms/${roomCode}/upload/pic-sl`;
+
+    return new Promise<ProxyUploadResult>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", requestUrl, true);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader("Content-Type", mimeType);
+      xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
+      xhr.setRequestHeader("X-File-Type", mimeType);
+      xhr.setRequestHeader("X-File-Size", String(file.size));
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable || !onProgress) return;
+        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+        onProgress(percent);
+      };
+
+      xhr.onerror = () => {
+        console.error("[upload-pic-sl] xhr network error", {
+          requestUrl,
+          roomCode,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+        });
+        reject(new Error(t("toast.networkError")));
+      };
+
+      xhr.onload = () => {
+        let parsed:
+          | {
+              ok: boolean;
+              data?: ProxyUploadResult;
+              error?: { message?: string; code?: string };
+            }
+          | null = null;
+
+        try {
+          parsed = xhr.responseText
+            ? (JSON.parse(xhr.responseText) as {
+                ok: boolean;
+                data?: ProxyUploadResult;
+                error?: { message?: string; code?: string };
+              })
+            : null;
+        } catch (parseError) {
+          console.error("[upload-pic-sl] xhr parse error", {
+            requestUrl,
+            roomCode,
+            status: xhr.status,
+            responseText: xhr.responseText,
+            error: parseError,
+          });
+          reject(new Error(t("toast.uploadFailed", { name: file.name })));
+          return;
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300 && parsed?.ok && parsed.data) {
+          if (onProgress) onProgress(100);
+          resolve(parsed.data);
+          return;
+        }
+
+        console.error("[upload-pic-sl] xhr response error", {
+          requestUrl,
+          roomCode,
+          status: xhr.status,
+          responseText: xhr.responseText,
+          payload: parsed,
+        });
+
+        reject(
+          new Error(
+            parsed?.error?.message ?? t("toast.uploadFailed", { name: file.name }),
+          ),
+        );
+      };
+
+      xhr.send(file);
+    });
+  }
+
   async function uploadByChunkedProxy(file: File, onProgress?: (percent: number) => void) {
     const totalChunks = Math.ceil(file.size / DUFS_CHUNK_SIZE_BYTES);
     let dufsPath: string | null = null;
@@ -1156,6 +1261,11 @@ export default function RoomPage() {
       }
 
       return uploadByChunkedProxy(file, onProgress);
+    }
+
+    // 非图片统一走 pic.sl.al（dc-01：Vercel 服务端转发）。
+    if (!file.type.startsWith("image/")) {
+      return uploadByPicSl(file, onProgress);
     }
 
     try {

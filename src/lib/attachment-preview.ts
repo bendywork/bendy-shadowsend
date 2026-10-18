@@ -1,5 +1,6 @@
 ﻿import { AttachmentStorage, PreviewType } from "@prisma/client";
 import { createDufsPublicUrl } from "@/lib/dufs";
+import { normalizePicSlPublicUrl } from "@/lib/pic-sl-rules";
 import { createAttachmentPreviewUrl } from "@/lib/s3";
 
 type PreviewAttachment = {
@@ -52,6 +53,13 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
               return {
                 ...attachment,
                 previewUrl: attachment.s3Key,
+              };
+            }
+
+            if (attachment.storage === AttachmentStorage.PIC_SL) {
+              return {
+                ...attachment,
+                previewUrl: normalizePicSlPublicUrl(attachment.s3Key),
               };
             }
 
