@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.68 右侧成员栏重构（REQ-202610-0473 / ui-10）
+
+### Scope
+- Rebuild the right member sidebar: member cards now expose role, online state and last-active time; approval cards share the same visual family; owner settings entry links to the existing ui-25 settings popover.
+- Extract the sidebar from the 2800-line room page into `MemberPanel`, removing the hand-written member menu/tab state from the page.
+- Widen the right grid column from 290px to 320px so role chips and row actions keep breathing room.
+
+### Changes
+- `src/components/chat/member-panel.tsx` (new): `MemberPanel` with owner-only `.segmented` tabs (members / approvals), member cards (avatar + online dot + role chip + last-active label), accessible action menu (transfer / kick, Esc + outside click, focus return), approval cards (approve / reject with busy state) and empty states. The settings icon calls `onOpenSettings`, keeping the panel decoupled from the settings implementation.
+- `src/lib/member-status.ts` (new): `isMemberOnline()` and `describeLastActive()` share `ONLINE_WINDOW_MS` with the presence API; invalid/missing timestamps fall back to offline / never, future timestamps clamp to "just now".
+- `src/app/room/[roomCode]/page.tsx`: replaced the inline member/approval markup with `<MemberPanel>`; removed `openMemberMenuId`, `memberPanelTab`, `memberMenuRef` and their effects; dropped now-unused `Crown` / `UserMinus` / `PanelRightClose` imports; right column 290px → 320px.
+- `src/lib/i18n/messages.ts`: added zh/en keys for summary, online/offline, last-active units, joined-at, member actions, tab label, empty states, approval requested-at and reason.
+- Tests: added Vitest + jsdom + Testing Library setup (`vitest.config.mts`, `vitest.setup.ts`), `src/lib/member-status.test.ts` (10 cases) and `src/components/chat/member-panel.test.tsx` (8 cases); added `test` / `test:watch` scripts.
+- `docs/design-system-members.md` (new): hierarchy, card anatomy, presence semantics, approval flow, accessibility and acceptance checklist.
+
+### Regression Checklist
+- `npm test`: 2 files / 18 tests passed.
+- `npm run lint`: green.
+- `npx tsc --noEmit`: green.
+- `npm run build`: green (Next.js 16.2.1, 12 static pages).
+- Manual check pending: dual-theme visual pass on a room with an owner + member + pending request.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.68`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
 
 ### Scope

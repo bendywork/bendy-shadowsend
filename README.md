@@ -366,6 +366,12 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-18
+
+- `0.1.68` 右侧成员栏重构（REQ-202610-0473 / ui-10）：成员卡片改为头像 + 在线点 + 角色徽标 + 最近活跃时间，在线口径与 `ONLINE_WINDOW_MS` 对齐；审批卡片与成员卡片统一视觉族，通过/拒绝按钮处理中禁用并显示加载态。
+- 成员栏从房间页抽为 `MemberPanel` 组件，房主「房间设置」图标直接打开 ui-25 设置弹层；成员 / 审批切换迁移 `.segmented` 并带数量徽标；右栏宽度 290px → 320px。
+- 新增 Vitest + jsdom + Testing Library 测试基线（`member-status` 10 例、`member-panel` 8 例）与 `docs/design-system-members.md` 设计规范；`npm test` / `lint` / `tsc` / `build` 全绿。
+
 ### 2026-10-17
 
 - `0.1.65` 设计令牌体系重建（REQ-202610-0464 / ui-01）：`globals.css` 重建 10 级中性灰 primitive ramp 与语义 surface/line/ink/action 令牌，补齐圆角、4px 间距、阴影、动效时长/缓动及 success/warning/danger 状态色；全部令牌经 `@theme inline` 暴露为 Tailwind 工具类。
