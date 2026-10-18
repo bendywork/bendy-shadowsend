@@ -25,7 +25,11 @@ const baseSchema = z.object({
   OSS_PREVIEW_BUCKET_NAME: z.string().optional(),
   OSS_PREVIEW_COOKIE: z.string().optional(),
   UPLOAD_ALLOWED_ORIGINS: z.string().optional(),
-  UPLOAD_SESSION_SECRET: z.string().min(16).optional(),
+  UPLOAD_SESSION_SECRET: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim().length === 0 ? undefined : value,
+    z.string().min(16).optional(),
+  ),
 });
 
 const parsed = baseSchema.safeParse(process.env);
