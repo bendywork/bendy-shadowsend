@@ -516,6 +516,12 @@ button {
 }
 
 /* Floating panels & tooltips. */
+.popover-backdrop {
+  background: var(--ds-overlay);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
 .popover-panel {
   background: color-mix(in srgb, var(--ds-surface-panel) 94%, transparent);
   border: 1px solid var(--ds-line);
@@ -523,6 +529,10 @@ button {
   box-shadow: var(--ds-shadow-lg);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+.popover-panel--in {
+  animation: popover-in var(--ds-duration-base) var(--ds-ease-out);
 }
 
 .menu-panel {
@@ -613,11 +623,14 @@ button {
   position: absolute;
   left: 50%;
   z-index: 60;
-  white-space: nowrap;
+  max-width: min(240px, calc(100vw - var(--ds-space-8)));
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
   pointer-events: none;
   padding: var(--ds-space-1) var(--ds-space-2);
   font-size: 11px;
-  line-height: 1.2;
+  line-height: 1.35;
   color: var(--ds-ink);
   background: var(--ds-surface-card);
   border: 1px solid var(--ds-line);
@@ -644,6 +657,137 @@ button {
   transform: translateX(-50%) translateY(0);
 }
 
+/* Toast — transient feedback (REQ-202610-0469).
+   One viewport, max three stacked cards, variant-tinted icon + inset rule. */
+.toast-viewport {
+  position: fixed;
+  top: max(var(--ds-space-4), env(safe-area-inset-top));
+  left: 50%;
+  z-index: 100;
+  display: flex;
+  width: min(420px, calc(100vw - var(--ds-space-8)));
+  transform: translateX(-50%);
+  flex-direction: column;
+  gap: var(--ds-space-2);
+  pointer-events: none;
+}
+
+.toast-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-lg);
+  background: color-mix(in srgb, var(--ds-surface-panel) 96%, transparent);
+  box-shadow: var(--ds-shadow-lg);
+  color: var(--ds-ink);
+  pointer-events: auto;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  animation: toast-in var(--ds-duration-base) var(--ds-ease-out);
+}
+
+.toast-card--success {
+  border-color: var(--ds-success-border);
+  box-shadow: inset 2px 0 0 var(--ds-success), var(--ds-shadow-lg);
+}
+
+.toast-card--error {
+  border-color: var(--ds-danger-border);
+  box-shadow: inset 2px 0 0 var(--ds-danger), var(--ds-shadow-lg);
+}
+
+.toast-card--warning {
+  border-color: var(--ds-warning-border);
+  box-shadow: inset 2px 0 0 var(--ds-warning), var(--ds-shadow-lg);
+}
+
+.toast-card--info {
+  border-color: var(--ds-line-strong);
+  box-shadow: inset 2px 0 0 var(--ds-ink-muted), var(--ds-shadow-lg);
+}
+
+.toast-card__icon {
+  margin-top: 1px;
+}
+
+.toast-card--success .toast-card__icon {
+  color: var(--ds-success);
+}
+
+.toast-card--error .toast-card__icon {
+  color: var(--ds-danger);
+}
+
+.toast-card--warning .toast-card__icon {
+  color: var(--ds-warning);
+}
+
+.toast-card--info .toast-card__icon {
+  color: var(--ds-ink-muted);
+}
+
+.toast-card__title {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ds-ink-soft);
+}
+
+.toast-card__message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ds-ink);
+  overflow-wrap: anywhere;
+}
+
+.toast-card__close {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  color: var(--ds-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.toast-card__close:hover {
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* Theme-specific artwork (logos) without !important overrides. */
 :root[data-theme="light"] .theme-dark-only {
   display: none;
@@ -651,4 +795,15 @@ button {
 
 :root:not([data-theme="light"]) .theme-light-only {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-card,
+  .popover-panel--in {
+    animation: none;
+  }
+
+  .tooltip-bubble {
+    transition: none;
+  }
 }

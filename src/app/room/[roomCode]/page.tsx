@@ -18,6 +18,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
+import { toast } from "@/lib/toast-store";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
@@ -212,13 +213,14 @@ function RoomLinks({
 
 function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
   const [loading, setLoading] = useState(false);
+  const t = useT();
   async function open() {
     setLoading(true);
     try {
       const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
       window.open(p.url, "_blank", "noopener,noreferrer");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "打开失败");
+      toast.error(e instanceof Error ? e.message : t("toast.downloadFailed"));
     } finally { setLoading(false); }
   }
   return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
@@ -511,7 +513,6 @@ export default function RoomPage() {
   const [snap, setSnap] = useState<RoomSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
   const [action, setAction] = useState<string | null>(null);
 
   const [text, setText] = useState("");
@@ -1224,6 +1225,7 @@ export default function RoomPage() {
         error: message,
       });
       setError(message);
+      toast.error(message);
     }
   }
 
@@ -1267,8 +1269,11 @@ export default function RoomPage() {
   async function kick(m: RoomMemberItem) {
     if (!window.confirm(`确认将 ${m.user.nickname} 移出房间吗？`)) return;
     setAction(`kick-${m.id}`);
-    try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "移出失败"); }
+    try {
+      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) });
+      await refresh();
+      toast.success(t("toast.memberRemoved", { name: m.user.nickname }));
+    } catch (err) { toast.error(err instanceof Error ? err.message : "移出失败"); }
     finally { setAction(null); }
   }
 
@@ -1281,10 +1286,9 @@ export default function RoomPage() {
         body: JSON.stringify({}),
       });
       await refresh();
-      setHint(`已将房主身份转让给 ${m.user.nickname}`);
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(t("toast.ownerTransferred", { name: m.user.nickname }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "转让失败");
+      toast.error(err instanceof Error ? err.message : "转让失败");
     } finally {
       setAction(null);
     }
@@ -1292,30 +1296,35 @@ export default function RoomPage() {
 
   async function review(r: PendingRequestItem, act: "approve" | "reject") {
     setAction(`${act}-${r.id}`);
-    try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/join-requests/${r.id}`, { method: "POST", body: JSON.stringify({ action: act }) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "审批失败"); }
+    try {
+      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/join-requests/${r.id}`, { method: "POST", body: JSON.stringify({ action: act }) });
+      await refresh();
+      toast.success(
+        t(act === "approve" ? "toast.approvalApproved" : "toast.approvalRejected", {
+          name: r.user.nickname,
+        }),
+      );
+    } catch (err) { toast.error(err instanceof Error ? err.message : "审批失败"); }
     finally { setAction(null); }
   }
 
   function openRoomEntry(mode: "create" | "join") {
     if (!canAddMoreRooms) {
-      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
     setError(null);
-    setHint(null);
     setRoomEntryMode(mode);
   }
 
   async function quickCreateRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canAddMoreRooms) {
-      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
     setRoomEntrySubmitting(true);
     setError(null);
-    setHint(null);
 
     try {
       const payload = await apiFetch<CreateResult>("/api/rooms", {
@@ -1330,7 +1339,7 @@ export default function RoomPage() {
       localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
       router.push(`/room/${payload.room.roomCode}`);
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "创建房间失败");
+      toast.error(createError instanceof Error ? createError.message : "创建房间失败");
     } finally {
       setRoomEntrySubmitting(false);
     }
@@ -1339,12 +1348,11 @@ export default function RoomPage() {
   async function quickJoinRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canAddMoreRooms) {
-      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
     setRoomEntrySubmitting(true);
     setError(null);
-    setHint(null);
 
     try {
       const targetRoomCode = joinRoomCode.trim();
@@ -1357,9 +1365,8 @@ export default function RoomPage() {
       });
 
       if (payload.waitingApproval) {
-        setHint("已提交加入申请，等待房主审批。");
+        toast.info(t("toast.joinRequestSent"));
         setRoomEntryMode(null);
-        window.setTimeout(() => setHint(null), 2200);
         return;
       }
 
@@ -1369,7 +1376,7 @@ export default function RoomPage() {
         router.push(`/room/${payload.roomCode}`);
       }
     } catch (joinError) {
-      setError(joinError instanceof Error ? joinError.message : "加入房间失败");
+      toast.error(joinError instanceof Error ? joinError.message : "加入房间失败");
     } finally {
       setRoomEntrySubmitting(false);
     }
@@ -1382,7 +1389,6 @@ export default function RoomPage() {
     setOpenRoomMenu(null);
     setAction(`leave-${target.roomCode}`);
     setError(null);
-    setHint(null);
 
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${target.roomCode}/leave`, {
@@ -1407,10 +1413,9 @@ export default function RoomPage() {
         return;
       }
 
-      setHint(`已退出房间「${target.name}」`);
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(t("toast.leftRoom", { name: target.name }));
     } catch (leaveError) {
-      setError(leaveError instanceof Error ? leaveError.message : "退出房间失败");
+      toast.error(leaveError instanceof Error ? leaveError.message : "退出房间失败");
     } finally {
       setAction(null);
     }
@@ -1418,8 +1423,8 @@ export default function RoomPage() {
 
   async function copyLink() {
     if (!joinLink) return;
-    try { await navigator.clipboard.writeText(joinLink); setHint("当前房间加入链接已复制"); window.setTimeout(() => setHint(null), 2200); }
-    catch { setError("复制失败，请检查浏览器权限"); }
+    try { await navigator.clipboard.writeText(joinLink); toast.success(t("toast.linkCopied")); }
+    catch { toast.error(t("toast.copyFailed")); }
   }
 
   function markTextCopied(feedbackKey: string) {
@@ -1448,8 +1453,9 @@ export default function RoomPage() {
     try {
       await navigator.clipboard.writeText(content);
       markTextCopied(feedbackKey);
+      toast.success(t("toast.copied"));
     } catch {
-      setError("复制失败，请检查浏览器权限");
+      toast.error(t("toast.copyFailed"));
     }
   }
   function releaseNoticeEditorImages(items: NoticeEditorImage[]) {
@@ -1490,15 +1496,13 @@ export default function RoomPage() {
 
     const remaining = MAX_ANNOUNCEMENT_IMAGES - noticeImages.length;
     if (remaining <= 0) {
-      setHint(`公告最多上传 ${MAX_ANNOUNCEMENT_IMAGES} 张图片`);
-      window.setTimeout(() => setHint(null), 2200);
+      toast.warning(t("toast.noticeImageLimit", { max: MAX_ANNOUNCEMENT_IMAGES }));
       return;
     }
 
     const accepted = selected.slice(0, remaining);
     if (accepted.length < selected.length) {
-      setHint(`最多上传 ${MAX_ANNOUNCEMENT_IMAGES} 张，超出部分已忽略`);
-      window.setTimeout(() => setHint(null), 2200);
+      toast.info(t("toast.noticeImageTrimmed", { max: MAX_ANNOUNCEMENT_IMAGES }));
     }
 
     const addedItems = accepted.map((file, index) => ({
@@ -1536,8 +1540,7 @@ export default function RoomPage() {
       snap.announcement.text || snap.announcement.images.length > 0,
     );
     if (!hasNoticeContent) {
-      setHint("当前暂无公告");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.info(t("toast.noNotice"));
       return;
     }
     setNoticePreview(null);
@@ -1553,7 +1556,7 @@ export default function RoomPage() {
     }));
 
     if (!draftText && draftImages.length === 0) {
-      setError("公告内容与图片不能同时为空");
+      toast.warning(t("toast.noticeEmpty"));
       return;
     }
 
@@ -1594,9 +1597,8 @@ export default function RoomPage() {
       });
       closeNoticeEditor();
       await refresh();
-      setHint("公告已更新");
-      window.setTimeout(() => setHint(null), 2200);
-    } catch (err) { setError(err instanceof Error ? err.message : "公告保存失败"); }
+      toast.success(t("toast.noticeUpdated"));
+    } catch (err) { toast.error(err instanceof Error ? err.message : "公告保存失败"); }
     finally { setAction(null); }
   }
 
@@ -1616,7 +1618,7 @@ export default function RoomPage() {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
       setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
       setShowNoticePopup(false);
-    } catch (err) { setError(err instanceof Error ? err.message : "公告已读失败"); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : "公告已读失败"); }
   }
 
   async function dissolve() {
@@ -1659,7 +1661,7 @@ export default function RoomPage() {
         router.push("/");
       }
     }
-    catch (err) { setError(err instanceof Error ? err.message : "解散失败"); }
+    catch (err) { toast.error(err instanceof Error ? err.message : "解散失败"); }
     finally { setAction(null); }
   }
 
@@ -1696,11 +1698,10 @@ export default function RoomPage() {
       );
       setRoomNameInput(result.name);
 
-      setHint("房间名称已更新");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(t("toast.roomNameUpdated"));
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "房间名称更新失败");
+      toast.error(err instanceof Error ? err.message : "房间名称更新失败");
     } finally {
       setAction(null);
     }
@@ -1726,10 +1727,9 @@ export default function RoomPage() {
         },
       );
       await refresh();
-      setHint(normalized ? "门禁码已更新" : "已清除门禁码");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(normalized ? t("toast.gateCodeUpdated") : t("toast.gateCodeCleared"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "门禁码更新失败");
+      toast.error(err instanceof Error ? err.message : "门禁码更新失败");
     } finally {
       setAction(null);
     }
@@ -1762,11 +1762,14 @@ export default function RoomPage() {
           : prev,
       );
 
-      setHint(result.allowJoinRequest ? "已允许申请加入房间" : "已拒绝申请加入房间");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(
+        result.allowJoinRequest
+          ? t("toast.joinPolicyAllowed")
+          : t("toast.joinPolicyDenied"),
+      );
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新加入策略失败");
+      toast.error(err instanceof Error ? err.message : "更新加入策略失败");
     } finally {
       setAction(null);
     }
@@ -1799,11 +1802,12 @@ export default function RoomPage() {
           : prev,
       );
 
-      setHint(result.neverExpire ? "已开启永不过期" : "已关闭永不过期");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(
+        result.neverExpire ? t("toast.neverExpireOn") : t("toast.neverExpireOff"),
+      );
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新永不过期失败");
+      toast.error(err instanceof Error ? err.message : "更新永不过期失败");
     } finally {
       setAction(null);
     }
@@ -2097,7 +2101,6 @@ export default function RoomPage() {
               ) : null}
             </div>
             <AdCarousel items={snap.adBoard.items} />
-            {hint ? <div className="rounded-lg border border-action-border bg-action-soft px-3 py-2 text-xs text-ink-soft">{hint}</div> : null}
           </header>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
