@@ -8,6 +8,7 @@ import { parseJsonBody } from "@/lib/route";
 import { UPLOAD_MAX_CHUNKS } from "@/lib/upload/constants";
 import { normalizeUploadError } from "@/lib/upload/errors";
 import { buildUploadManifest } from "@/lib/upload/manifest";
+import { buildMergeUrl, signMergeToken } from "@/lib/upload/merge";
 import { guardUploadRequest } from "@/lib/upload/route-guard";
 import { verifyUploadSession } from "@/lib/upload/session";
 
@@ -53,7 +54,15 @@ export async function POST(
     }
 
     const manifest = buildUploadManifest(session, input.chunks);
-    const response = jsonOk(manifest);
+    const mergeToken = signMergeToken(
+      { roomId: session.roomId, manifest },
+      secret,
+    );
+    const response = jsonOk({
+      ...manifest,
+      mergeToken,
+      mergeUrl: buildMergeUrl(roomCode, mergeToken),
+    });
 
     return applyUserCookie(response, context.cookieToSet);
   } catch (error) {

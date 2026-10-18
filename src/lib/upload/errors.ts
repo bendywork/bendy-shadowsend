@@ -1,9 +1,14 @@
 import { ApiError } from "@/lib/api";
+import { MergeDownloadError } from "@/lib/upload/merge";
 import { UploadPlanError } from "@/lib/upload/plan";
 import { RemoteUploadError } from "@/lib/upload/remote/http";
 import { UploadSessionError } from "@/lib/upload/session";
 
 export function normalizeUploadError(error: unknown): unknown {
+  if (error instanceof MergeDownloadError) {
+    return new ApiError(error.status, error.message, error.code);
+  }
+
   if (error instanceof UploadSessionError) {
     return new ApiError(error.status, error.message, error.code);
   }

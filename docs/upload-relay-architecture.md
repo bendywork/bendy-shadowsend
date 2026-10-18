@@ -9,7 +9,7 @@
 - 上传会话使用 HMAC-SHA256 签名的无状态 token，不新增数据库表。
 - 完成时由客户端回传分片清单，服务端校验片数、顺序、大小与 URL 域名后返回 manifest。
 
-本迭代只提供转发/编排层，不包含：前端上传 UI 接入（up-05）、附件持久化与 `AttachmentStorage` 枚举迁移（up-08）、合并下载（up-04/up-10）、并发续传（up-11）。这些任务可以直接复用本层的会话与 manifest 契约。
+本迭代只提供转发/编排层。合并下载已由 up-04 在 complete 契约上补齐（见 `docs/upload-merge-download.md`）；仍不包含：前端上传 UI 接入（up-05）、附件持久化与 `AttachmentStorage` 枚举迁移（up-08）、完整性校验（up-10）、并发续传（up-11）。这些任务可以直接复用本层的会话与 manifest 契约。
 
 ## 2. 数据流
 
@@ -151,10 +151,14 @@ file.sang.pub /api/upload        或        pic.sl.al /api/upload-token + /api/u
     "sizeBytes": 104857600,
     "chunkSize": 4194304,
     "totalChunks": 25,
-    "chunks": [{ "index": 0, "url": "https://...", "sizeBytes": 4194304 }]
+    "chunks": [{ "index": 0, "url": "https://...", "sizeBytes": 4194304 }],
+    "mergeToken": "m1.<base64url-payload>.<base64url-signature>",
+    "mergeUrl": "/api/rooms/<roomCode>/attachments/merge?manifest=m1...."
   }
 }
 ```
+
+`mergeToken` / `mergeUrl` 由 up-04 新增，接收方可通过 `mergeUrl` 一键下载按序拼接后的完整文件。详见 `docs/upload-merge-download.md`。
 
 ## 4. 校验与限额
 
@@ -192,7 +196,7 @@ file.sang.pub /api/upload        或        pic.sl.al /api/upload-token + /api/u
 
 ## 7. 已知边界
 
-- **持久化未接入**：`AttachmentStorage` 目前只有 `S3 | DUFS`，本迭代路由返回字符串 `storage`，不写 `MessageAttachment`。up-08 完成枚举迁移后再落库。
+- **持久化未接入**：`AttachmentStorage` 目前只有 `S3 | DUFS`，本迭代路由返回字符串 `storage`，不写 `MessageAttachment`。up-08 完成枚举迁移后再落库；`mergeToken` 也需随附件一起持久化，才能让接收方在消息里直接一键下载。
 - **manifest 为客户端回传**：在无新增表的前提下，服务端只能校验结构与域名，无法证明某片确实由本服务上传；落库时应结合 up-08/up-10 的完整性校验。
 - **每日配额统计**：当前聚合已持久化附件的 `sizeBytes`；在 up-08 落库前，新通道上传不会计入配额。落库后自动生效。
 - **限流与 token 缓存是进程内状态**：Vercel 多实例下为近似限流；`pic.sl.al` token 按实例缓存（有效期 600s，提前 30s 刷新），不跨实例共享。

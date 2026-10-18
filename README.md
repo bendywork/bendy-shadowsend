@@ -55,7 +55,7 @@ Copy-Item .env.example .env
 | `OSS_PREVIEW_BUCKET_NAME` | 否 | 调用预览 RPC 时使用的 bucket（默认跟 `S3_BUCKET` 一致） |
 | `OSS_PREVIEW_COOKIE` | 否 | 预览 RPC 鉴权 Cookie（不填时会转发当前请求 Cookie） |
 | `UPLOAD_ALLOWED_ORIGINS` | 否 | 上传转发允许的额外来源，逗号分隔（同 Host / X-Forwarded-Host 默认放行） |
-| `UPLOAD_SESSION_SECRET` | 否 | 分片上传会话签名密钥（≥16 字符；未配置时回退 `CHAT_ENCRYPTION_KEY`） |
+| `UPLOAD_SESSION_SECRET` | 否 | 分片上传会话与合并下载令牌的签名密钥（≥16 字符；未配置时回退 `CHAT_ENCRYPTION_KEY`） |
 
 > 说明：部分自建或兼容 S3 服务不要求 region，可直接不配置 `S3_REGION`。
 > 
@@ -203,7 +203,7 @@ npm run dev
 | `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |
 | `OSS_PREVIEW_COOKIE` | 可选 | 外部预览接口鉴权 Cookie |
 | `UPLOAD_ALLOWED_ORIGINS` | 可选 | 上传转发额外允许的来源，逗号分隔 |
-| `UPLOAD_SESSION_SECRET` | 可选 | 分片上传会话签名密钥（≥16 字符，建议独立配置） |
+| `UPLOAD_SESSION_SECRET` | 可选 | 分片上传会话与合并下载令牌的签名密钥（≥16 字符，建议独立配置） |
 | `NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS` | 可选 | 单条文本消息最大长度（默认 `200000`，前后端共用） |
 | `NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES` | 可选 | 公告最多可上传图片数（默认 `3`） |
 | `FORCE_DB_MIGRATE` | 可选 | `true` 时强制执行迁移（默认不强制） |
@@ -378,6 +378,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.70` 接收方合并下载（REQ-202610-0513 / up-04）：`/upload/sessions/complete` 在 manifest 外新增 `mergeToken` 与 `mergeUrl`；新增 `GET /api/rooms/[roomCode]/attachments/merge`，按清单顺序拉取第三方分片并以 `ReadableStream` 流式拼接，逐片校验长度/实际字节数/域名，`Content-Disposition` 一键保存原文件名；令牌使用 HMAC-SHA256 签名 + deflate 压缩、绑定房间与成员身份、总长 ≤16KB；新增 `docs/upload-merge-download.md` 与 21 条单测。
 - `0.1.69` 上传服务端转发与分片编排（REQ-202610-0512 / up-03）：新增 `/upload/forward` 单请求转发与 `/upload/sessions` → `/sessions/chunk` → `/sessions/complete` 分片编排；4MB/片、单请求 ≤4.5MB、sang ≤100MB / pic.sl.al ≤200MB；无状态 HMAC 会话（2 小时）、来源校验、180 次/分钟限流、2GB/日配额、同服务最多 3 次重试；新增 `docs/upload-relay-architecture.md` 与 46 条单测。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。

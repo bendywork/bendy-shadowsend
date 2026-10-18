@@ -3,6 +3,31 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.70 接收方合并下载（REQ-202610-0513 / up-04）
+
+### Scope
+- 在 up-03 的分片编排之上新增接收方合并下载端点：complete 返回合并令牌/地址，接收方按 manifest 顺序流式拼接分片并一键保存。
+- 无新增数据库表或基础设施；附件落库（up-08）与完整性校验（up-10）仍待后续迭代。
+
+### Changes
+- `src/lib/upload/merge.ts`（新增）：`signMergeToken` / `verifyMergeToken`（deflate + HMAC-SHA256、`timingSafeEqual`、房间绑定、16KB 上限、64KB 解压上限）、`assertMergeManifest`（片数/顺序/大小/服务限额/URL 白名单）、`openMergedStream`（首片预取、按序流式拼接、逐片 content-length 与实际字节数校验、重定向域名复核、30s 超时与取消）、`buildContentDisposition`（ASCII 回退 + RFC 5987 + 头注入清洗）、`buildMergeUrl`。
+- `src/app/api/rooms/[roomCode]/upload/sessions/complete/route.ts`：在 manifest 响应中新增 `mergeToken` 与 `mergeUrl`。
+- 新增路由 `GET /api/rooms/[roomCode]/attachments/merge`：房间成员校验、令牌验签与房间绑定、`Content-Disposition: attachment` 流式响应。
+- `src/lib/upload/errors.ts`：`MergeDownloadError` 统一归一化为 `ApiError`。
+- `docs/upload-merge-download.md`（新增）：API、令牌格式、流式校验、安全边界与已知边界；`docs/upload-relay-architecture.md` 同步 up-04 衔接。
+- 新增 `src/lib/upload/merge.test.ts` 21 条单测。
+- `README.md`：环境变量说明与更新记录；`package.json` / `package-lock.json` / `APP_VERSION` 同步至 `0.1.70`。
+
+### Regression Checklist
+- `npm test` green: 91/91 tests（12 files）。
+- `npm run lint` green（0 errors）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.70`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.69 上传服务端转发与分片编排（REQ-202610-0512 / up-03）
 
 ### Scope
