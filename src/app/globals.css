@@ -366,6 +366,55 @@ textarea[aria-invalid="true"]:focus {
   line-height: 18px;
 }
 
+/* Form field shell from ui-15: label row + hint + inline error + counter. */
+.form-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ds-ink-soft);
+}
+
+.form-label--sm {
+  font-size: 11px;
+}
+
+.form-required {
+  color: var(--ds-danger);
+}
+
+.form-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ds-ink-muted);
+}
+
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ds-danger);
+}
+
+.form-counter {
+  margin-left: auto;
+  color: var(--ds-ink-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
 /* Primary action is inverted per theme (dc-02). */
 .btn-primary {
   background: var(--ds-action-bg);
@@ -489,9 +538,19 @@ textarea[aria-invalid="true"]:focus {
   box-shadow: var(--ds-shadow-xs);
 }
 
-.segmented-item:not([data-active="true"]):hover {
+.segmented-item:not([data-active="true"]):hover:not(:disabled) {
   color: var(--ds-ink);
   background: var(--ds-action-soft);
+}
+
+.segmented-item:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+.segmented-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Icon-only button (header actions, theme / language toggles). */

@@ -3,6 +3,36 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 房间入口弹窗重构（REQ-202610-0492 / ui-29）
+
+### Scope
+- Rebuild the room page's join/create entry dialog on the same form language as the home page: segmented mode switch, field hints, counters, inline validation and one primary action style.
+- Replace the hand-written `fixed inset-0` panel with the shared `Popover` shell so focus trapping, Esc/backdrop close, scroll lock and focus return are consistent with other dialogs.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/ui/form-controls.tsx` (new): ui-15-compatible `Field` / `TextInput` / `SegmentedControl`; `Field` wires hint/error ids through context and supports an optional label-row counter.
+- `src/lib/room-entry.ts` (new): immutable room-entry state helpers, gate-code/room-code normalization, per-mode validation returning i18n keys, field-to-error mapping, error clearing and submit-copy selection.
+- `src/components/chat/room-entry-dialog.tsx` (new): `RoomEntryDialog` state/submit shell plus exported `RoomEntryContent` for static markup tests; first-invalid focus, digit-only gate codes, `0/6` and `0/48` counters, submitting lock on tabs/close.
+- `src/components/ui/popover.tsx`: optional `description`, `closeDisabled` and `size` (`sm`/`md`/`lg`) props; `aria-describedby` now points at the dialog subtitle when present; existing callers keep the default `sm` size.
+- `src/app/room/[roomCode]/page.tsx`: room-entry form state and submit handlers moved into `RoomEntryDialog`; create/join API calls now consume typed `RoomEntryCreateValues` / `RoomEntryJoinValues`; navigation buttons no longer depend on the removed local submitting flag.
+- `src/app/globals.css`: added token-only `.form-field` / `.form-label` / `.form-required` / `.form-hint` / `.form-error` / `.form-counter` helpers; existing `.field` and `.segmented` layout rules untouched.
+- `src/lib/i18n/messages.ts`: added 27 zh/en `roomEntry.*` keys (title, subtitle, tabs, limit, join/create labels, placeholders, hints, submit and submitting copy).
+- `docs/design-system-room-entry.md` (new): structure, home-form parity table, interaction contract, accessibility notes, acceptance checklist and ui-15 merge notes.
+- `vitest.config.ts`: include `src/**/*.test.{ts,tsx}` so component markup tests run.
+- `src/lib/room-entry.test.ts` / `src/components/chat/room-entry-dialog.test.tsx` (new): 19 tests covering normalization, validation, immutable error clearing, localized parameterized copy, both dialog modes, counters, ARIA wiring, submitting state and room-limit copy.
+
+### Regression Checklist
+- `npm test` green: 43/43 tests (5 files).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+- Branch was cut from `master` at v0.1.68; ui-15 (`REQ-202610-0478`) is not merged yet, so this branch carries an API-compatible subset of its form controls. See `docs/design-system-room-entry.md` §6 for the merge checklist.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

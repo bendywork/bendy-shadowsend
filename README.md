@@ -368,6 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 房间入口弹窗重构（REQ-202610-0492 / ui-29）：房间页加入/创建弹窗改用 `Popover` + ui-15 `Field`/`TextInput`/`SegmentedControl`，与首页表单统一分段切换、字段提示、计数器、行内校验和主按钮样式；新增 `src/lib/room-entry.ts` 纯函数校验层、`src/components/chat/room-entry-dialog.tsx` 与 `docs/design-system-room-entry.md`，补 19 条单测（合计 43 条）。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

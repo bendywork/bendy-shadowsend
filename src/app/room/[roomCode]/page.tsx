@@ -12,6 +12,7 @@ import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, D
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { RoomEntryDialog } from "@/components/chat/room-entry-dialog";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -21,7 +22,12 @@ import { Popover } from "@/components/ui/popover";
 import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
-import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
+import { validateGateCode, validateRoomName } from "@/lib/form-validation";
+import type {
+  RoomEntryCreateValues,
+  RoomEntryJoinValues,
+  RoomEntryMode,
+} from "@/lib/room-entry";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
@@ -545,22 +551,11 @@ export default function RoomPage() {
   const [openRoomMenu, setOpenRoomMenu] = useState<RoomMenuState | null>(null);
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
-  const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
-  const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
-  const [roomEntryErrors, setRoomEntryErrors] = useState<{
-    name?: string;
-    gateCode?: string;
-    roomCode?: string;
-  }>({});
+  const [roomEntryMode, setRoomEntryMode] = useState<RoomEntryMode | null>(null);
   const [settingsErrors, setSettingsErrors] = useState<{
     roomName?: string;
     gateCode?: string;
   }>({});
-  const [createName, setCreateName] = useState("");
-  const [createGateCode, setCreateGateCode] = useState("");
-  const [joinRoomCode, setJoinRoomCode] = useState("");
-  const [joinGateCode, setJoinGateCode] = useState("");
-  const [joinInviteToken, setJoinInviteToken] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -1340,7 +1335,7 @@ export default function RoomPage() {
     finally { setAction(null); }
   }
 
-  function openRoomEntry(mode: "create" | "join") {
+  function openRoomEntry(mode: RoomEntryMode) {
     if (!canAddMoreRooms) {
       toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
@@ -1348,32 +1343,13 @@ export default function RoomPage() {
     setRoomEntryMode(mode);
   }
 
-  async function quickCreateRoom(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canAddMoreRooms) {
-      toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
-      return;
-    }
-
-    const nameError = validateRoomName(createName);
-    const gateCodeError = validateGateCode(createGateCode);
-    if (nameError || gateCodeError) {
-      setRoomEntryErrors({
-        ...(nameError ? { name: t(nameError) } : {}),
-        ...(gateCodeError ? { gateCode: t(gateCodeError) } : {}),
-      });
-      return;
-    }
-    setRoomEntryErrors({});
-
-    setRoomEntrySubmitting(true);
-
+  async function createRoomFromEntry(values: RoomEntryCreateValues) {
     try {
       const payload = await apiFetch<CreateResult>("/api/rooms", {
         method: "POST",
         body: JSON.stringify({
-          name: createName,
-          gateCode: createGateCode || undefined,
+          name: values.name,
+          gateCode: values.gateCode || undefined,
         }),
       });
 
@@ -1382,40 +1358,21 @@ export default function RoomPage() {
       router.push(`/room/${payload.room.roomCode}`);
     } catch (createError) {
       toastError(createError, t("toast.createRoomFailed"), t);
-    } finally {
-      setRoomEntrySubmitting(false);
     }
   }
 
-  async function quickJoinRoom(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canAddMoreRooms) {
-      toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
-      return;
-    }
-
-    const roomCodeError = validateRoomCode(joinRoomCode);
-    const gateCodeError = validateGateCode(joinGateCode);
-    if (roomCodeError || gateCodeError) {
-      setRoomEntryErrors({
-        ...(roomCodeError ? { roomCode: t(roomCodeError) } : {}),
-        ...(gateCodeError ? { gateCode: t(gateCodeError) } : {}),
-      });
-      return;
-    }
-    setRoomEntryErrors({});
-
-    setRoomEntrySubmitting(true);
-
+  async function joinRoomFromEntry(values: RoomEntryJoinValues) {
     try {
-      const targetRoomCode = joinRoomCode.trim();
-      const payload = await apiFetch<JoinResult>(`/api/rooms/${targetRoomCode}/join`, {
-        method: "POST",
-        body: JSON.stringify({
-          gateCode: joinGateCode || undefined,
-          inviteToken: joinInviteToken || undefined,
-        }),
-      });
+      const payload = await apiFetch<JoinResult>(
+        `/api/rooms/${values.roomCode}/join`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            gateCode: values.gateCode || undefined,
+            inviteToken: values.inviteToken || undefined,
+          }),
+        },
+      );
 
       if (payload.waitingApproval) {
         toast.info(t("toast.joinRequestSent"));
@@ -1430,8 +1387,6 @@ export default function RoomPage() {
       }
     } catch (joinError) {
       toastError(joinError, t("toast.joinRoomFailed"), t);
-    } finally {
-      setRoomEntrySubmitting(false);
     }
   }
 
@@ -2015,7 +1970,7 @@ export default function RoomPage() {
                   aria-label={t("nav.create")}
                   title={t("nav.create")}
                   onClick={() => openRoomEntry("create")}
-                  disabled={!canAddMoreRooms || roomEntrySubmitting}
+                  disabled={!canAddMoreRooms}
                   className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -2042,7 +1997,7 @@ export default function RoomPage() {
                   aria-label={t("nav.join")}
                   title={t("nav.join")}
                   onClick={() => openRoomEntry("join")}
-                  disabled={!canAddMoreRooms || roomEntrySubmitting}
+                  disabled={!canAddMoreRooms}
                   className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -2664,128 +2619,15 @@ export default function RoomPage() {
         : null}
 
       {roomEntryMode ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-ink">
-                  {roomEntryMode === "create" ? "创建房间" : "加入房间"}
-                </h3>
-                <p className="mt-1 text-[11px] text-ink-faint">
-                  当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRoomEntryMode(null)}
-                className="rounded-md border border-line p-1 text-ink-soft hover:bg-elevated"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {roomEntryMode === "create" ? (
-              <form className="space-y-3" onSubmit={quickCreateRoom} noValidate>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间名称</span>
-                  <input
-                    value={createName}
-                    onChange={(event) => {
-                      setCreateName(event.target.value);
-                      if (roomEntryErrors.name) {
-                        setRoomEntryErrors((prev) => ({ ...prev, name: undefined }));
-                      }
-                    }}
-                    placeholder="输入房间名"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                    aria-invalid={roomEntryErrors.name ? true : undefined}
-                    aria-describedby={roomEntryErrors.name ? "room-entry-create-name-error" : undefined}
-                  />
-                  <FieldError id="room-entry-create-name-error" message={roomEntryErrors.name} />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
-                  <input
-                    value={createGateCode}
-                    onChange={(event) => {
-                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
-                      if (roomEntryErrors.gateCode) {
-                        setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
-                      }
-                    }}
-                    placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                    aria-invalid={roomEntryErrors.gateCode ? true : undefined}
-                    aria-describedby={roomEntryErrors.gateCode ? "room-entry-create-gate-code-error" : undefined}
-                  />
-                  <FieldError id="room-entry-create-gate-code-error" message={roomEntryErrors.gateCode} />
-                </label>
-                <button
-                  type="submit"
-                  disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  创建并进入
-                </button>
-              </form>
-            ) : (
-              <form className="space-y-3" onSubmit={quickJoinRoom} noValidate>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
-                  <input
-                    value={joinRoomCode}
-                    onChange={(event) => {
-                      setJoinRoomCode(event.target.value.trim());
-                      if (roomEntryErrors.roomCode) {
-                        setRoomEntryErrors((prev) => ({ ...prev, roomCode: undefined }));
-                      }
-                    }}
-                    placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                    aria-invalid={roomEntryErrors.roomCode ? true : undefined}
-                    aria-describedby={roomEntryErrors.roomCode ? "room-entry-join-room-code-error" : undefined}
-                  />
-                  <FieldError id="room-entry-join-room-code-error" message={roomEntryErrors.roomCode} />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
-                  <input
-                    value={joinGateCode}
-                    onChange={(event) => {
-                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
-                      if (roomEntryErrors.gateCode) {
-                        setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
-                      }
-                    }}
-                    placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                    aria-invalid={roomEntryErrors.gateCode ? true : undefined}
-                    aria-describedby={roomEntryErrors.gateCode ? "room-entry-join-gate-code-error" : undefined}
-                  />
-                  <FieldError id="room-entry-join-gate-code-error" message={roomEntryErrors.gateCode} />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
-                  <input
-                    value={joinInviteToken}
-                    onChange={(event) => setJoinInviteToken(event.target.value.trim())}
-                    placeholder="有邀请链接时填入"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
-                  />
-                </label>
-                <button
-                  type="submit"
-                  disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  加入房间
-                </button>
-              </form>
-            )}
-          </section>
-        </div>
+        <RoomEntryDialog
+          initialMode={roomEntryMode}
+          roomCount={roomCount}
+          maxRooms={MAX_USER_ROOMS}
+          canAddMoreRooms={canAddMoreRooms}
+          onClose={() => setRoomEntryMode(null)}
+          onCreate={createRoomFromEntry}
+          onJoin={joinRoomFromEntry}
+        />
       ) : null}
 
       {showQr ? (
