@@ -107,9 +107,9 @@ npm run smoke:mobile -- --base-url http://127.0.0.1:3000 --version 0.1.69
 
 2026-10-18 在 Chromium 151 headless / Linux 上采集，结果见本目录 `0.1.69/manifest.json`：
 
-- `mobile-standard`：首页、房间页全部预算通过；LCP 280ms / 712ms，滚动 p95 16.7ms。
-- `mobile-low-end`：首页 LCP 820ms 通过，但最长任务 419ms 超 200ms；房间页 LCP 4860ms、
-  最长任务 995ms、滚动 p95 66.7ms、丢帧率 21.25%，均超阈值。
+- `mobile-standard`：首页、房间页全部预算通过；LCP 176ms / 688ms，滚动 p95 16.7ms。
+- `mobile-low-end`：首页 LCP 788ms 通过，但最长任务 481ms 超 200ms；房间页 LCP 4664ms、
+  最长任务 929ms、滚动 p95 66.8ms、丢帧率 21.25%，均超阈值。
 - 结论：低端机首屏与长列表滚动仍有关键性能债，需在后续优化批次处理；本基线作为对比起点保留，
   不作为「低端机已达标」的结论。优化方向：拆分房间页首屏 JS（二维码/弹层按需加载）、
   长列表渐进渲染或虚拟化、降低首屏 hydration 长任务。

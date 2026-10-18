@@ -31,7 +31,7 @@
 - `npx tsc --noEmit` green.
 - `npm run build` green (Next.js 16.2.1).
 - `npm run smoke:mobile -- --base-url http://127.0.0.1:3200 --version 0.1.69`: 4/4 PASS.
-- `npm run perf:mobile -- --base-url http://127.0.0.1:3200 --version 0.1.69`: mobile-standard 2/2 PASS；mobile-low-end 首页 LCP 820ms PASS 但最长任务 419ms 超限，房间页 LCP 4860ms、最长任务 995ms、滚动 p95 66.7ms、丢帧率 21.25% 超限（已知性能债，后续优化批次处理）。
+- `npm run perf:mobile -- --base-url http://127.0.0.1:3200 --version 0.1.69`: mobile-standard 2/2 PASS；mobile-low-end 首页 LCP 788ms PASS 但最长任务 481ms 超限，房间页 LCP 4664ms、最长任务 929ms、滚动 p95 66.8ms、丢帧率 21.25% 超限（已知性能债，后续优化批次处理）。
 
 ### Versioning / History
 - Branch `feat/req-202610-0748-mobile-acceptance-perf`, based on ui-46 `bcb4869`.

@@ -1,0 +1,610 @@
+{
+  "schemaVersion": 1,
+  "kind": "mobile-performance",
+  "baselineVersion": "0.1.69",
+  "capturedAt": "2026-10-18T14:50:50.363Z",
+  "baseUrl": "http://127.0.0.1:3200",
+  "commit": "944416427b8348f807f112ff450e0248edacb929",
+  "environment": {
+    "browser": "Chromium 151.0.7922.34",
+    "executablePath": "/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell",
+    "platform": "linux",
+    "viewport": {
+      "name": "mobile-390",
+      "width": 390,
+      "height": 844,
+      "deviceScaleFactor": 3
+    },
+    "locale": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "reducedMotion": "reduce",
+    "mockApi": true,
+    "profiles": [
+      "mobile-standard",
+      "mobile-low-end"
+    ],
+    "node": "v22.22.2"
+  },
+  "budgets": {
+    "lcpMs": 2500,
+    "cls": 0.1,
+    "ttfbMs": 800,
+    "interactionMs": 200,
+    "maxLongTaskMs": 200,
+    "scrollP95FrameMs": 50,
+    "scrollDroppedFrameRatio": 0.1,
+    "jsGrowthRatio": 0.1
+  },
+  "summary": {
+    "total": 4,
+    "passed": 2,
+    "failed": 2
+  },
+  "entries": [
+    {
+      "id": "mobile-standard--home",
+      "profile": "mobile-standard",
+      "page": "home",
+      "path": "/",
+      "runs": 3,
+      "samples": [
+        {
+          "lcpMs": 224,
+          "fcpMs": 224,
+          "cls": 0.000025801710399989867,
+          "ttfbMs": 17.5,
+          "maxLongTaskMs": 119,
+          "longTaskCount": 2,
+          "interactionMs": 32,
+          "jsEncodedBytes": 166774,
+          "scrollP95FrameMs": 16.700000000000273,
+          "scrollDroppedFrameRatio": 0,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 1150,
+          "scrollClientHeight": 844,
+          "run": 1
+        },
+        {
+          "lcpMs": 176,
+          "fcpMs": 176,
+          "cls": 0.000022115751771419887,
+          "ttfbMs": 11.400000095367432,
+          "maxLongTaskMs": 74,
+          "longTaskCount": 2,
+          "interactionMs": 40,
+          "jsEncodedBytes": 166774,
+          "scrollP95FrameMs": 16.700000000000273,
+          "scrollDroppedFrameRatio": 0,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 1150,
+          "scrollClientHeight": 844,
+          "run": 2
+        },
+        {
+          "lcpMs": 152,
+          "fcpMs": 152,
+          "cls": 0.000025801710399989867,
+          "ttfbMs": 11,
+          "maxLongTaskMs": 91,
+          "longTaskCount": 2,
+          "interactionMs": 56,
+          "jsEncodedBytes": 166774,
+          "scrollP95FrameMs": 16.800000000000182,
+          "scrollDroppedFrameRatio": 0,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 1150,
+          "scrollClientHeight": 844,
+          "run": 3
+        }
+      ],
+      "metrics": {
+        "lcpMs": 176,
+        "fcpMs": 176,
+        "ttfbMs": 11.400000095367432,
+        "cls": 0.000025801710399989867,
+        "interactionMs": 40,
+        "maxLongTaskMs": 91,
+        "longTaskCount": 2,
+        "jsEncodedBytes": 166774,
+        "scrollP95FrameMs": 16.700000000000273,
+        "scrollDroppedFrameRatio": 0
+      },
+      "budgets": {
+        "pass": true,
+        "checks": [
+          {
+            "key": "lcpMs",
+            "actual": 176,
+            "limit": 2500,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "cls",
+            "actual": 0.000025801710399989867,
+            "limit": 0.1,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "ttfbMs",
+            "actual": 11.400000095367432,
+            "limit": 800,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "interactionMs",
+            "actual": 40,
+            "limit": 200,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "maxLongTaskMs",
+            "actual": 91,
+            "limit": 200,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "scrollP95FrameMs",
+            "actual": 16.700000000000273,
+            "limit": 50,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "scrollDroppedFrameRatio",
+            "actual": 0,
+            "limit": 0.1,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "jsEncodedBytes",
+            "actual": 166774,
+            "limit": 0.1,
+            "pass": true,
+            "reason": "无上一基线，仅记录"
+          }
+        ],
+        "violations": []
+      },
+      "pass": true
+    },
+    {
+      "id": "mobile-standard--room",
+      "profile": "mobile-standard",
+      "page": "room",
+      "path": "/room/DEMO01",
+      "runs": 3,
+      "samples": [
+        {
+          "lcpMs": 668,
+          "fcpMs": 88,
+          "cls": 0,
+          "ttfbMs": 29.600000381469727,
+          "maxLongTaskMs": 119,
+          "longTaskCount": 2,
+          "interactionMs": 128,
+          "jsEncodedBytes": 193653,
+          "scrollP95FrameMs": 16.700000000000273,
+          "scrollDroppedFrameRatio": 0.0125,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 35959,
+          "scrollClientHeight": 844,
+          "run": 1
+        },
+        {
+          "lcpMs": 688,
+          "fcpMs": 72,
+          "cls": 0.023703775415116694,
+          "ttfbMs": 17.59999990463257,
+          "maxLongTaskMs": 136,
+          "longTaskCount": 2,
+          "interactionMs": 120,
+          "jsEncodedBytes": 193653,
+          "scrollP95FrameMs": 16.700000000000273,
+          "scrollDroppedFrameRatio": 0,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 35959,
+          "scrollClientHeight": 844,
+          "run": 2
+        },
+        {
+          "lcpMs": 688,
+          "fcpMs": 76,
+          "cls": 0,
+          "ttfbMs": 16.800000190734863,
+          "maxLongTaskMs": 200,
+          "longTaskCount": 3,
+          "interactionMs": 152,
+          "jsEncodedBytes": 193653,
+          "scrollP95FrameMs": 16.799999999999727,
+          "scrollDroppedFrameRatio": 0.0125,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 35959,
+          "scrollClientHeight": 844,
+          "run": 3
+        }
+      ],
+      "metrics": {
+        "lcpMs": 688,
+        "fcpMs": 76,
+        "ttfbMs": 17.59999990463257,
+        "cls": 0,
+        "interactionMs": 128,
+        "maxLongTaskMs": 136,
+        "longTaskCount": 2,
+        "jsEncodedBytes": 193653,
+        "scrollP95FrameMs": 16.700000000000273,
+        "scrollDroppedFrameRatio": 0.0125
+      },
+      "budgets": {
+        "pass": true,
+        "checks": [
+          {
+            "key": "lcpMs",
+            "actual": 688,
+            "limit": 2500,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "cls",
+            "actual": 0,
+            "limit": 0.1,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "ttfbMs",
+            "actual": 17.59999990463257,
+            "limit": 800,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "interactionMs",
+            "actual": 128,
+            "limit": 200,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "maxLongTaskMs",
+            "actual": 136,
+            "limit": 200,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "scrollP95FrameMs",
+            "actual": 16.700000000000273,
+            "limit": 50,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "scrollDroppedFrameRatio",
+            "actual": 0.0125,
+            "limit": 0.1,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "jsEncodedBytes",
+            "actual": 193653,
+            "limit": 0.1,
+            "pass": true,
+            "reason": "无上一基线，仅记录"
+          }
+        ],
+        "violations": []
+      },
+      "pass": true
+    },
+    {
+      "id": "mobile-low-end--home",
+      "profile": "mobile-low-end",
+      "page": "home",
+      "path": "/",
+      "runs": 3,
+      "samples": [
+        {
+          "lcpMs": 760,
+          "fcpMs": 760,
+          "cls": 0,
+          "ttfbMs": 10.300000190734863,
+          "maxLongTaskMs": 510,
+          "longTaskCount": 2,
+          "interactionMs": 280,
+          "jsEncodedBytes": 166774,
+          "scrollP95FrameMs": 16.799999999999727,
+          "scrollDroppedFrameRatio": 0.0125,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 1150,
+          "scrollClientHeight": 844,
+          "run": 1
+        },
+        {
+          "lcpMs": 804,
+          "fcpMs": 804,
+          "cls": 0,
+          "ttfbMs": 15.200000286102295,
+          "maxLongTaskMs": 481,
+          "longTaskCount": 2,
+          "interactionMs": 144,
+          "jsEncodedBytes": 166774,
+          "scrollP95FrameMs": 16.700000000000273,
+          "scrollDroppedFrameRatio": 0,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 1150,
+          "scrollClientHeight": 844,
+          "run": 2
+        },
+        {
+          "lcpMs": 788,
+          "fcpMs": 788,
+          "cls": 0,
+          "ttfbMs": 13.199999809265137,
+          "maxLongTaskMs": 370,
+          "longTaskCount": 2,
+          "interactionMs": 176,
+          "jsEncodedBytes": 166774,
+          "scrollP95FrameMs": 16.700000000000728,
+          "scrollDroppedFrameRatio": 0,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 1150,
+          "scrollClientHeight": 844,
+          "run": 3
+        }
+      ],
+      "metrics": {
+        "lcpMs": 788,
+        "fcpMs": 788,
+        "ttfbMs": 13.199999809265137,
+        "cls": 0,
+        "interactionMs": 176,
+        "maxLongTaskMs": 481,
+        "longTaskCount": 2,
+        "jsEncodedBytes": 166774,
+        "scrollP95FrameMs": 16.700000000000728,
+        "scrollDroppedFrameRatio": 0
+      },
+      "budgets": {
+        "pass": false,
+        "checks": [
+          {
+            "key": "lcpMs",
+            "actual": 788,
+            "limit": 2500,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "cls",
+            "actual": 0,
+            "limit": 0.1,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "ttfbMs",
+            "actual": 13.199999809265137,
+            "limit": 800,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "interactionMs",
+            "actual": 176,
+            "limit": 200,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "maxLongTaskMs",
+            "actual": 481,
+            "limit": 200,
+            "pass": false,
+            "reason": "超过阈值 200"
+          },
+          {
+            "key": "scrollP95FrameMs",
+            "actual": 16.700000000000728,
+            "limit": 50,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "scrollDroppedFrameRatio",
+            "actual": 0,
+            "limit": 0.1,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "jsEncodedBytes",
+            "actual": 166774,
+            "limit": 0.1,
+            "pass": true,
+            "reason": "无上一基线，仅记录"
+          }
+        ],
+        "violations": [
+          {
+            "key": "maxLongTaskMs",
+            "actual": 481,
+            "limit": 200,
+            "pass": false,
+            "reason": "超过阈值 200"
+          }
+        ]
+      },
+      "pass": false
+    },
+    {
+      "id": "mobile-low-end--room",
+      "profile": "mobile-low-end",
+      "page": "room",
+      "path": "/room/DEMO01",
+      "runs": 3,
+      "samples": [
+        {
+          "lcpMs": 4560,
+          "fcpMs": 572,
+          "cls": 0.023703775415116694,
+          "ttfbMs": 30.200000286102295,
+          "maxLongTaskMs": 828,
+          "longTaskCount": 4,
+          "interactionMs": 0,
+          "jsEncodedBytes": 193653,
+          "scrollP95FrameMs": 50.100000000000364,
+          "scrollDroppedFrameRatio": 0.1625,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 35959,
+          "scrollClientHeight": 844,
+          "run": 1
+        },
+        {
+          "lcpMs": 4752,
+          "fcpMs": 564,
+          "cls": 0.023703775415116694,
+          "ttfbMs": 34.69999980926514,
+          "maxLongTaskMs": 968,
+          "longTaskCount": 6,
+          "interactionMs": 912,
+          "jsEncodedBytes": 193653,
+          "scrollP95FrameMs": 83.40000000000146,
+          "scrollDroppedFrameRatio": 0.2125,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 35959,
+          "scrollClientHeight": 844,
+          "run": 2
+        },
+        {
+          "lcpMs": 4664,
+          "fcpMs": 548,
+          "cls": 0.023703775415116694,
+          "ttfbMs": 22.199999809265137,
+          "maxLongTaskMs": 929,
+          "longTaskCount": 5,
+          "interactionMs": 0,
+          "jsEncodedBytes": 193653,
+          "scrollP95FrameMs": 66.79999999999927,
+          "scrollDroppedFrameRatio": 0.2375,
+          "scrollContainer": "document.scrollingElement",
+          "scrollHeight": 35959,
+          "scrollClientHeight": 844,
+          "run": 3
+        }
+      ],
+      "metrics": {
+        "lcpMs": 4664,
+        "fcpMs": 564,
+        "ttfbMs": 30.200000286102295,
+        "cls": 0.023703775415116694,
+        "interactionMs": 0,
+        "maxLongTaskMs": 929,
+        "longTaskCount": 5,
+        "jsEncodedBytes": 193653,
+        "scrollP95FrameMs": 66.79999999999927,
+        "scrollDroppedFrameRatio": 0.2125
+      },
+      "budgets": {
+        "pass": false,
+        "checks": [
+          {
+            "key": "lcpMs",
+            "actual": 4664,
+            "limit": 2500,
+            "pass": false,
+            "reason": "超过阈值 2500"
+          },
+          {
+            "key": "cls",
+            "actual": 0.023703775415116694,
+            "limit": 0.1,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "ttfbMs",
+            "actual": 30.200000286102295,
+            "limit": 800,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "interactionMs",
+            "actual": 0,
+            "limit": 200,
+            "pass": true,
+            "reason": null
+          },
+          {
+            "key": "maxLongTaskMs",
+            "actual": 929,
+            "limit": 200,
+            "pass": false,
+            "reason": "超过阈值 200"
+          },
+          {
+            "key": "scrollP95FrameMs",
+            "actual": 66.79999999999927,
+            "limit": 50,
+            "pass": false,
+            "reason": "超过阈值 50"
+          },
+          {
+            "key": "scrollDroppedFrameRatio",
+            "actual": 0.2125,
+            "limit": 0.1,
+            "pass": false,
+            "reason": "超过阈值 0.1"
+          },
+          {
+            "key": "jsEncodedBytes",
+            "actual": 193653,
+            "limit": 0.1,
+            "pass": true,
+            "reason": "无上一基线，仅记录"
+          }
+        ],
+        "violations": [
+          {
+            "key": "lcpMs",
+            "actual": 4664,
+            "limit": 2500,
+            "pass": false,
+            "reason": "超过阈值 2500"
+          },
+          {
+            "key": "maxLongTaskMs",
+            "actual": 929,
+            "limit": 200,
+            "pass": false,
+            "reason": "超过阈值 200"
+          },
+          {
+            "key": "scrollP95FrameMs",
+            "actual": 66.79999999999927,
+            "limit": 50,
+            "pass": false,
+            "reason": "超过阈值 50"
+          },
+          {
+            "key": "scrollDroppedFrameRatio",
+            "actual": 0.2125,
+            "limit": 0.1,
+            "pass": false,
+            "reason": "超过阈值 0.1"
+          }
+        ]
+      },
+      "pass": false
+    }
+  ]
+}
