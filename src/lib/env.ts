@@ -24,6 +24,8 @@ const baseSchema = z.object({
   OSS_PREVIEW_RPC_URL: z.string().url().optional(),
   OSS_PREVIEW_BUCKET_NAME: z.string().optional(),
   OSS_PREVIEW_COOKIE: z.string().optional(),
+  UPLOAD_ALLOWED_ORIGINS: z.string().optional(),
+  UPLOAD_SESSION_SECRET: z.string().min(16).optional(),
 });
 
 const parsed = baseSchema.safeParse(process.env);
@@ -59,7 +61,15 @@ export const env = {
     bucketName: parsed.data.OSS_PREVIEW_BUCKET_NAME,
     cookie: parsed.data.OSS_PREVIEW_COOKIE,
   },
+  upload: {
+    allowedOrigins: parsed.data.UPLOAD_ALLOWED_ORIGINS,
+    sessionSecret: parsed.data.UPLOAD_SESSION_SECRET,
+  },
 };
+
+export function getUploadSessionSecret(): string | undefined {
+  return env.upload.sessionSecret ?? env.encryptionKey;
+}
 
 export function isS3Configured() {
   const s3 = env.s3;

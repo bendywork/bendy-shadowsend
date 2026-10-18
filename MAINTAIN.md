@@ -3,6 +3,37 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 上传服务端转发与分片编排（REQ-202610-0512 / up-03）
+
+### Scope
+- 在 Vercel 应用内新增第三方上传通道的服务端转发与 4MB 分片编排，不新增基础设施。
+- 图片走 `file.sang.pub`，非图片走 `pic.sl.al`；单请求 ≤4MB，超限文件逐片转发。
+- 无状态 HMAC 上传会话（2 小时）、来源校验、限流、每日配额、同服务有限重试。
+- 本迭代不接入前端 UI、不落库附件（等待 up-05 / up-08）。
+
+### Changes
+- `src/lib/upload/types.ts` / `constants.ts` / `plan.ts`：服务与存储标识、4MB 分片规划、sang 通道选择（meitu/icve）、文件名清洗、扩展名与服务限额校验、分片文件名生成。
+- `src/lib/upload/session.ts`：HMAC-SHA256 签名的无状态会话 token（payload + signature，`timingSafeEqual` 校验、2 小时过期、版本与字段一致性校验）。
+- `src/lib/upload/origin.ts` / `rate-limit.ts` / `quota.ts`：Origin/Referer/`Sec-Fetch-Site` 同源校验、固定窗口 180 次/分钟限流、2GB/24h 配额（按已持久化附件聚合）。
+- `src/lib/upload/manifest.ts`：完成时校验分片数量/顺序/大小/域名并生成 `UploadManifest`。
+- `src/lib/upload/remote/http.ts` / `sang.ts` / `pic-sl.ts`：第三方协议封装；超时 30s、最多 3 次指数退避重试、尊重 `Retry-After`、禁止跟随重定向、响应 URL 域名白名单；pic.sl.al token 与 UA 绑定并按实例缓存。
+- `src/lib/upload/route-guard.ts` / `errors.ts`：统一用户/房间成员/来源/限流守卫与错误归一化。
+- 新增路由：`POST /api/rooms/[roomCode]/upload/forward`、`/upload/sessions`、`/upload/sessions/chunk`、`/upload/sessions/complete`。
+- `src/lib/env.ts`：新增可选 `UPLOAD_ALLOWED_ORIGINS`、`UPLOAD_SESSION_SECRET`（未配置时回退 `CHAT_ENCRYPTION_KEY`）。
+- 新增 `docs/upload-relay-architecture.md`：数据流、API 契约、限额、来源校验、配置与已知边界。
+- 新增 8 个测试文件共 46 条单测（plan/session/origin/rate-limit/manifest/remote-http/sang/pic-sl）。
+- `README.md`：环境变量表与更新记录补充；`package.json` / `package-lock.json` / `APP_VERSION` 同步至 `0.1.69`。
+
+### Regression Checklist
+- `npm test` green: 70/70 tests（11 files）。
+- `npm run lint` green（0 errors）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

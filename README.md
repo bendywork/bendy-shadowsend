@@ -54,6 +54,8 @@ Copy-Item .env.example .env
 | `OSS_PREVIEW_RPC_URL` | 否 | 预览 URL 的 JSON-RPC 接口地址（例如 `https://www.hi168.com/api/user/oss/preview/url`） |
 | `OSS_PREVIEW_BUCKET_NAME` | 否 | 调用预览 RPC 时使用的 bucket（默认跟 `S3_BUCKET` 一致） |
 | `OSS_PREVIEW_COOKIE` | 否 | 预览 RPC 鉴权 Cookie（不填时会转发当前请求 Cookie） |
+| `UPLOAD_ALLOWED_ORIGINS` | 否 | 上传转发允许的额外来源，逗号分隔（同 Host / X-Forwarded-Host 默认放行） |
+| `UPLOAD_SESSION_SECRET` | 否 | 分片上传会话签名密钥（≥16 字符；未配置时回退 `CHAT_ENCRYPTION_KEY`） |
 
 > 说明：部分自建或兼容 S3 服务不要求 region，可直接不配置 `S3_REGION`。
 > 
@@ -71,6 +73,12 @@ Copy-Item .env.example .env
 > 单文件大小上限为 `10GB`（服务端会校验）。
 >
 > 若部署在 Vercel 等函数平台，后端中转会受到函数请求体大小限制（可能触发 `413 FUNCTION_PAYLOAD_TOO_LARGE`），建议优先保证 S3 直传链路可用（含 CORS）。
+>
+> 新增的第三方上传转发/分片编排（`file.sang.pub` / `pic.sl.al`）见 `docs/upload-relay-architecture.md`：
+>
+> - `POST /api/rooms/[roomCode]/upload/forward`：≤4MB 文件单请求转发；
+> - `POST /api/rooms/[roomCode]/upload/sessions` → `/sessions/chunk` → `/sessions/complete`：4MB/片分片编排；
+> - 旧 S3/DUFS 配置在本阶段仍保留原链路，上传 UI 切换与旧配置旁路由后续 up-05/up-07 完成。
 >
 > 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
 
@@ -194,6 +202,8 @@ npm run dev
 | `OSS_PREVIEW_RPC_URL` | 可选 | 外部预览 URL 的 JSON-RPC 接口 |
 | `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |
 | `OSS_PREVIEW_COOKIE` | 可选 | 外部预览接口鉴权 Cookie |
+| `UPLOAD_ALLOWED_ORIGINS` | 可选 | 上传转发额外允许的来源，逗号分隔 |
+| `UPLOAD_SESSION_SECRET` | 可选 | 分片上传会话签名密钥（≥16 字符，建议独立配置） |
 | `NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS` | 可选 | 单条文本消息最大长度（默认 `200000`，前后端共用） |
 | `NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES` | 可选 | 公告最多可上传图片数（默认 `3`） |
 | `FORCE_DB_MIGRATE` | 可选 | `true` 时强制执行迁移（默认不强制） |
@@ -368,6 +378,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 上传服务端转发与分片编排（REQ-202610-0512 / up-03）：新增 `/upload/forward` 单请求转发与 `/upload/sessions` → `/sessions/chunk` → `/sessions/complete` 分片编排；4MB/片、单请求 ≤4.5MB、sang ≤100MB / pic.sl.al ≤200MB；无状态 HMAC 会话（2 小时）、来源校验、180 次/分钟限流、2GB/日配额、同服务最多 3 次重试；新增 `docs/upload-relay-architecture.md` 与 46 条单测。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。
