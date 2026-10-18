@@ -9,7 +9,7 @@
 - 上传会话使用 HMAC-SHA256 签名的无状态 token，不新增数据库表。
 - 完成时由客户端回传分片清单，服务端校验片数、顺序、大小与 URL 域名后返回 manifest。
 
-本迭代只提供转发/编排层。合并下载已由 up-04 在 complete 契约上补齐（见 `docs/upload-merge-download.md`）；仍不包含：前端上传 UI 接入（up-05）、附件持久化与 `AttachmentStorage` 枚举迁移（up-08）、完整性校验（up-10）、并发续传（up-11）。这些任务可以直接复用本层的会话与 manifest 契约。
+本迭代只提供转发/编排层。合并下载已由 up-04 在 complete 契约上补齐（见 `docs/upload-merge-download.md`）；浏览器侧分片并发与失败续传已由 up-11 补齐（见 `docs/upload-chunk-concurrency.md`）。仍不包含：前端上传 UI 接入（up-05）、附件持久化与 `AttachmentStorage` 枚举迁移（up-08）、完整性校验（up-10）。这些任务可以直接复用本层的会话与 manifest 契约。
 
 ## 2. 数据流
 
@@ -194,10 +194,23 @@ file.sang.pub /api/upload        或        pic.sl.al /api/upload-token + /api/u
 
 生产环境建议单独配置 `UPLOAD_SESSION_SECRET`，避免与聊天加密密钥共用。
 
-## 7. 已知边界
+## 7. 客户端并发与续传（up-11）
+
+服务端契约不变，浏览器侧新增 `src/lib/upload/chunk-scheduler.ts`、`resume-store.ts`、`chunk-transport.ts`、`chunk-uploader.ts`：
+
+- 默认 4 个分片并发，完成顺序无关；每个分片独立重试 3 次，指数退避 400ms 起、上限 3s。
+- 任一分片重试耗尽或遇到不可重试错误时暂停；已完成分片写入 `localStorage`（`bendy:upload-resume:v1`），再次上传同一文件时跳过。
+- 续传记录与会话同为 2 小时 TTL，最多 10 条，读取/保存时清理过期项；`discardChunkedUpload` 可显式删除。
+- `onProgress` 直接输出 up-05 `UploadProgress` 所需的 `status / progress / attempt / maxAttempts / error`。
+- 第三方分片没有公开删除 API，远端残留无法主动删除；本地记录过期后不再参与合并。
+
+详见 `docs/upload-chunk-concurrency.md`。
+
+## 8. 已知边界
 
 - **持久化未接入**：`AttachmentStorage` 目前只有 `S3 | DUFS`，本迭代路由返回字符串 `storage`，不写 `MessageAttachment`。up-08 完成枚举迁移后再落库；`mergeToken` 也需随附件一起持久化，才能让接收方在消息里直接一键下载。
 - **manifest 为客户端回传**：在无新增表的前提下，服务端只能校验结构与域名，无法证明某片确实由本服务上传；落库时应结合 up-08/up-10 的完整性校验。
 - **每日配额统计**：当前聚合已持久化附件的 `sizeBytes`；在 up-08 落库前，新通道上传不会计入配额。落库后自动生效。
 - **限流与 token 缓存是进程内状态**：Vercel 多实例下为近似限流；`pic.sl.al` token 按实例缓存（有效期 600s，提前 30s 刷新），不跨实例共享。
 - **第三方无 SLA**：按 dc-06 只做同服务有限重试，失败时返回明确错误，不做跨服务兜底。
+- **远端残留分片不可删除**：`file.sang.pub` / `pic.sl.al` 未提供公开删除接口；up-11 只能清理本地续传记录，远端孤立分片依赖第三方自身策略回收。

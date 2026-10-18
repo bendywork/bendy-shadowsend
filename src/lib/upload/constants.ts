@@ -26,3 +26,19 @@ export const UPLOAD_REMOTE_ATTEMPTS = 3;
 export const UPLOAD_REMOTE_TIMEOUT_MS = 30_000;
 export const UPLOAD_REMOTE_RETRY_DELAY_MS = 400;
 export const UPLOAD_REMOTE_MAX_RETRY_DELAY_MS = 3_000;
+
+/**
+ * Chunk-level concurrency and resume (up-11).
+ *
+ * Four chunks in flight keeps 200MB / 50-chunk uploads moving without
+ * saturating the browser connection pool or the server-side per-user rate
+ * limit. A failed chunk is retried three times in total (dc-06), then the
+ * whole file pauses so the user can resume later.
+ */
+export const UPLOAD_CHUNK_CONCURRENCY = 4;
+export const UPLOAD_CHUNK_MAX_ATTEMPTS = 3;
+export const UPLOAD_CHUNK_RETRY_DELAY_MS = 400;
+export const UPLOAD_CHUNK_MAX_RETRY_DELAY_MS = 3_000;
+
+export const UPLOAD_RESUME_STORAGE_KEY = "bendy:upload-resume:v1";
+export const UPLOAD_RESUME_MAX_RECORDS = 10;

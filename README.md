@@ -378,6 +378,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.71` 分片并发上传与失败续传（REQ-202610-0751 / up-11）：新增浏览器侧分片调度器（默认 4 并发、乱序完成）、每片最多 3 次同服务重试与 400ms 起指数退避、失败暂停/取消、`localStorage` 续传记录（2 小时 TTL、最多 10 条、按文件指纹跳过已完成分片）、合并失败仅重试 complete；`onProgress` 输出与 up-05 `UploadProgress` 对齐；新增 `docs/upload-chunk-concurrency.md` 与 39 条单测。
 - `0.1.70` 接收方合并下载（REQ-202610-0513 / up-04）：`/upload/sessions/complete` 在 manifest 外新增 `mergeToken` 与 `mergeUrl`；新增 `GET /api/rooms/[roomCode]/attachments/merge`，按清单顺序拉取第三方分片并以 `ReadableStream` 流式拼接，逐片校验长度/实际字节数/域名，`Content-Disposition` 一键保存原文件名；令牌使用 HMAC-SHA256 签名 + deflate 压缩、绑定房间与成员身份、总长 ≤16KB；新增 `docs/upload-merge-download.md` 与 21 条单测。
 - `0.1.69` 上传服务端转发与分片编排（REQ-202610-0512 / up-03）：新增 `/upload/forward` 单请求转发与 `/upload/sessions` → `/sessions/chunk` → `/sessions/complete` 分片编排；4MB/片、单请求 ≤4.5MB、sang ≤100MB / pic.sl.al ≤200MB；无状态 HMAC 会话（2 小时）、来源校验、180 次/分钟限流、2GB/日配额、同服务最多 3 次重试；新增 `docs/upload-relay-architecture.md` 与 46 条单测。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。

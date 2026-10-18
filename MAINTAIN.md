@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.71 分片并发上传与失败续传（REQ-202610-0751 / up-11）
+
+### Scope
+- 在 up-03 分片编排与 up-04 合并下载之上，补齐浏览器侧有限并发、分片级重试、失败暂停与跨刷新续传。
+- 不新增数据库表或服务端 API；续传记录仅保存在浏览器 `localStorage`，与会话同为 2 小时 TTL。
+
+### Changes
+- `src/lib/upload/chunk-scheduler.ts`（新增）：默认 4 分片并发的调度器，完成顺序无关；每片最多 3 次尝试，指数退避 400ms→3000ms；不可重试错误或重试耗尽时暂停；支持 `AbortSignal`；聚合已完成分片与在途 XHR 字节进度。
+- `src/lib/upload/resume-store.ts`（新增）：`bendy:upload-resume:v1` 单文档续传记录；文件指纹（roomCode + fileName + sizeBytes + lastModified）；严格字段/分片布局校验；TTL 清理、10 条 LRU、配额失败降级；`pruneUploadResumeRecords` / `discardChunkedUpload` 清理入口。
+- `src/lib/upload/chunk-transport.ts`（新增）：封装 `/upload/sessions`、`/sessions/chunk`（XHR 上传进度）、`/sessions/complete`；统一 `ChunkTransportError`（code/status/retryable）与响应校验。
+- `src/lib/upload/chunk-uploader.ts`（新增）：`uploadFileChunkedWithResume` 编排创建/复用会话、跳过已完成分片、逐片持久化、合并重试、失败保留记录；`findResumableUpload` 供 UI 判断续传；`onProgress` 输出与 up-05 `UploadProgress` 对齐的 `status/progress/attempt/maxAttempts/error`。
+- `src/lib/upload/constants.ts`：新增并发、重试、退避与续传存储常量。
+- `docs/upload-chunk-concurrency.md`（新增）：调度器、续传格式、清理策略、进度映射、API 契约与已知边界；`docs/upload-relay-architecture.md` 同步 up-11 衔接。
+- 新增 `chunk-scheduler.test.ts`（9）、`resume-store.test.ts`（12）、`chunk-uploader.test.ts`（9）、`chunk-transport.test.ts`（9），合计 39 条单测。
+- `README.md`：更新记录补充 0.1.71；`package.json` / `package-lock.json` / `APP_VERSION` 同步至 `0.1.71`。
+
+### Regression Checklist
+- `npm test` green: 130/130 tests（16 files）。
+- `npm run lint` green（0 errors）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.71`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.70 接收方合并下载（REQ-202610-0513 / up-04）
 
 ### Scope
