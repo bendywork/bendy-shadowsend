@@ -18,11 +18,14 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
+import { Modal } from "@/components/ui/modal";
 import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { useMenuKeyboard } from "@/lib/use-menu-keyboard";
+import { shouldSubmitComposer } from "@/lib/keyboard";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -163,11 +166,15 @@ function RoomLinks({
   activeCode,
   onToggleMenu,
   emptyLabel = "暂无",
+  menuLabel,
+  openMenuRoomId,
 }: {
   rooms: RoomTreeItem[];
   activeCode: string;
   onToggleMenu: (room: RoomTreeItem, triggerButton: HTMLButtonElement) => void;
   emptyLabel?: string;
+  menuLabel: string;
+  openMenuRoomId?: string | null;
 }) {
   return (
     <div className="space-y-1">
@@ -198,8 +205,10 @@ function RoomLinks({
             {r.role === "MEMBER" ? (
               <button
                 type="button"
-                aria-label="房间操作"
+                aria-label={menuLabel}
                 aria-haspopup="menu"
+                aria-expanded={openMenuRoomId === r.id}
+                aria-controls={openMenuRoomId === r.id ? `room-menu-${r.id}` : undefined}
                 data-room-menu-trigger={r.id}
                 onClick={(event) => onToggleMenu(r, event.currentTarget)}
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
@@ -241,10 +250,12 @@ type BubbleAttachment = {
 function MessageAttachmentCard({
   attachment,
   onOpenImage,
+  imageLabel,
   action,
 }: {
   attachment: BubbleAttachment;
   onOpenImage: (url: string | null | undefined, fileName: string) => void;
+  imageLabel: (fileName: string) => string;
   action?: ReactNode;
 }) {
   return (
@@ -252,13 +263,19 @@ function MessageAttachmentCard({
       {hasInlinePreview(attachment) ? (
         <div className="mb-2 overflow-hidden rounded-lg border border-line bg-media">
           {attachment.previewType === "IMAGE" ? (
-            <img
-              src={attachment.previewUrl ?? ""}
-              alt={attachment.fileName}
-              className="max-h-[360px] w-full cursor-zoom-in object-contain"
-              loading="lazy"
-              onDoubleClick={() => onOpenImage(attachment.previewUrl, attachment.fileName)}
-            />
+            <button
+              type="button"
+              onClick={() => onOpenImage(attachment.previewUrl, attachment.fileName)}
+              aria-label={imageLabel(attachment.fileName)}
+              className="block w-full cursor-zoom-in"
+            >
+              <img
+                src={attachment.previewUrl ?? ""}
+                alt={attachment.fileName}
+                className="max-h-[360px] w-full object-contain"
+                loading="lazy"
+              />
+            </button>
           ) : attachment.previewType === "VIDEO" ? (
             <video
               src={attachment.previewUrl ?? ""}
@@ -298,6 +315,7 @@ function MessageBubble({
   attachments,
   renderAttachmentAction,
   onOpenImage,
+  imageLabel,
   footerSlot,
 }: {
   own: boolean;
@@ -316,6 +334,7 @@ function MessageBubble({
   attachments: BubbleAttachment[];
   renderAttachmentAction?: (attachment: BubbleAttachment) => ReactNode;
   onOpenImage: (url: string | null | undefined, fileName: string) => void;
+  imageLabel: (fileName: string) => string;
   footerSlot?: ReactNode;
 }) {
   return (
@@ -374,6 +393,7 @@ function MessageBubble({
                 key={attachment.id}
                 attachment={attachment}
                 onOpenImage={onOpenImage}
+                imageLabel={imageLabel}
                 action={renderAttachmentAction?.(attachment)}
               />
             ))}
@@ -562,18 +582,32 @@ export default function RoomPage() {
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
   const floatingRoomMenuRef = useRef<HTMLDivElement | null>(null);
   const memberMenuRef = useRef<HTMLDivElement | null>(null);
+  const memberMenuPanelRef = useRef<HTMLDivElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
   const membersPanelRef = useRef<HTMLElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
   const [imageViewer, setImageViewer] = useState<ImageViewerState | null>(null);
 
   const t = useT();
+
+  useMenuKeyboard({
+    active: Boolean(openRoomMenu),
+    containerRef: floatingRoomMenuRef,
+    onClose: () => setOpenRoomMenu(null),
+  });
+  useMenuKeyboard({
+    active: Boolean(openMemberMenuId),
+    containerRef: memberMenuPanelRef,
+    onClose: () => setOpenMemberMenuId(null),
+  });
+
   const isOwner = snap?.me.role === "OWNER";
   const membersVisible = !membersCollapsed;
   const navVisible = !navCollapsed;
@@ -631,19 +665,6 @@ export default function RoomPage() {
   }, [showQr, joinLink]);
 
   useEffect(() => {
-    if (!imageViewer) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setImageViewer(null);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [imageViewer]);
-
-  useEffect(() => {
     if (!openRoomMenu) return;
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
@@ -657,21 +678,14 @@ export default function RoomPage() {
 
       setOpenRoomMenu(null);
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenRoomMenu(null);
-      }
-    };
     const closeRoomMenu = () => {
       setOpenRoomMenu(null);
     };
     window.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("keydown", onKeyDown);
     window.addEventListener("resize", closeRoomMenu);
     window.addEventListener("scroll", closeRoomMenu, true);
     return () => {
       window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("resize", closeRoomMenu);
       window.removeEventListener("scroll", closeRoomMenu, true);
     };
@@ -685,16 +699,9 @@ export default function RoomPage() {
       if (memberMenuRef.current?.contains(target)) return;
       setOpenMemberMenuId(null);
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenMemberMenuId(null);
-      }
-    };
     window.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("keydown", onKeyDown);
     return () => {
       window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("keydown", onKeyDown);
     };
   }, [openMemberMenuId]);
 
@@ -868,10 +875,23 @@ export default function RoomPage() {
   }
 
   function onComposerKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
-    if (!enterToSend) return;
-    if (event.key !== "Enter") return;
-    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.nativeEvent.isComposing) return;
+    const native = event.nativeEvent;
+    if (
+      !shouldSubmitComposer(
+        {
+          key: event.key,
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          altKey: event.altKey,
+          isComposing: native.isComposing,
+          keyCode: native.keyCode,
+        },
+        enterToSend,
+      )
+    ) {
+      return;
+    }
 
     event.preventDefault();
     composerFormRef.current?.requestSubmit();
@@ -1295,6 +1315,7 @@ export default function RoomPage() {
 
     setText("");
     setFiles([]);
+    window.requestAnimationFrame(() => composerTextareaRef.current?.focus());
 
     void runSend(localId, content, sendingFiles);
   }
@@ -1871,7 +1892,11 @@ export default function RoomPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-ink-soft">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-screen items-center justify-center text-ink-soft"
+      >
         <LoaderCircle className="h-6 w-6 animate-spin" />
       </main>
     );
@@ -1879,7 +1904,11 @@ export default function RoomPage() {
 
   if (loadError && !snap) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center"
+      >
         <p className="text-sm text-ink-soft" role="alert">{loadError}</p>
         <div className="flex items-center gap-3">
           <button
@@ -1908,7 +1937,11 @@ export default function RoomPage() {
 
   if (snap.waitingApproval) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-screen items-center justify-center px-4"
+      >
         <section className="w-full max-w-lg rounded-2xl border border-line bg-panel/90 p-8 text-center">
           <Clock3 className="mx-auto h-8 w-8 text-ink-soft" />
           <h1 className="mt-4 text-xl font-semibold text-ink">等待房主审批</h1>
@@ -1949,6 +1982,8 @@ export default function RoomPage() {
   return (
     <>
       <main
+        id="main-content"
+        tabIndex={-1}
         className={clsx(
           "grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-canvas xl:h-[100dvh] xl:overflow-hidden",
           navVisible && membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)_290px]",
@@ -2022,7 +2057,7 @@ export default function RoomPage() {
                 </button>
               </div>
               {!createdCollapsed ? (
-                <RoomLinks rooms={rooms.created} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
+                <RoomLinks rooms={rooms.created} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} menuLabel={t("nav.roomActions")} openMenuRoomId={openRoomMenu?.room.id} />
               ) : null}
             </div>
             <div>
@@ -2049,7 +2084,7 @@ export default function RoomPage() {
                 </button>
               </div>
               {!joinedCollapsed ? (
-                <RoomLinks rooms={rooms.joined} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} />
+                <RoomLinks rooms={rooms.joined} activeCode={roomCode} onToggleMenu={handleToggleRoomMenu} emptyLabel={t("nav.empty")} menuLabel={t("nav.roomActions")} openMenuRoomId={openRoomMenu?.room.id} />
               ) : null}
             </div>
           </div>
@@ -2213,6 +2248,7 @@ export default function RoomPage() {
                   attachments={m.attachments}
                   renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} label={t("chat.download")} />}
                   onOpenImage={openImageViewer}
+                  imageLabel={(name) => t("chat.viewImage", { name })}
                 />
               );
             })}
@@ -2251,6 +2287,7 @@ export default function RoomPage() {
                   labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
                   attachments={message.attachments}
                   onOpenImage={openImageViewer}
+                  imageLabel={(name) => t("chat.viewImage", { name })}
                   footerSlot={
                     message.status === "failed" && message.error ? (
                       <p className="mt-2 text-xs text-danger">{message.error}</p>
@@ -2287,15 +2324,25 @@ export default function RoomPage() {
             ) : null}
 
             <div className="rounded-2xl border border-line bg-panel/80 p-2 transition-ui focus-within:border-action-border focus-within:ring-2 focus-within:ring-action-soft">
+              <label htmlFor="composer-text" className="sr-only">
+                {t("composer.label")}
+              </label>
               <textarea
+                id="composer-text"
+                ref={composerTextareaRef}
                 value={text}
                 onChange={(e) => setText(clampMessageText(e.target.value))}
                 onPaste={onPaste}
                 onKeyDown={onComposerKeyDown}
                 maxLength={MAX_MESSAGE_TEXT_CHARS}
                 placeholder={t("composer.placeholder")}
-                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-6 text-ink outline-none placeholder:text-ink-faint"
+                aria-describedby="composer-shortcut-hint"
+                aria-keyshortcuts={enterToSend ? "Enter Control+Enter Meta+Enter" : "Control+Enter Meta+Enter"}
+                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-6 text-ink placeholder:text-ink-faint"
               />
+              <p id="composer-shortcut-hint" className="px-3 pb-1 text-[10px] leading-4 text-ink-faint">
+                {enterToSend ? t("composer.shortcutHint") : t("composer.shortcutHint.enterOff")}
+              </p>
               <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated">
@@ -2353,6 +2400,7 @@ export default function RoomPage() {
                   <button
                     type="submit"
                     disabled={!text.trim() && files.length === 0}
+                    aria-keyshortcuts="Control+Enter Meta+Enter"
                     className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <SendHorizonal className="h-3.5 w-3.5" />
@@ -2437,19 +2485,28 @@ export default function RoomPage() {
                           >
                             <button
                               type="button"
-                              aria-label="成员操作"
+                              aria-label={t("members.actionsFor", { name: m.user.nickname })}
                               aria-haspopup="menu"
                               aria-expanded={openMemberMenuId === m.id}
+                              aria-controls={openMemberMenuId === m.id ? `member-menu-${m.id}` : undefined}
                               onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-action-border text-ink-soft hover:bg-elevated"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
                             {openMemberMenuId === m.id ? (
-                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-line bg-panel p-1.5 shadow-lg">
+                              <div
+                                id={`member-menu-${m.id}`}
+                                ref={memberMenuPanelRef}
+                                role="menu"
+                                aria-label={t("members.actions")}
+                                tabIndex={-1}
+                                className="absolute right-0 top-9 z-20 w-32 rounded-md border border-line bg-panel p-1.5 shadow-lg"
+                              >
                                 <button
                                   type="button"
                                   role="menuitem"
+                                  tabIndex={-1}
                                   onClick={() => {
                                     setOpenMemberMenuId(null);
                                     void transferOwner(m);
@@ -2457,11 +2514,12 @@ export default function RoomPage() {
                                   disabled={action === `transfer-${m.id}`}
                                   className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
-                                  <Crown className="h-3 w-3" /> 房主转让
+                                  <Crown className="h-3 w-3" /> {t("members.actions.transfer")}
                                 </button>
                                 <button
                                   type="button"
                                   role="menuitem"
+                                  tabIndex={-1}
                                   onClick={() => {
                                     setOpenMemberMenuId(null);
                                     void kick(m);
@@ -2469,7 +2527,7 @@ export default function RoomPage() {
                                   disabled={action === `kick-${m.id}`}
                                   className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
-                                  <UserMinus className="h-3 w-3" /> 移除房间
+                                  <UserMinus className="h-3 w-3" /> {t("members.actions.kick")}
                                 </button>
                               </div>
                             ) : null}
@@ -2537,6 +2595,7 @@ export default function RoomPage() {
                     <p className="text-xs font-medium text-ink-soft">{t("settings.roomName")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
+                        data-autofocus
                         value={roomNameInput}
                         onChange={(e) => {
                           setRoomNameInput(e.target.value.slice(0, 48));
@@ -2545,7 +2604,7 @@ export default function RoomPage() {
                           }
                         }}
                         placeholder={t("settings.roomName.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink"
                         aria-invalid={settingsErrors.roomName ? true : undefined}
                         aria-describedby={settingsErrors.roomName ? "settings-room-name-error" : undefined}
                       />
@@ -2572,7 +2631,7 @@ export default function RoomPage() {
                           }
                         }}
                         placeholder={t("settings.gateCode.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink"
                         aria-invalid={settingsErrors.gateCode ? true : undefined}
                         aria-describedby={settingsErrors.gateCode ? "settings-gate-code-error" : undefined}
                       />
@@ -2642,53 +2701,46 @@ export default function RoomPage() {
       {openRoomMenu
         ? createPortal(
           <div
+            id={`room-menu-${openRoomMenu.room.id}`}
             ref={floatingRoomMenuRef}
             role="menu"
+            aria-label={t("nav.roomActions")}
+            tabIndex={-1}
             className="fixed z-[90] w-24 rounded-md border border-line bg-panel p-1 shadow-lg"
             style={{ top: `${openRoomMenu.top}px`, left: `${openRoomMenu.left}px` }}
           >
             <button
               type="button"
               role="menuitem"
+              tabIndex={-1}
               onClick={() => {
                 void leaveRoom(openRoomMenu.room);
               }}
               disabled={action === `leave-${openRoomMenu.room.roomCode}`}
               className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
             >
-              退出房间
+              {t("nav.leaveRoom")}
             </button>
           </div>,
           document.body,
         )
         : null}
 
-      {roomEntryMode ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-ink">
-                  {roomEntryMode === "create" ? "创建房间" : "加入房间"}
-                </h3>
-                <p className="mt-1 text-[11px] text-ink-faint">
-                  当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRoomEntryMode(null)}
-                className="rounded-md border border-line p-1 text-ink-soft hover:bg-elevated"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
+      <Modal
+        open={Boolean(roomEntryMode)}
+        onClose={() => setRoomEntryMode(null)}
+        closeDisabled={roomEntrySubmitting}
+        title={roomEntryMode === "create" ? "创建房间" : "加入房间"}
+        description={`当前已加入/创建房间数：${roomCount}/${MAX_USER_ROOMS}`}
+        size="md"
+        closeLabel={t("common.close")}
+      >
             {roomEntryMode === "create" ? (
               <form className="space-y-3" onSubmit={quickCreateRoom} noValidate>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间名称</span>
                   <input
+                    data-autofocus
                     value={createName}
                     onChange={(event) => {
                       setCreateName(event.target.value);
@@ -2697,7 +2749,7 @@ export default function RoomPage() {
                       }
                     }}
                     placeholder="输入房间名"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink ring-action-border transition-ui focus:ring"
                     aria-invalid={roomEntryErrors.name ? true : undefined}
                     aria-describedby={roomEntryErrors.name ? "room-entry-create-name-error" : undefined}
                   />
@@ -2714,7 +2766,7 @@ export default function RoomPage() {
                       }
                     }}
                     placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink ring-action-border transition-ui focus:ring"
                     aria-invalid={roomEntryErrors.gateCode ? true : undefined}
                     aria-describedby={roomEntryErrors.gateCode ? "room-entry-create-gate-code-error" : undefined}
                   />
@@ -2734,6 +2786,7 @@ export default function RoomPage() {
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
                   <input
+                    data-autofocus
                     value={joinRoomCode}
                     onChange={(event) => {
                       setJoinRoomCode(event.target.value.trim());
@@ -2742,7 +2795,7 @@ export default function RoomPage() {
                       }
                     }}
                     placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink ring-action-border transition-ui focus:ring"
                     aria-invalid={roomEntryErrors.roomCode ? true : undefined}
                     aria-describedby={roomEntryErrors.roomCode ? "room-entry-join-room-code-error" : undefined}
                   />
@@ -2759,7 +2812,7 @@ export default function RoomPage() {
                       }
                     }}
                     placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink ring-action-border transition-ui focus:ring"
                     aria-invalid={roomEntryErrors.gateCode ? true : undefined}
                     aria-describedby={roomEntryErrors.gateCode ? "room-entry-join-gate-code-error" : undefined}
                   />
@@ -2771,7 +2824,7 @@ export default function RoomPage() {
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
                     placeholder="有邀请链接时填入"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink ring-action-border transition-ui focus:ring"
                   />
                 </label>
                 <button
@@ -2784,54 +2837,47 @@ export default function RoomPage() {
                 </button>
               </form>
             )}
-          </section>
-        </div>
-      ) : null}
+      </Modal>
 
-      {showQr ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">房间二维码</h3>
-              <button
-                type="button"
-                onClick={() => setShowQr(false)}
-                className="rounded-md border border-line p-1 text-ink-soft"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
-            ) : (
-              <div className="flex h-64 items-center justify-center">
-                <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
-              </div>
-            )}
-            <p className="mt-3 break-all text-xs text-ink-muted">{joinLink}</p>
-          </section>
-        </div>
-      ) : null}
+      <Modal
+        open={showQr}
+        onClose={() => setShowQr(false)}
+        title={t("qr.title")}
+        size="sm"
+        closeLabel={t("common.close")}
+      >
+        {qr ? (
+          <img
+            src={qr}
+            alt={t("qr.title")}
+            className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2"
+          />
+        ) : (
+          <div className="flex h-64 items-center justify-center">
+            <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
+          </div>
+        )}
+        <p className="mt-3 break-all text-center text-xs text-ink-muted">{joinLink}</p>
+      </Modal>
 
-      {showNoticeEditor ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">配置公告</h3>
-              <button
-                type="button"
-                onClick={closeNoticeEditor}
-                className="rounded-md border border-line p-1 text-ink-soft"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
+      <Modal
+        open={showNoticeEditor}
+        onClose={closeNoticeEditor}
+        closeDisabled={action === "notice"}
+        title={t("notice.editTitle")}
+        size="lg"
+        closeLabel={t("common.close")}
+      >
+            <label htmlFor="notice-text" className="sr-only">
+              {t("notice.contentLabel")}
+            </label>
             <textarea
+              id="notice-text"
+              data-autofocus
               value={noticeText}
               onChange={(e) => setNoticeText(e.target.value)}
-              placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none"
+              placeholder={t("notice.placeholder")}
+              className="min-h-[120px] w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink"
             />
 
             <input
@@ -2857,7 +2903,8 @@ export default function RoomPage() {
                       type="button"
                       className="h-full w-full"
                       onClick={() => openImageViewer(image.imageUrl, image.imageName)}
-                      title="预览原图"
+                      aria-label={t("notice.previewImage", { name: image.imageName })}
+                      title={t("notice.previewImage", { name: image.imageName })}
                     >
                       <img
                         src={image.imageUrl}
@@ -2869,7 +2916,8 @@ export default function RoomPage() {
                       type="button"
                       onClick={() => removeNoticeImage(image.id)}
                       className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-overlay-strong text-ink-soft opacity-100 transition-ui hover:bg-elevated group-hover:opacity-100"
-                      title="删除图片"
+                      aria-label={t("notice.removeImage")}
+                      title={t("notice.removeImage")}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -2883,12 +2931,12 @@ export default function RoomPage() {
                     className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-panel/70 px-2 text-center text-[11px] text-ink-soft hover:bg-elevated"
                   >
                     <Plus className="mb-1 h-4 w-4" />
-                    上传公告图片
+                    {t("notice.uploadImage")}
                   </button>
                 ) : null}
               </div>
               <p className="mt-2 text-[11px] text-ink-faint">
-                最多上传 {MAX_ANNOUNCEMENT_IMAGES} 张图片
+                {t("notice.maxImages", { max: MAX_ANNOUNCEMENT_IMAGES })}
               </p>
             </div>
 
@@ -2898,14 +2946,14 @@ export default function RoomPage() {
                 onClick={closeNoticeEditor}
                 className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft"
               >
-                取消
+                {t("notice.cancel")}
               </button>
               <button
                 type="button"
                 onClick={previewNoticeDraft}
                 className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft hover:bg-elevated"
               >
-                预览
+                {t("notice.preview")}
               </button>
               <button
                 type="button"
@@ -2913,21 +2961,23 @@ export default function RoomPage() {
                 disabled={action === "notice"}
                 className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink disabled:opacity-60"
               >
-                {action === "notice" ? "保存中..." : "保存公告"}
+                {action === "notice" ? t("notice.saving") : t("notice.save")}
               </button>
             </div>
+      </Modal>
 
-          </section>
-        </div>
-      ) : null}
-
-      {showNoticePopup ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
-            <div className="mb-3 flex items-center gap-2 text-ink-soft">
-              <Megaphone className="h-5 w-5" />
-              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
-            </div>
+      <Modal
+        open={showNoticePopup}
+        onClose={closeNoticePopup}
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-ink-soft" />
+            {isPreviewingNoticeDraft ? t("notice.previewTitle") : t("notice.viewTitle")}
+          </span>
+        }
+        size="lg"
+        closeLabel={t("common.close")}
+      >
             {noticePopupContent.text ? (
               <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{noticePopupContent.text}</p>
             ) : null}
@@ -2943,6 +2993,9 @@ export default function RoomPage() {
                     key={`${image.imageUrl}-${index}`}
                     type="button"
                     onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
+                    aria-label={t("notice.previewImage", {
+                      name: image.imageName ?? `announcement-${index + 1}`,
+                    })}
                     className="overflow-hidden rounded-lg border border-line bg-media"
                   >
                     <img
@@ -2960,40 +3013,24 @@ export default function RoomPage() {
                 onClick={closeNoticePopup}
                 className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink"
               >
-                {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
+                {isPreviewingNoticeDraft ? t("notice.closePreview") : t("notice.acknowledge")}
               </button>
             </div>
-          </section>
-        </div>
-      ) : null}
+      </Modal>
 
-      {imageViewer ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4"
-          onClick={() => setImageViewer(null)}
-        >
-          <section
-            className="w-full max-w-5xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-xs text-ink-soft">{imageViewer.fileName}</p>
-              <button
-                type="button"
-                onClick={() => setImageViewer(null)}
-                className="rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated"
-              >
-                关闭
-              </button>
-            </div>
-            <img
-              src={imageViewer.url}
-              alt={imageViewer.fileName}
-              className="max-h-[80vh] w-full rounded-lg border border-line bg-media object-contain"
-            />
-          </section>
-        </div>
-      ) : null}
+      <Modal
+        open={Boolean(imageViewer)}
+        onClose={() => setImageViewer(null)}
+        title={imageViewer?.fileName ?? ""}
+        size="xl"
+        closeLabel={t("common.close")}
+      >
+        <img
+          src={imageViewer?.url ?? ""}
+          alt={imageViewer?.fileName ?? ""}
+          className="max-h-[75vh] w-full rounded-lg border border-line bg-media object-contain"
+        />
+      </Modal>
     </>
   );
 }

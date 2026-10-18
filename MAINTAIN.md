@@ -3,6 +3,38 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 键盘可达性（焦点 / Esc / Enter，REQ-202610-0496）
+
+### Scope
+- 复核并补全房间页的键盘操作：焦点可见性、Esc 关闭、Enter 发送、菜单方向键、弹层焦点陷阱与焦点归还。
+- 统一页面级模态框语义与焦点管理，覆盖房间入口、二维码、公告编辑、公告阅读、图片查看器。
+- 版本升至 `0.1.69`。
+
+### Changes
+- `src/lib/keyboard.ts`（new）：`shouldSubmitComposer`（Enter / Shift+Enter / Ctrl/⌘+Enter / IME 安全）、`getMenuFocusIndex`（方向键 / Home / End / 首尾循环）、`getFocusTrapIndex`（Tab / Shift+Tab 循环）、`FOCUSABLE_SELECTOR`。
+- `src/lib/use-dialog-keyboard.ts`（new）：对话框初始焦点（`[data-autofocus]` → 首个可聚焦元素 → 面板）、Tab 焦点陷阱、Esc 关闭、body 滚动锁定与滚动条补偿、多层弹层栈、关闭后焦点归还。
+- `src/lib/use-menu-keyboard.ts`（new）：菜单打开聚焦首项、方向键 / Home / End 导航、Esc/Tab 关闭、焦点归还触发按钮。
+- `src/components/ui/modal.tsx`（new）：`role="dialog"`、`aria-modal`、`aria-labelledby` / `aria-describedby`、遮罩关闭、关闭按钮、`closeDisabled`；`ModalContent` 纯展示层可做 SSR 测试。
+- `src/components/ui/popover.tsx`：改用 `useDialogKeyboard`，初始焦点从面板本身改为首个可聚焦控件，保留原有滚动锁定 / Esc / 焦点归还。
+- `src/components/ui/skip-link.tsx`（new）+ `src/app/layout.tsx`：新增「跳到主要内容」链接；首页与房间页各状态 `<main>` 增加 `id="main-content"` / `tabIndex={-1}`。
+- `src/app/room/[roomCode]/page.tsx`：五个自绘弹层全部改用 `Modal`；房间菜单与成员菜单接入 `useMenuKeyboard`，成员操作文案 i18n 化；输入框增加 label、`aria-keyshortcuts`、快捷键提示，发送后焦点回到输入框；消息图片改为可聚焦按钮；移除重复的 window Esc 监听。
+- `src/app/globals.css`：新增 `.skip-link`、`.kb-modal-*` 样式与入场动画，仅使用语义令牌；`prefers-reduced-motion` 下关闭动画。
+- `src/lib/i18n/messages.ts`：新增 zh/en 键盘 / 菜单 / 公告 / 跳过导航文案（编译期 parity 校验通过）。
+- `vitest.config.ts`：测试匹配扩展为 `src/**/*.test.{ts,tsx}`。
+- `src/lib/keyboard.test.ts`（new，15 条）与 `src/components/ui/modal.test.tsx`（new，3 条）。
+- `docs/design-system-keyboard-accessibility.md`（new）：快捷键契约、实现分层、接入示例、已覆盖界面与验收清单。
+
+### Regression Checklist
+- `npm test` green: 42/42 tests（5 files）。
+- `npm run lint` green（0 errors）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1，12/12 static pages）。
+- 手工检查项见 `docs/design-system-keyboard-accessibility.md` §5（跳过链接、焦点环、弹层 Tab/Esc、菜单方向键、IME、发送后焦点）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

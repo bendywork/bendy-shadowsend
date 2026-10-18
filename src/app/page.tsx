@@ -267,7 +267,11 @@ export default function HomePage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 sm:py-10 lg:flex lg:items-center">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 sm:py-10 lg:flex lg:items-center"
+    >
       <section className="relative mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
         <div className="flex min-h-0 items-center px-1 sm:px-3 lg:min-h-[560px]">
           <div className="w-full max-w-xl space-y-6 sm:space-y-7">

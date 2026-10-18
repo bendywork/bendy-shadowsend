@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
+import { SkipLink } from "@/components/ui/skip-link";
 import { LanguageProvider } from "@/lib/i18n/context";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({
       </head>
       <body>
         <LanguageProvider>
+          <SkipLink />
           <ToastProvider>{children}</ToastProvider>
         </LanguageProvider>
       </body>

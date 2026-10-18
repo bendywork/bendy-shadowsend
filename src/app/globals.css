@@ -344,6 +344,11 @@ button {
   box-shadow: 0 0 0 3px var(--ds-action-soft);
 }
 
+.field:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
 /* Inline field validation (REQ-202610-0475 / ui-12). */
 .field[aria-invalid="true"],
 input[aria-invalid="true"],
@@ -819,10 +824,136 @@ textarea[aria-invalid="true"]:focus {
   display: none;
 }
 
+/* ============================================================
+   Keyboard accessibility — skip link, modal shell, shortcut hint
+   ============================================================ */
+.skip-link {
+  position: fixed;
+  top: var(--ds-space-3);
+  left: var(--ds-space-3);
+  z-index: 110;
+  padding: var(--ds-space-2) var(--ds-space-4);
+  border: 1px solid var(--ds-action-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-action-bg);
+  color: var(--ds-action-fg);
+  font-size: 13px;
+  font-weight: 600;
+  transform: translateY(calc(-100% - var(--ds-space-4)));
+  transition: transform var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+.kb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: var(--ds-space-4);
+  background: var(--ds-overlay-strong);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: kb-backdrop-in var(--ds-duration-base) var(--ds-ease-out);
+}
+
+.kb-modal {
+  display: flex;
+  width: 100%;
+  max-height: calc(100dvh - var(--ds-space-8));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface-canvas);
+  box-shadow: var(--ds-shadow-lg);
+  animation: kb-modal-in var(--ds-duration-base) var(--ds-ease-out);
+}
+
+.kb-modal--sm { max-width: 24rem; }
+.kb-modal--md { max-width: 32rem; }
+.kb-modal--lg { max-width: 40rem; }
+.kb-modal--xl { max-width: 64rem; }
+
+.kb-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-5) var(--ds-space-5) var(--ds-space-3);
+  border-bottom: 1px solid var(--ds-line-subtle);
+}
+
+.kb-modal__title {
+  margin: 0;
+  color: var(--ds-ink);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.kb-modal__description {
+  margin: var(--ds-space-1) 0 0;
+  color: var(--ds-ink-faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.kb-modal__close:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.kb-modal__body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--ds-space-5);
+}
+
+@media (max-width: 480px) {
+  .kb-modal-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .kb-modal {
+    max-width: none;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+    border-width: 0;
+  }
+}
+
+@keyframes kb-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes kb-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .toast-card,
-  .popover-panel--in {
+  .popover-panel--in,
+  .kb-modal,
+  .kb-modal-backdrop,
+  .skip-link {
     animation: none;
+    transition: none;
   }
 
   .tooltip-bubble {

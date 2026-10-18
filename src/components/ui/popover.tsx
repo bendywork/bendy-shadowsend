@@ -1,22 +1,14 @@
 "use client";
 
 import clsx from "clsx";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-
-const FOCUSABLE_SELECTOR = [
-  "a[href]",
-  "button:not([disabled])",
-  "textarea:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "[tabindex]:not([tabindex='-1'])",
-].join(",");
+import { useDialogKeyboard } from "@/lib/use-dialog-keyboard";
 
 // 轻量弹层面板：portal 渲染到 body（规避祖先 overflow 裁剪），
 // 半透明背景遮罩 + 居中卡片，点击遮罩或按 Esc 关闭；打开时锁定滚动、
-// 聚焦面板并圈定 Tab 焦点，关闭后归还焦点。主题感知（.popover-panel）。
+// 焦点移入首个可聚焦控件（可用 data-autofocus 指定），Tab 圈定、关闭后归还焦点。
 export function Popover({
   open,
   onClose,
@@ -35,65 +27,11 @@ export function Popover({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const panel = panelRef.current;
-    const previous =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const { body } = document;
-    const previousOverflow = body.style.overflow;
-    const previousPaddingRight = body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-    body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
-    panel?.focus();
-
-    return () => {
-      body.style.overflow = previousOverflow;
-      body.style.paddingRight = previousPaddingRight;
-      previous?.focus();
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab" || !panelRef.current) return;
-
-      const panel = panelRef.current;
-      const focusable = Array.from(
-        panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-      );
-      if (focusable.length === 0) {
-        event.preventDefault();
-        panel.focus();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (document.activeElement === panel) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  useDialogKeyboard({
+    active: open,
+    containerRef: panelRef,
+    onClose,
+  });
 
   if (!open || typeof document === "undefined") return null;
 
