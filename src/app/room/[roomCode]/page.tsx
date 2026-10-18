@@ -12,6 +12,7 @@ import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, D
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { FooterStatsCard } from "@/components/room/footer-stats-card";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -2053,27 +2054,7 @@ export default function RoomPage() {
               ) : null}
             </div>
           </div>
-          <div className="mt-auto space-y-2 rounded-xl border border-line-subtle bg-panel/70 p-3 text-xs text-ink-muted">
-            <p>
-              {t("footer.version")} <span className="font-semibold text-ink-soft">{snap.app.version}</span>
-            </p>
-            <p>
-              {t("footer.license")} <span className="font-semibold text-ink-soft">{snap.app.openSource}</span>
-            </p>
-            <p>
-              {t("footer.roomOnline")} <span className="font-semibold text-ink-soft">{snap.stats.roomOnline}</span>
-            </p>
-            <p>
-              {t("footer.totalOnline")} <span className="font-semibold text-ink-soft">{snap.stats.totalOnline}</span>
-            </p>
-            <div className="pt-2">
-              <p className="text-ink-faint">{t("footer.currentUser")}</p>
-              <div className="mt-1 flex items-center gap-2">
-                <Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} />
-                <span className="text-sm text-ink-soft">{snap.me.nickname}</span>
-              </div>
-            </div>
-          </div>
+          <FooterStatsCard app={snap.app} stats={snap.stats} me={snap.me} />
         </aside>
 
         <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">

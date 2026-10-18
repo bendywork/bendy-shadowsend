@@ -3,6 +3,29 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 页脚统计卡重构（REQ-202610-0505 / ui-42）
+
+### Scope
+- 重构房间页侧栏页脚统计卡：由五行文本堆叠改为分层信息面板——概览标题与实时状态、房间/全站在线双指标、当前用户与角色、版本/协议元信息。
+- 统一卡片、指标块与元信息的视觉语言，版本升至 `0.1.69`。
+
+### Changes
+- `src/components/room/footer-stats-card.tsx` (new): `FooterStatsCard` 负责 i18n 接线，`FooterStatsCardContent` 为纯展示层；使用 `section`/`dl`/`dt`/`dd` 语义结构、`aria-labelledby`、角色 chip 与等宽数字。
+- `src/app/room/[roomCode]/page.tsx`: 侧栏页脚替换为 `FooterStatsCard`，删除旧五行文本块。
+- `src/lib/i18n/messages.ts`: 新增 `footer.overview` / `footer.live`（zh+en，编译期 parity 校验）。
+- `src/components/room/footer-stats-card.test.tsx` (new): 4 条 SSR 测试，覆盖双指标、用户/角色、语义关联与角色映射；`vitest.config.ts` include 扩展 `.test.tsx`。
+- `MAINTAIN.md` / `README.md`: 补充本次迭代记录。
+
+### Regression Checklist
+- `npm test` green：4 个测试文件 28/28 通过（新增 4 条页脚统计卡测试）。
+- `npm run lint` 0 error。
+- `npx tsc --noEmit` 0 error。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
