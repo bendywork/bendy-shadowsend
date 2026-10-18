@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.66 提示体系（Tooltip / Popover / Toast，REQ-202610-0469 / ui-06）
+
+### Scope
+- Unify transient feedback across the product: tooltip hover delay, popover interaction contract, and a new global toast system for copy / success / error / network feedback.
+- Remove ad-hoc `hint` bars and `alert()` calls from the room page; every action result now goes through one toast contract.
+- Bump app version to `0.1.66`.
+
+### Changes
+- `src/lib/toast-store.ts` (new): framework-free singleton store with `useSyncExternalStore` subscription, variant durations (`success` 2400ms / `info` 3000ms / `warning` 3600ms / `error` 4800ms), max 3 visible, and dedupe by `variant + message` with a revision bump to restart the timer.
+- `src/components/ui/toast.tsx` (new): `ToastProvider` mounted in `src/app/layout.tsx`; variant icons, hover pause, close button, `role="alert"/"status"` with matching `aria-live`, `aria-atomic`.
+- `src/components/ui/tooltip.tsx`: shared `TOOLTIP_DELAY_MS = 500` and `TOOLTIP_HIDE_DELAY_MS = 120`; keyboard focus shows immediately, `Escape` closes, `aria-describedby` injection and `role="tooltip"` retained.
+- `src/components/ui/popover.tsx`: dialog semantics (`role="dialog"`, `aria-modal`, labelled by title), scroll lock with scrollbar compensation, focus move + Tab trap, focus restore on close, backdrop click / `Escape` close.
+- `src/app/globals.css`: added `.toast-viewport` / `.toast-card` variant styles, `.popover-backdrop`, `popover-in` / `toast-in` keyframes (transform/opacity only), wider wrapping `.tooltip-bubble`; `prefers-reduced-motion` disables all three animations.
+- `src/app/room/[roomCode]/page.tsx`: replaced `hint` state and `alert()` with `toast.success/info/warning/error` for copy link/message, download failure, kick/transfer/review, room limit, join request, leave room, announcement CRUD/images, room name, gate code, join policy and never-expire.
+- `src/lib/i18n/messages.ts`: added 25 `toast.*` keys in zh + en (parity check enforced).
+- `docs/design-system-notifications.md` (new): selection rules, timings, usage, accessibility and acceptance checklist.
+- `vitest.config.ts` + `src/lib/toast-store.test.ts` (new): 8 unit tests covering defaults, dedupe, variant isolation, max visible, dismiss/clear, subscribe lifecycle, blank messages and explicit overrides.
+- `package.json`: added `"test": "vitest run"` and `vitest@^3.2.7` dev dependency; version synced to `0.1.66` via `scripts/sync-version.js`.
+
+### Regression Checklist
+- `npm test` green: 8/8 tests.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1, 12 static pages).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.66`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
 
 ### Scope

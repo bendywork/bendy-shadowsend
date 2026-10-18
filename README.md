@@ -366,6 +366,12 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-18
+
+- `4a0dea6` `0.1.66` 提示体系统一（REQ-202610-0469 / ui-06）：新增全局 Toast（`src/lib/toast-store.ts` + `ToastProvider`），按 success 2400ms / info 3000ms / warning 3600ms / error 4800ms 停留，最多 3 条，相同 `variant + message` 去重并重置计时；房间页复制、成功、错误、网络异常反馈全部改走 Toast，移除 `hint` 提示条与 `alert()`。
+- Tooltip 统一悬停延时 500ms、移出宽限 120ms，键盘聚焦立即可见，支持 Esc 关闭与 `aria-describedby`；Popover 补齐 `role="dialog"`、滚动锁定、焦点圈定/归还与遮罩/Esc 关闭。
+- `globals.css` 新增 Toast/Popover 语义化样式与仅动 `opacity`/`transform` 的入场动画，`prefers-reduced-motion` 下全部关闭；新增 `docs/design-system-notifications.md` 说明触发时机、时长、用法与验收清单；新增 Vitest 配置与 8 条 toast store 单测。
+
 ### 2026-10-17
 
 - `0.1.65` 设计令牌体系重建（REQ-202610-0464 / ui-01）：`globals.css` 重建 10 级中性灰 primitive ramp 与语义 surface/line/ink/action 令牌，补齐圆角、4px 间距、阴影、动效时长/缓动及 success/warning/danger 状态色；全部令牌经 `@theme inline` 暴露为 Tailwind 工具类。
