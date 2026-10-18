@@ -6,7 +6,7 @@ const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 const adItemSchema = z.object({
   content: z.string().trim().min(1).max(MAX_AD_CONTENT_CHARS),
-  color: z.string().trim().optional().default("#d4d4d8"),
+  color: z.string().trim().optional().default(""),
   url: z.string().trim().optional().default(""),
 });
 
@@ -19,7 +19,8 @@ export type AdBoardItem = {
 };
 
 function normalizeColor(value: string) {
-  return HEX_COLOR_RE.test(value) ? value : "#d4d4d8";
+  // Empty means "inherit the theme token"; only explicit hex overrides it.
+  return HEX_COLOR_RE.test(value) ? value : "";
 }
 
 function normalizeUrl(value: string) {

@@ -18,6 +18,10 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
+import { FieldError } from "@/components/ui/field-error";
+import { toast } from "@/lib/toast-store";
+import { resolveErrorMessage, toastError } from "@/lib/feedback";
+import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
@@ -167,14 +171,14 @@ function RoomLinks({
 }) {
   return (
     <div className="space-y-1">
-      {rooms.length === 0 ? <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">{emptyLabel}</p> : rooms.map((r) => (
+      {rooms.length === 0 ? <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">{emptyLabel}</p> : rooms.map((r) => (
         <div
           key={r.id}
           className={clsx(
             "rounded-lg border px-3 py-2 text-sm",
             activeCode === r.roomCode
-              ? "border-zinc-500/60 bg-zinc-500/10 text-zinc-100"
-              : "border-zinc-800 bg-zinc-900/70 text-zinc-300 hover:border-zinc-700",
+              ? "border-action-border bg-action-soft text-ink"
+              : "border-line-subtle bg-panel/70 text-ink-soft hover:border-line",
           )}
         >
           <div className="flex items-start gap-2">
@@ -184,12 +188,12 @@ function RoomLinks({
                 {activeCode === r.roomCode ? (
                   <span
                     title="当前房间"
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-success shadow-[0_0_8px_var(--ds-success-glow)]"
                   />
                 ) : null}
-                {r.hasGateCode ? <Shield className="h-3.5 w-3.5 shrink-0 text-zinc-300" /> : null}
+                {r.hasGateCode ? <Shield className="h-3.5 w-3.5 shrink-0 text-ink-soft" /> : null}
               </div>
-              <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">{r.roomCode}</p>
+              <p className="mt-1 truncate font-mono text-[11px] text-ink-faint">{r.roomCode}</p>
             </Link>
             {r.role === "MEMBER" ? (
               <button
@@ -198,7 +202,7 @@ function RoomLinks({
                 aria-haspopup="menu"
                 data-room-menu-trigger={r.id}
                 onClick={(event) => onToggleMenu(r, event.currentTarget)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </button>
@@ -212,16 +216,17 @@ function RoomLinks({
 
 function FileAction({ roomCode, attachment, label }: { roomCode: string; attachment: AttachmentItem; label: string }) {
   const [loading, setLoading] = useState(false);
+  const t = useT();
   async function open() {
     setLoading(true);
     try {
       const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
       window.open(p.url, "_blank", "noopener,noreferrer");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "打开失败");
+      toastError(e, t("toast.downloadFailed"), t);
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
+  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
 }
 
 type BubbleAttachment = {
@@ -243,9 +248,9 @@ function MessageAttachmentCard({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/80 p-2.5">
+    <div className="rounded-xl border border-line bg-panel/80 p-2.5">
       {hasInlinePreview(attachment) ? (
-        <div className="mb-2 overflow-hidden rounded-lg border border-zinc-700/80 bg-black">
+        <div className="mb-2 overflow-hidden rounded-lg border border-line bg-media">
           {attachment.previewType === "IMAGE" ? (
             <img
               src={attachment.previewUrl ?? ""}
@@ -267,8 +272,8 @@ function MessageAttachmentCard({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm text-zinc-200">{attachment.fileName}</p>
-          <p className="text-xs text-zinc-500">{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</p>
+          <p className="truncate text-sm text-ink-soft">{attachment.fileName}</p>
+          <p className="text-xs text-ink-faint">{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</p>
         </div>
         {action ?? null}
       </div>
@@ -318,15 +323,15 @@ function MessageBubble({
       <div
         className={clsx(
           "w-full max-w-[92%] rounded-2xl border p-3 shadow-sm sm:max-w-[85%]",
-          own ? "border-zinc-500/40 bg-zinc-500/10" : "border-zinc-800 bg-zinc-900/60",
+          own ? "border-action-border bg-action-soft" : "border-line-subtle bg-panel/60",
         )}
       >
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Avatar initial={avatarInitial} color={avatarColor} className="h-7 w-7" />
-            <span className="text-sm font-medium text-zinc-200">{nickname}</span>
+            <span className="text-sm font-medium text-ink-soft">{nickname}</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
             <time className="tabular-nums">{fmt(createdAt)}</time>
             {metaSlot}
           </div>
@@ -334,16 +339,16 @@ function MessageBubble({
 
         {content ? (
           <div className="space-y-2">
-            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">{visibleContent}</p>
+            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-ink">{visibleContent}</p>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={onCopy}
                 className={clsx(
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition",
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-ui",
                   copied
-                    ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
-                    : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                    ? "border-action-border bg-action-soft text-ink"
+                    : "border-line text-ink-soft hover:bg-elevated",
                 )}
               >
                 <Copy className="h-3 w-3" />
@@ -353,7 +358,7 @@ function MessageBubble({
                 <button
                   type="button"
                   onClick={onToggleExpand}
-                  className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                  className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11px] text-ink-soft hover:bg-elevated"
                 >
                   {collapsed ? labels.expand : labels.collapse}
                 </button>
@@ -398,19 +403,19 @@ function SwitchBtn({
       disabled={disabled}
       onClick={onToggle}
       className={clsx(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200",
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-ui duration-base",
         checked
-          ? "border-zinc-500 bg-zinc-500/50"
-          : "border-zinc-600 bg-zinc-700",
+          ? "border-action-border bg-action/50"
+          : "border-line-strong bg-elevated-strong",
         disabled
           ? "cursor-not-allowed opacity-60"
-          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/60",
+          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border",
       )}
     >
       <span
         className={clsx(
-          "inline-block h-5 w-5 rounded-full shadow-[0_1px_6px_rgba(0,0,0,0.4)] transition-transform duration-200",
-          checked ? "translate-x-5 bg-zinc-100" : "translate-x-0.5 bg-zinc-200",
+          "inline-block h-5 w-5 rounded-full shadow-sm transition-transform duration-base",
+          checked ? "translate-x-5 bg-action-fg" : "translate-x-0.5 bg-ink-soft",
         )}
       />
     </button>
@@ -424,7 +429,7 @@ function AdCarouselItem({
   item: AdBoardItem;
   className: string;
 }) {
-  const textColor = HEX_COLOR_RE.test(item.color) ? item.color : "#d4d4d8";
+  const textColor = HEX_COLOR_RE.test(item.color) ? item.color : "var(--ds-ink-soft)";
 
   if (item.url) {
     return (
@@ -433,7 +438,7 @@ function AdCarouselItem({
         target="_blank"
         rel="noopener noreferrer"
         className={clsx(
-          "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-300 ease-out",
+          "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-slow ease-out",
           className,
         )}
         style={{ color: textColor }}
@@ -447,7 +452,7 @@ function AdCarouselItem({
   return (
     <div
       className={clsx(
-        "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-300 ease-out",
+        "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-slow ease-out",
         className,
       )}
       style={{ color: textColor }}
@@ -488,7 +493,7 @@ function AdCarousel({ items }: { items: AdBoardItem[] }) {
   const next = items[(safeIndex + 1) % items.length];
 
   return (
-    <div className="relative h-9 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900/70">
+    <div className="relative h-9 overflow-hidden rounded-lg border border-line bg-panel/70">
       <AdCarouselItem
         item={current}
         className={animating ? "-translate-y-full" : "translate-y-0"}
@@ -510,8 +515,7 @@ export default function RoomPage() {
   const [boot, setBoot] = useState<BootstrapPayload | null>(null);
   const [snap, setSnap] = useState<RoomSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [action, setAction] = useState<string | null>(null);
 
   const [text, setText] = useState("");
@@ -543,6 +547,15 @@ export default function RoomPage() {
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
   const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
+  const [roomEntryErrors, setRoomEntryErrors] = useState<{
+    name?: string;
+    gateCode?: string;
+    roomCode?: string;
+  }>({});
+  const [settingsErrors, setSettingsErrors] = useState<{
+    roomName?: string;
+    gateCode?: string;
+  }>({});
   const [createName, setCreateName] = useState("");
   const [createGateCode, setCreateGateCode] = useState("");
   const [joinRoomCode, setJoinRoomCode] = useState("");
@@ -570,7 +583,7 @@ export default function RoomPage() {
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([apiFetch<BootstrapPayload>("/api/bootstrap"), apiFetch<RoomSnapshot>(`/api/rooms/${roomCode}`)]);
     latestMessageAtRef.current = s.messages.at(-1)?.createdAt ?? null;
-    setBoot(b); setSnap((prev) => withStableAttachmentPreviewUrls(prev, s)); setError(null);
+    setBoot(b); setSnap((prev) => withStableAttachmentPreviewUrls(prev, s)); setLoadError(null);
     if (s.announcement.showToMe) setShowNoticePopup(true);
   }, [roomCode]);
 
@@ -585,33 +598,36 @@ export default function RoomPage() {
 
     latestMessageAtRef.current = payload.messages.at(-1)?.createdAt ?? after ?? null;
     setSnap((prev) => (prev ? mergeIncomingMessages(prev, payload.messages) : prev));
-    setError(null);
+    setLoadError(null);
   }, [roomCode]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try { await refresh(); if (alive) localStorage.setItem(LAST_ROOM_STORAGE_KEY, roomCode); }
-      catch (e) { if (alive) setError(e instanceof Error ? e.message : "加载失败"); }
+      catch (e) { if (alive) setLoadError(resolveErrorMessage(e, t("toast.loadFailed"), t)); }
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
-  }, [roomCode, refresh]);
+  }, [roomCode, refresh, t]);
 
   useEffect(() => {
     if (!pollingEnabled) return;
     const hb = window.setInterval(() => { void apiFetch<{ success: boolean }>("/api/presence", { method: "POST", body: JSON.stringify({ roomCode }) }).catch(() => undefined); }, 25000);
-    const messagePoll = window.setInterval(() => { void pollLatestMessages().catch((e) => setError(e instanceof Error ? e.message : "消息刷新失败")); }, FAST_POLL_INTERVAL_MS);
-    const snapshotSync = window.setInterval(() => { void refresh().catch((e) => setError(e instanceof Error ? e.message : "房间同步失败")); }, SNAPSHOT_SYNC_INTERVAL_MS);
+    const messagePoll = window.setInterval(() => { void pollLatestMessages().catch((e) => toastError(e, t("toast.messageRefreshFailed"), t)); }, FAST_POLL_INTERVAL_MS);
+    const snapshotSync = window.setInterval(() => { void refresh().catch((e) => toastError(e, t("toast.roomSyncFailed"), t)); }, SNAPSHOT_SYNC_INTERVAL_MS);
     return () => { window.clearInterval(hb); window.clearInterval(messagePoll); window.clearInterval(snapshotSync); };
-  }, [roomCode, pollingEnabled, pollLatestMessages, refresh]);
+  }, [roomCode, pollingEnabled, pollLatestMessages, refresh, t]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
   useEffect(() => {
     if (!showQr || !joinLink) return;
     setQr(null);
-    void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark: "#18181b", light: "#ffffff" } }).then(setQr);
+    const styles = getComputedStyle(document.documentElement);
+    const dark = styles.getPropertyValue("--ds-qr-dark").trim();
+    const light = styles.getPropertyValue("--ds-qr-light").trim();
+    void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark, light } }).then(setQr);
   }, [showQr, joinLink]);
 
   useEffect(() => {
@@ -752,11 +768,18 @@ export default function RoomPage() {
   function addFiles(input: FileList | File[]) {
     const incoming = Array.from(input);
     if (!incoming.length) return;
-    setFiles((prev) => [...prev, ...incoming].slice(0, 20));
+    const maxFiles = 20;
+    if (files.length + incoming.length > maxFiles) {
+      toast.warning(t("toast.fileLimit", { max: maxFiles }));
+    }
+    setFiles((prev) => [...prev, ...incoming].slice(0, maxFiles));
   }
 
   async function readClipboard() {
-    if (!navigator.clipboard) return;
+    if (!navigator.clipboard) {
+      toast.warning(t("toast.clipboardUnavailable"));
+      return;
+    }
     try {
       if (navigator.clipboard.read) {
         const items = await navigator.clipboard.read();
@@ -830,10 +853,12 @@ export default function RoomPage() {
           }
         }
       } else {
-        const t = await navigator.clipboard.readText();
-        appendMessageText(t);
+        const clipboardText = await navigator.clipboard.readText();
+        appendMessageText(clipboardText);
       }
-    } catch {}
+    } catch {
+      toast.error(t("toast.clipboardReadFailed"));
+    }
   }
 
   function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
@@ -876,7 +901,7 @@ export default function RoomPage() {
           fileType: file.type,
           fileSize: file.size,
         });
-        reject(new Error(`Upload failed: ${file.name}`));
+        reject(new Error(t("toast.networkError")));
       };
 
       xhr.onload = () => {
@@ -890,7 +915,13 @@ export default function RoomPage() {
             fileType: file.type,
             fileSize: file.size,
           });
-          reject(new Error("中转上传被服务平台拒绝（413），请优先使用 S3 直传"));
+          reject(
+            new Error(
+              t("toast.uploadTooLarge", {
+                max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
+              }),
+            ),
+          );
           return;
         }
 
@@ -918,7 +949,7 @@ export default function RoomPage() {
             responseText: xhr.responseText,
             error: parseError,
           });
-          reject(new Error(`Upload failed: ${file.name}`));
+          reject(new Error(t("toast.uploadFailed", { name: file.name })));
           return;
         }
 
@@ -936,7 +967,11 @@ export default function RoomPage() {
           payload: parsed,
         });
 
-        reject(new Error(parsed?.error?.message ?? `Upload failed: ${file.name}`));
+        reject(
+          new Error(
+            parsed?.error?.message ?? t("toast.uploadFailed", { name: file.name }),
+          ),
+        );
       };
 
       xhr.send(formData);
@@ -985,7 +1020,7 @@ export default function RoomPage() {
         });
       } catch {
         await cleanupDufsFile();
-        throw new Error(`Upload failed: ${file.name}`);
+        throw new Error(t("toast.networkError"));
       }
 
       let parsed: {
@@ -998,12 +1033,14 @@ export default function RoomPage() {
         parsed = await response.json();
       } catch {
         await cleanupDufsFile();
-        throw new Error(`Upload failed: ${file.name}`);
+        throw new Error(t("toast.uploadFailed", { name: file.name }));
       }
 
       if (!response.ok || !parsed?.ok || !parsed?.data) {
         await cleanupDufsFile();
-        throw new Error(parsed?.error?.message ?? `Upload failed: ${file.name}`);
+        throw new Error(
+          parsed?.error?.message ?? t("toast.uploadFailed", { name: file.name }),
+        );
       }
 
       if (i === 0) {
@@ -1026,7 +1063,7 @@ export default function RoomPage() {
       }
     }
 
-    throw new Error(`Upload failed: ${file.name}`);
+    throw new Error(t("toast.uploadFailed", { name: file.name }));
   }
 
   async function uploadDirectToS3(file: File, onProgress?: (percent: number) => void) {
@@ -1062,7 +1099,7 @@ export default function RoomPage() {
           fileType: file.type,
           fileSize: file.size,
         });
-        reject(new Error(`Upload failed: ${file.name}`));
+        reject(new Error(t("toast.networkError")));
       };
 
       xhr.onload = () => {
@@ -1081,7 +1118,7 @@ export default function RoomPage() {
           fileType: file.type,
           fileSize: file.size,
         });
-        reject(new Error(`Upload failed: ${file.name}`));
+        reject(new Error(t("toast.uploadFailed", { name: file.name })));
       };
 
       xhr.send(file);
@@ -1111,7 +1148,9 @@ export default function RoomPage() {
 
       if (file.size > MAX_PROXY_UPLOAD_BYTES) {
         throw new Error(
-          `文件超过 ${Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024)}MB 中转上限，请启用 S3 直传或缩小文件后重试`,
+          t("toast.uploadTooLarge", {
+            max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
+          }),
         );
       }
 
@@ -1211,22 +1250,20 @@ export default function RoomPage() {
         return mergeIncomingMessages(prev, [result.message]);
       });
       latestMessageAtRef.current = result.message.createdAt;
-      setError(null);
       // Extra sync after a previously failed send, to keep UI and server state aligned.
       void pollLatestMessages().catch(() => undefined);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Send failed";
+      const message = resolveErrorMessage(err, t("toast.sendFailed"), t);
       updatePendingMessage(localId, {
         status: "failed",
         error: message,
       });
-      setError(message);
+      toast.error(message);
     }
   }
 
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
     const content = text.trim();
     const sendingFiles = [...files];
     if (!content && sendingFiles.length === 0) return;
@@ -1264,8 +1301,11 @@ export default function RoomPage() {
   async function kick(m: RoomMemberItem) {
     if (!window.confirm(`确认将 ${m.user.nickname} 移出房间吗？`)) return;
     setAction(`kick-${m.id}`);
-    try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "移出失败"); }
+    try {
+      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) });
+      await refresh();
+      toast.success(t("toast.memberRemoved", { name: m.user.nickname }));
+    } catch (err) { toastError(err, t("toast.memberRemoveFailed"), t); }
     finally { setAction(null); }
   }
 
@@ -1278,10 +1318,9 @@ export default function RoomPage() {
         body: JSON.stringify({}),
       });
       await refresh();
-      setHint(`已将房主身份转让给 ${m.user.nickname}`);
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(t("toast.ownerTransferred", { name: m.user.nickname }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "转让失败");
+      toastError(err, t("toast.transferFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1289,30 +1328,45 @@ export default function RoomPage() {
 
   async function review(r: PendingRequestItem, act: "approve" | "reject") {
     setAction(`${act}-${r.id}`);
-    try { await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/join-requests/${r.id}`, { method: "POST", body: JSON.stringify({ action: act }) }); await refresh(); }
-    catch (err) { setError(err instanceof Error ? err.message : "审批失败"); }
+    try {
+      await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/join-requests/${r.id}`, { method: "POST", body: JSON.stringify({ action: act }) });
+      await refresh();
+      toast.success(
+        t(act === "approve" ? "toast.approvalApproved" : "toast.approvalRejected", {
+          name: r.user.nickname,
+        }),
+      );
+    } catch (err) { toastError(err, t("toast.approvalFailed"), t); }
     finally { setAction(null); }
   }
 
   function openRoomEntry(mode: "create" | "join") {
     if (!canAddMoreRooms) {
-      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
-    setError(null);
-    setHint(null);
     setRoomEntryMode(mode);
   }
 
   async function quickCreateRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canAddMoreRooms) {
-      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
+
+    const nameError = validateRoomName(createName);
+    const gateCodeError = validateGateCode(createGateCode);
+    if (nameError || gateCodeError) {
+      setRoomEntryErrors({
+        ...(nameError ? { name: t(nameError) } : {}),
+        ...(gateCodeError ? { gateCode: t(gateCodeError) } : {}),
+      });
+      return;
+    }
+    setRoomEntryErrors({});
+
     setRoomEntrySubmitting(true);
-    setError(null);
-    setHint(null);
 
     try {
       const payload = await apiFetch<CreateResult>("/api/rooms", {
@@ -1327,7 +1381,7 @@ export default function RoomPage() {
       localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
       router.push(`/room/${payload.room.roomCode}`);
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "创建房间失败");
+      toastError(createError, t("toast.createRoomFailed"), t);
     } finally {
       setRoomEntrySubmitting(false);
     }
@@ -1336,12 +1390,22 @@ export default function RoomPage() {
   async function quickJoinRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canAddMoreRooms) {
-      setError(`已达到房间数量上限（${MAX_USER_ROOMS}）`);
+      toast.error(t("toast.roomLimit", { max: MAX_USER_ROOMS }));
       return;
     }
+
+    const roomCodeError = validateRoomCode(joinRoomCode);
+    const gateCodeError = validateGateCode(joinGateCode);
+    if (roomCodeError || gateCodeError) {
+      setRoomEntryErrors({
+        ...(roomCodeError ? { roomCode: t(roomCodeError) } : {}),
+        ...(gateCodeError ? { gateCode: t(gateCodeError) } : {}),
+      });
+      return;
+    }
+    setRoomEntryErrors({});
+
     setRoomEntrySubmitting(true);
-    setError(null);
-    setHint(null);
 
     try {
       const targetRoomCode = joinRoomCode.trim();
@@ -1354,9 +1418,8 @@ export default function RoomPage() {
       });
 
       if (payload.waitingApproval) {
-        setHint("已提交加入申请，等待房主审批。");
+        toast.info(t("toast.joinRequestSent"));
         setRoomEntryMode(null);
-        window.setTimeout(() => setHint(null), 2200);
         return;
       }
 
@@ -1366,7 +1429,7 @@ export default function RoomPage() {
         router.push(`/room/${payload.roomCode}`);
       }
     } catch (joinError) {
-      setError(joinError instanceof Error ? joinError.message : "加入房间失败");
+      toastError(joinError, t("toast.joinRoomFailed"), t);
     } finally {
       setRoomEntrySubmitting(false);
     }
@@ -1378,8 +1441,6 @@ export default function RoomPage() {
 
     setOpenRoomMenu(null);
     setAction(`leave-${target.roomCode}`);
-    setError(null);
-    setHint(null);
 
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${target.roomCode}/leave`, {
@@ -1404,10 +1465,9 @@ export default function RoomPage() {
         return;
       }
 
-      setHint(`已退出房间「${target.name}」`);
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(t("toast.leftRoom", { name: target.name }));
     } catch (leaveError) {
-      setError(leaveError instanceof Error ? leaveError.message : "退出房间失败");
+      toastError(leaveError, t("toast.leaveRoomFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1415,8 +1475,8 @@ export default function RoomPage() {
 
   async function copyLink() {
     if (!joinLink) return;
-    try { await navigator.clipboard.writeText(joinLink); setHint("当前房间加入链接已复制"); window.setTimeout(() => setHint(null), 2200); }
-    catch { setError("复制失败，请检查浏览器权限"); }
+    try { await navigator.clipboard.writeText(joinLink); toast.success(t("toast.linkCopied")); }
+    catch { toast.error(t("toast.copyFailed")); }
   }
 
   function markTextCopied(feedbackKey: string) {
@@ -1445,8 +1505,9 @@ export default function RoomPage() {
     try {
       await navigator.clipboard.writeText(content);
       markTextCopied(feedbackKey);
+      toast.success(t("toast.copied"));
     } catch {
-      setError("复制失败，请检查浏览器权限");
+      toast.error(t("toast.copyFailed"));
     }
   }
   function releaseNoticeEditorImages(items: NoticeEditorImage[]) {
@@ -1487,15 +1548,13 @@ export default function RoomPage() {
 
     const remaining = MAX_ANNOUNCEMENT_IMAGES - noticeImages.length;
     if (remaining <= 0) {
-      setHint(`公告最多上传 ${MAX_ANNOUNCEMENT_IMAGES} 张图片`);
-      window.setTimeout(() => setHint(null), 2200);
+      toast.warning(t("toast.noticeImageLimit", { max: MAX_ANNOUNCEMENT_IMAGES }));
       return;
     }
 
     const accepted = selected.slice(0, remaining);
     if (accepted.length < selected.length) {
-      setHint(`最多上传 ${MAX_ANNOUNCEMENT_IMAGES} 张，超出部分已忽略`);
-      window.setTimeout(() => setHint(null), 2200);
+      toast.info(t("toast.noticeImageTrimmed", { max: MAX_ANNOUNCEMENT_IMAGES }));
     }
 
     const addedItems = accepted.map((file, index) => ({
@@ -1533,8 +1592,7 @@ export default function RoomPage() {
       snap.announcement.text || snap.announcement.images.length > 0,
     );
     if (!hasNoticeContent) {
-      setHint("当前暂无公告");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.info(t("toast.noNotice"));
       return;
     }
     setNoticePreview(null);
@@ -1550,7 +1608,7 @@ export default function RoomPage() {
     }));
 
     if (!draftText && draftImages.length === 0) {
-      setError("公告内容与图片不能同时为空");
+      toast.warning(t("toast.noticeEmpty"));
       return;
     }
 
@@ -1591,9 +1649,8 @@ export default function RoomPage() {
       });
       closeNoticeEditor();
       await refresh();
-      setHint("公告已更新");
-      window.setTimeout(() => setHint(null), 2200);
-    } catch (err) { setError(err instanceof Error ? err.message : "公告保存失败"); }
+      toast.success(t("toast.noticeUpdated"));
+    } catch (err) { toastError(err, t("toast.noticeSaveFailed"), t); }
     finally { setAction(null); }
   }
 
@@ -1613,7 +1670,7 @@ export default function RoomPage() {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/announcement/seen`, { method: "POST", body: JSON.stringify({}) });
       setSnap((prev) => prev ? { ...prev, announcement: { ...prev.announcement, showToMe: false } } : prev);
       setShowNoticePopup(false);
-    } catch (err) { setError(err instanceof Error ? err.message : "公告已读失败"); }
+    } catch (err) { toastError(err, t("toast.noticeSeenFailed"), t); }
   }
 
   async function dissolve() {
@@ -1656,20 +1713,23 @@ export default function RoomPage() {
         router.push("/");
       }
     }
-    catch (err) { setError(err instanceof Error ? err.message : "解散失败"); }
+    catch (err) { toastError(err, t("toast.dissolveFailed"), t); }
     finally { setAction(null); }
   }
 
   async function updateRoomName() {
     if (!isOwner) return;
-    setAction("room-name");
-    setError(null);
-    try {
-      const normalized = roomNameInput.trim();
-      if (!normalized) {
-        throw new Error("房间名称不能为空");
-      }
 
+    const normalized = roomNameInput.trim();
+    const nameError = validateRoomName(normalized);
+    if (nameError) {
+      setSettingsErrors((prev) => ({ ...prev, roomName: t(nameError) }));
+      return;
+    }
+    setSettingsErrors((prev) => ({ ...prev, roomName: undefined }));
+
+    setAction("room-name");
+    try {
       const result = await apiFetch<{ name: string }>(
         `/api/rooms/${roomCode}/name`,
         {
@@ -1693,11 +1753,10 @@ export default function RoomPage() {
       );
       setRoomNameInput(result.name);
 
-      setHint("房间名称已更新");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(t("toast.roomNameUpdated"));
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "房间名称更新失败");
+      toastError(err, t("toast.roomNameUpdateFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1705,14 +1764,17 @@ export default function RoomPage() {
 
   async function updateGateCode() {
     if (!isOwner) return;
-    setAction("gate-code");
-    setError(null);
-    try {
-      const normalized = gateCodeInput.replace(/\D/g, "").slice(0, 6);
-      if (normalized.length > 0 && normalized.length !== 6) {
-        throw new Error("门禁码必须是 6 位数字，留空则表示不设置门禁码");
-      }
 
+    const normalized = gateCodeInput.replace(/\D/g, "").slice(0, 6);
+    const gateCodeError = validateGateCode(normalized);
+    if (gateCodeError) {
+      setSettingsErrors((prev) => ({ ...prev, gateCode: t(gateCodeError) }));
+      return;
+    }
+    setSettingsErrors((prev) => ({ ...prev, gateCode: undefined }));
+
+    setAction("gate-code");
+    try {
       await apiFetch<{ gateCode: string | null; hasGateCode: boolean }>(
         `/api/rooms/${roomCode}/gate-code`,
         {
@@ -1723,10 +1785,9 @@ export default function RoomPage() {
         },
       );
       await refresh();
-      setHint(normalized ? "门禁码已更新" : "已清除门禁码");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(normalized ? t("toast.gateCodeUpdated") : t("toast.gateCodeCleared"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "门禁码更新失败");
+      toastError(err, t("toast.gateCodeUpdateFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1735,7 +1796,6 @@ export default function RoomPage() {
   async function updateJoinPolicy(nextAllowJoinRequest: boolean) {
     if (!isOwner) return;
     setAction("join-policy");
-    setError(null);
     try {
       const result = await apiFetch<{ allowJoinRequest: boolean }>(
         `/api/rooms/${roomCode}/join-policy`,
@@ -1759,11 +1819,14 @@ export default function RoomPage() {
           : prev,
       );
 
-      setHint(result.allowJoinRequest ? "已允许申请加入房间" : "已拒绝申请加入房间");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(
+        result.allowJoinRequest
+          ? t("toast.joinPolicyAllowed")
+          : t("toast.joinPolicyDenied"),
+      );
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新加入策略失败");
+      toastError(err, t("toast.joinPolicyUpdateFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1772,7 +1835,6 @@ export default function RoomPage() {
   async function updateNeverExpire(nextNeverExpire: boolean) {
     if (!isOwner) return;
     setAction("never-expire");
-    setError(null);
     try {
       const result = await apiFetch<{ neverExpire: boolean }>(
         `/api/rooms/${roomCode}/never-expire`,
@@ -1796,11 +1858,12 @@ export default function RoomPage() {
           : prev,
       );
 
-      setHint(result.neverExpire ? "已开启永不过期" : "已关闭永不过期");
-      window.setTimeout(() => setHint(null), 2200);
+      toast.success(
+        result.neverExpire ? t("toast.neverExpireOn") : t("toast.neverExpireOff"),
+      );
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新永不过期失败");
+      toastError(err, t("toast.neverExpireUpdateFailed"), t);
     } finally {
       setAction(null);
     }
@@ -1808,19 +1871,35 @@ export default function RoomPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-zinc-300">
+      <main className="flex min-h-screen items-center justify-center text-ink-soft">
         <LoaderCircle className="h-6 w-6 animate-spin" />
       </main>
     );
   }
 
-  if (error && !snap) {
+  if (loadError && !snap) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-sm text-zinc-300">{error}</p>
-        <Link href="/" className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-200">
-          返回首页
-        </Link>
+        <p className="text-sm text-ink-soft" role="alert">{loadError}</p>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void refresh()
+                .catch((retryError) =>
+                  setLoadError(resolveErrorMessage(retryError, t("toast.loadFailed"), t)),
+                )
+                .finally(() => setLoading(false));
+            }}
+            className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft"
+          >
+            {t("common.retry")}
+          </button>
+          <Link href="/" className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft">
+            返回首页
+          </Link>
+        </div>
       </main>
     );
   }
@@ -1830,11 +1909,11 @@ export default function RoomPage() {
   if (snap.waitingApproval) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
-        <section className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900/90 p-8 text-center">
-          <Clock3 className="mx-auto h-8 w-8 text-zinc-300" />
-          <h1 className="mt-4 text-xl font-semibold text-zinc-100">等待房主审批</h1>
-          <p className="mt-2 text-sm text-zinc-400">你曾被移出该房间，再次加入需要房主审批。</p>
-          <Link href="/" className="mt-6 inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white">
+        <section className="w-full max-w-lg rounded-2xl border border-line bg-panel/90 p-8 text-center">
+          <Clock3 className="mx-auto h-8 w-8 text-ink-soft" />
+          <h1 className="mt-4 text-xl font-semibold text-ink">等待房主审批</h1>
+          <p className="mt-2 text-sm text-ink-muted">你曾被移出该房间，再次加入需要房主审批。</p>
+          <Link href="/" className="mt-6 inline-flex rounded-xl bg-elevated-strong px-4 py-2 text-sm text-ink">
             返回首页
           </Link>
         </section>
@@ -1871,7 +1950,7 @@ export default function RoomPage() {
     <>
       <main
         className={clsx(
-          "grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-black xl:h-[100dvh] xl:overflow-hidden",
+          "grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-canvas xl:h-[100dvh] xl:overflow-hidden",
           navVisible && membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)_290px]",
           navVisible && !membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)]",
           !navVisible && membersVisible && "xl:grid-cols-[minmax(0,1fr)_290px]",
@@ -1881,13 +1960,13 @@ export default function RoomPage() {
         <aside
           ref={roomsPanelRef}
           className={clsx(
-            "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-1 xl:max-h-none",
+            "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-1 xl:max-h-none",
             navVisible ? "flex" : "hidden",
           )}
         >
           <div className="mb-4 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/70 p-1">
+              <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-line-subtle bg-panel/70 p-1">
                 <Image
                   src="/1.png"
                   alt="Temp Bendy"
@@ -1904,8 +1983,8 @@ export default function RoomPage() {
                 />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">{t("nav.title")}</p>
-                <h2 className="truncate text-lg font-semibold text-zinc-100">{t("nav.subtitle")}</h2>
+                <p className="text-xs uppercase tracking-[0.18em] text-ink-faint">{t("nav.title")}</p>
+                <h2 className="truncate text-lg font-semibold text-ink">{t("nav.subtitle")}</h2>
               </div>
             </div>
             <Tooltip label={t("nav.collapse")}>
@@ -1914,9 +1993,9 @@ export default function RoomPage() {
               </IconButton>
             </Tooltip>
           </div>
-          <p className="mb-3 flex flex-wrap items-center gap-x-1.5 text-[11px] text-zinc-500">
+          <p className="mb-3 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-faint">
             <span>{t("nav.count", { count: roomCount, max: MAX_USER_ROOMS })}</span>
-            {!canAddMoreRooms ? <span className="text-zinc-600">· {t("nav.count.full")}</span> : null}
+            {!canAddMoreRooms ? <span className="text-ink-faint">· {t("nav.count.full")}</span> : null}
           </p>
           <div className="flex-1 space-y-4 overflow-y-auto pb-3">
             <div>
@@ -1925,11 +2004,11 @@ export default function RoomPage() {
                   type="button"
                   onClick={toggleCreatedCollapsed}
                   aria-expanded={!createdCollapsed}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-zinc-500 hover:text-zinc-300"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-ink-faint hover:text-ink-soft"
                 >
                   <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !createdCollapsed && "rotate-90")} />
                   <span className="truncate">{t("nav.group.created")}</span>
-                  <span className="ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">{rooms.created.length}</span>
+                  <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.created.length}</span>
                 </button>
                 <button
                   type="button"
@@ -1937,7 +2016,7 @@ export default function RoomPage() {
                   title={t("nav.create")}
                   onClick={() => openRoomEntry("create")}
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
@@ -1952,11 +2031,11 @@ export default function RoomPage() {
                   type="button"
                   onClick={toggleJoinedCollapsed}
                   aria-expanded={!joinedCollapsed}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-zinc-500 hover:text-zinc-300"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-xs uppercase tracking-[0.16em] text-ink-faint hover:text-ink-soft"
                 >
                   <ChevronRight className={clsx("h-3.5 w-3.5 shrink-0 transition-transform", !joinedCollapsed && "rotate-90")} />
                   <span className="truncate">{t("nav.group.joined")}</span>
-                  <span className="ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">{rooms.joined.length}</span>
+                  <span className="ml-auto rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{rooms.joined.length}</span>
                 </button>
                 <button
                   type="button"
@@ -1964,7 +2043,7 @@ export default function RoomPage() {
                   title={t("nav.join")}
                   onClick={() => openRoomEntry("join")}
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
@@ -1974,38 +2053,38 @@ export default function RoomPage() {
               ) : null}
             </div>
           </div>
-          <div className="mt-auto space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 text-xs text-zinc-400">
+          <div className="mt-auto space-y-2 rounded-xl border border-line-subtle bg-panel/70 p-3 text-xs text-ink-muted">
             <p>
-              {t("footer.version")} <span className="font-semibold text-zinc-200">{snap.app.version}</span>
+              {t("footer.version")} <span className="font-semibold text-ink-soft">{snap.app.version}</span>
             </p>
             <p>
-              {t("footer.license")} <span className="font-semibold text-zinc-200">{snap.app.openSource}</span>
+              {t("footer.license")} <span className="font-semibold text-ink-soft">{snap.app.openSource}</span>
             </p>
             <p>
-              {t("footer.roomOnline")} <span className="font-semibold text-zinc-200">{snap.stats.roomOnline}</span>
+              {t("footer.roomOnline")} <span className="font-semibold text-ink-soft">{snap.stats.roomOnline}</span>
             </p>
             <p>
-              {t("footer.totalOnline")} <span className="font-semibold text-zinc-200">{snap.stats.totalOnline}</span>
+              {t("footer.totalOnline")} <span className="font-semibold text-ink-soft">{snap.stats.totalOnline}</span>
             </p>
             <div className="pt-2">
-              <p className="text-zinc-500">{t("footer.currentUser")}</p>
+              <p className="text-ink-faint">{t("footer.currentUser")}</p>
               <div className="mt-1 flex items-center gap-2">
                 <Avatar initial={snap.me.avatarInitial} color={snap.me.avatarColor} />
-                <span className="text-sm text-zinc-200">{snap.me.nickname}</span>
+                <span className="text-sm text-ink-soft">{snap.me.nickname}</span>
               </div>
             </div>
           </div>
         </aside>
 
-        <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 xl:order-2 xl:h-full xl:min-h-0">
-          <header className="space-y-3 border-b border-zinc-800 px-3 py-3 sm:px-4">
+        <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
+          <header className="space-y-3 border-b border-line-subtle px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-xl font-semibold text-zinc-100">{snap.room.name}</h1>
-                <p className="font-mono text-xs text-zinc-500">/{snap.room.roomCode}</p>
+                <h1 className="text-xl font-semibold text-ink">{snap.room.name}</h1>
+                <p className="font-mono text-xs text-ink-faint">/{snap.room.roomCode}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center text-xs text-zinc-400">
+                <span className="inline-flex items-center text-xs text-ink-muted">
                   <Users className="mr-1 inline h-3.5 w-3.5" />
                   {t("header.members", { count: snap.members.length, max: 20 })}
                 </span>
@@ -2018,7 +2097,7 @@ export default function RoomPage() {
                 <button
                   type="button"
                   onClick={() => scrollToPanel("rooms")}
-                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
+                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
                 >
                   {t("nav.rooms")}
                 </button>
@@ -2027,7 +2106,7 @@ export default function RoomPage() {
                 <button
                   type="button"
                   onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 xl:hidden"
+                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
                 >
                   {t("members.list")}
                 </button>
@@ -2094,12 +2173,11 @@ export default function RoomPage() {
               ) : null}
             </div>
             <AdCarousel items={snap.adBoard.items} />
-            {hint ? <div className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-xs text-zinc-200">{hint}</div> : null}
           </header>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-6 text-center text-sm text-zinc-500">
+              <div className="rounded-xl border border-line-subtle bg-panel/50 px-4 py-6 text-center text-sm text-ink-faint">
                 {t("chat.empty")}
               </div>
             ) : null}
@@ -2120,9 +2198,9 @@ export default function RoomPage() {
                   createdAt={m.createdAt}
                   metaSlot={
                     isOwnMessage && deliveryState === "sent" ? (
-                      <Check className="h-3.5 w-3.5 text-zinc-300" />
+                      <Check className="h-3.5 w-3.5 text-ink-soft" />
                     ) : isOwnMessage && deliveryState === "read" ? (
-                      <CheckCheck className="h-3.5 w-3.5 text-zinc-300" />
+                      <CheckCheck className="h-3.5 w-3.5 text-ink-soft" />
                     ) : null
                   }
                   content={m.content}
@@ -2154,12 +2232,12 @@ export default function RoomPage() {
                   metaSlot={
                     message.status === "sending" ? (
                       <>
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin text-zinc-300" />
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin text-ink-soft" />
                         <span>{message.progress}%</span>
                       </>
                     ) : (
                       <>
-                        <X className="h-3.5 w-3.5 text-red-300" />
+                        <X className="h-3.5 w-3.5 text-danger" />
                         <span>{t("chat.sendFailed")}</span>
                       </>
                     )
@@ -2175,7 +2253,7 @@ export default function RoomPage() {
                   onOpenImage={openImageViewer}
                   footerSlot={
                     message.status === "failed" && message.error ? (
-                      <p className="mt-2 text-xs text-red-300">{message.error}</p>
+                      <p className="mt-2 text-xs text-danger">{message.error}</p>
                     ) : null
                   }
                 />
@@ -2184,22 +2262,22 @@ export default function RoomPage() {
             <div ref={endRef} />
           </div>
 
-          <form ref={composerFormRef} onSubmit={send} className="border-t border-zinc-800 p-3 sm:p-4">
+          <form ref={composerFormRef} onSubmit={send} className="border-t border-line-subtle p-3 sm:p-4">
             {files.length ? (
               <div className="mb-2 flex flex-wrap gap-2">
                 {files.map((file, index) => (
                   <span
                     key={`${file.name}-${file.size}-${index}`}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200"
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-line bg-panel px-2.5 py-1.5 text-xs text-ink-soft"
                   >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
                     <span className="max-w-[200px] truncate">{file.name}</span>
-                    <span className="shrink-0 text-[10px] text-zinc-500">{formatBytes(file.size)}</span>
+                    <span className="shrink-0 text-[10px] text-ink-faint">{formatBytes(file.size)}</span>
                     <button
                       type="button"
                       aria-label={t("composer.removeFile")}
                       onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
-                      className="ml-0.5 rounded-full p-0.5 text-zinc-400 transition hover:bg-zinc-700 hover:text-zinc-100"
+                      className="ml-0.5 rounded-full p-0.5 text-ink-muted transition-ui hover:bg-elevated-strong hover:text-ink"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -2208,7 +2286,7 @@ export default function RoomPage() {
               </div>
             ) : null}
 
-            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/80 p-2 transition focus-within:border-zinc-500/60 focus-within:ring-2 focus-within:ring-zinc-500/15">
+            <div className="rounded-2xl border border-line bg-panel/80 p-2 transition-ui focus-within:border-action-border focus-within:ring-2 focus-within:ring-action-soft">
               <textarea
                 value={text}
                 onChange={(e) => setText(clampMessageText(e.target.value))}
@@ -2216,11 +2294,11 @@ export default function RoomPage() {
                 onKeyDown={onComposerKeyDown}
                 maxLength={MAX_MESSAGE_TEXT_CHARS}
                 placeholder={t("composer.placeholder")}
-                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-6 text-zinc-100 outline-none placeholder:text-zinc-500"
+                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-6 text-ink outline-none placeholder:text-ink-faint"
               />
               <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 transition hover:bg-zinc-800">
+                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated">
                     <Plus className="h-3.5 w-3.5" />
                     {t("composer.attach")}
                     <input
@@ -2238,7 +2316,7 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={readClipboard}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-700 px-2.5 text-xs text-zinc-200 transition hover:bg-zinc-800"
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated"
                   >
                     <Copy className="h-3.5 w-3.5" />
                     {t("composer.clipboard")}
@@ -2249,10 +2327,10 @@ export default function RoomPage() {
                     aria-checked={enterToSend}
                     onClick={() => setEnterToSend((prev) => !prev)}
                     className={clsx(
-                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition",
+                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition-ui",
                       enterToSend
-                        ? "border-zinc-500/50 bg-zinc-500/15 text-zinc-100"
-                        : "border-zinc-700 text-zinc-300 hover:bg-zinc-800",
+                        ? "border-action-border bg-action-soft text-ink"
+                        : "border-line text-ink-soft hover:bg-elevated",
                     )}
                   >
                     <CornerDownLeft className="h-3.5 w-3.5" />
@@ -2264,10 +2342,10 @@ export default function RoomPage() {
                     className={clsx(
                       "text-[11px] tabular-nums",
                       text.length >= MAX_MESSAGE_TEXT_CHARS
-                        ? "text-red-400"
+                        ? "text-danger"
                         : text.length > MAX_MESSAGE_TEXT_CHARS * 0.9
-                          ? "text-amber-400"
-                          : "text-zinc-500",
+                          ? "text-warning"
+                          : "text-ink-faint",
                     )}
                   >
                     {text.length}/{MAX_MESSAGE_TEXT_CHARS}
@@ -2289,13 +2367,13 @@ export default function RoomPage() {
         <aside
           ref={membersPanelRef}
           className={clsx(
-            "order-3 min-h-0 max-h-[56vh] flex-col rounded-none border border-zinc-900 bg-zinc-950 p-4 xl:order-3 xl:max-h-none",
+            "order-3 min-h-0 max-h-[56vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-3 xl:max-h-none",
             membersVisible ? "flex" : "hidden",
           )}
         >
             <div className="mb-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                <p className="text-xs uppercase tracking-[0.16em] text-ink-faint">
                   {isOwner ? t("members.manage") : t("members.list")}
                 </p>
                 <Tooltip label={t("members.collapse")}>
@@ -2338,16 +2416,16 @@ export default function RoomPage() {
 
             {memberPanelTab === "members" || !isOwner ? (
               <div className="flex min-h-0 flex-1 flex-col">
-                <h2 className="mb-2 text-lg font-semibold text-zinc-100">{t("members.count", { count: snap.members.length })}</h2>
+                <h2 className="mb-2 text-lg font-semibold text-ink">{t("members.count", { count: snap.members.length })}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.members.map((m) => (
-                    <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2">
+                    <div key={m.id} className="rounded-lg border border-line-subtle bg-panel/70 px-3 py-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
                           <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
                           <div className="min-w-0">
-                            <p className="truncate text-sm text-zinc-200">{m.user.nickname}</p>
-                            <p className="text-xs text-zinc-500">
+                            <p className="truncate text-sm text-ink-soft">{m.user.nickname}</p>
+                            <p className="text-xs text-ink-faint">
                               {m.role === "OWNER" ? t("members.role.owner") : t("members.role.member")} · {m.joinedAt ? fmt(m.joinedAt) : "--"}
                             </p>
                           </div>
@@ -2363,12 +2441,12 @@ export default function RoomPage() {
                               aria-haspopup="menu"
                               aria-expanded={openMemberMenuId === m.id}
                               onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-500/40 text-zinc-300 hover:bg-zinc-800"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-action-border text-ink-soft hover:bg-elevated"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
                             {openMemberMenuId === m.id ? (
-                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl">
+                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-line bg-panel p-1.5 shadow-lg">
                                 <button
                                   type="button"
                                   role="menuitem"
@@ -2377,7 +2455,7 @@ export default function RoomPage() {
                                     void transferOwner(m);
                                   }}
                                   disabled={action === `transfer-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
                                   <Crown className="h-3 w-3" /> 房主转让
                                 </button>
@@ -2389,7 +2467,7 @@ export default function RoomPage() {
                                     void kick(m);
                                   }}
                                   disabled={action === `kick-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
                                   <UserMinus className="h-3 w-3" /> 移除房间
                                 </button>
@@ -2406,20 +2484,20 @@ export default function RoomPage() {
 
             {isOwner && memberPanelTab === "approvals" ? (
               <div className="flex min-h-0 flex-1 flex-col">
-                <h2 className="mb-2 text-lg font-semibold text-zinc-100">{t("approvals.title")}</h2>
+                <h2 className="mb-2 text-lg font-semibold text-ink">{t("approvals.title")}</h2>
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.pendingRequests.length === 0 ? (
-                    <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-500">
+                    <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">
                       {t("approvals.empty")}
                     </p>
                   ) : (
                     snap.pendingRequests.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                      <div key={r.id} className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
                         <div className="mb-2 flex items-center gap-2">
                           <Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" />
                           <div>
-                            <p className="text-sm text-zinc-200">{r.user.nickname}</p>
-                            <p className="text-[11px] text-zinc-500">{fmt(r.createdAt)}</p>
+                            <p className="text-sm text-ink-soft">{r.user.nickname}</p>
+                            <p className="text-[11px] text-ink-faint">{fmt(r.createdAt)}</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -2427,7 +2505,7 @@ export default function RoomPage() {
                             type="button"
                             onClick={() => review(r, "approve")}
                             disabled={action === `approve-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                            className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
                           >
                             <Check className="h-3 w-3" /> {t("approvals.approve")}
                           </button>
@@ -2435,7 +2513,7 @@ export default function RoomPage() {
                             type="button"
                             onClick={() => review(r, "reject")}
                             disabled={action === `reject-${r.id}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-zinc-500/40 px-2 py-1 text-xs text-zinc-300 disabled:opacity-60"
+                            className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
                           >
                             <X className="h-3 w-3" /> {t("approvals.reject")}
                           </button>
@@ -2455,57 +2533,73 @@ export default function RoomPage() {
                 closeLabel={t("common.close")}
               >
                 <div className="space-y-3">
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
-                    <p className="text-xs font-medium text-zinc-200">{t("settings.roomName")}</p>
+                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
+                    <p className="text-xs font-medium text-ink-soft">{t("settings.roomName")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={roomNameInput}
-                        onChange={(e) => setRoomNameInput(e.target.value.slice(0, 48))}
+                        onChange={(e) => {
+                          setRoomNameInput(e.target.value.slice(0, 48));
+                          if (settingsErrors.roomName) {
+                            setSettingsErrors((prev) => ({ ...prev, roomName: undefined }));
+                          }
+                        }}
                         placeholder={t("settings.roomName.placeholder")}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
+                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                        aria-invalid={settingsErrors.roomName ? true : undefined}
+                        aria-describedby={settingsErrors.roomName ? "settings-room-name-error" : undefined}
                       />
                       <button
                         type="button"
                         onClick={updateRoomName}
                         disabled={action === "room-name"}
-                        className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
+                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
                       >
                         {action === "room-name" ? t("settings.saving") : t("settings.save")}
                       </button>
                     </div>
+                    <FieldError id="settings-room-name-error" message={settingsErrors.roomName} />
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
-                    <p className="text-xs font-medium text-zinc-200">{t("settings.gateCode")}</p>
+                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
+                    <p className="text-xs font-medium text-ink-soft">{t("settings.gateCode")}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={gateCodeInput}
-                        onChange={(e) => setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        onChange={(e) => {
+                          setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
+                          if (settingsErrors.gateCode) {
+                            setSettingsErrors((prev) => ({ ...prev, gateCode: undefined }));
+                          }
+                        }}
                         placeholder={t("settings.gateCode.placeholder")}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-100 outline-none"
+                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                        aria-invalid={settingsErrors.gateCode ? true : undefined}
+                        aria-describedby={settingsErrors.gateCode ? "settings-gate-code-error" : undefined}
                       />
                       <button
                         type="button"
                         onClick={updateGateCode}
                         disabled={action === "gate-code"}
-                        className="shrink-0 rounded-lg bg-zinc-700 px-2.5 py-1.5 text-xs text-white disabled:opacity-60"
+                        className="shrink-0 rounded-lg bg-elevated-strong px-2.5 py-1.5 text-xs text-ink disabled:opacity-60"
                       >
                         {action === "gate-code" ? t("settings.saving") : t("settings.save")}
                       </button>
                     </div>
-                    <p className="mt-2 text-[11px] text-zinc-500">
+                    <FieldError id="settings-gate-code-error" message={settingsErrors.gateCode} />
+                    <p className="mt-2 text-[11px] text-ink-faint">
                       {t("settings.gateCode.current", {
                         code: snap.room.gateCode ?? t("settings.gateCode.unset"),
                       })}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium text-zinc-200">{t("settings.joinPolicy")}</p>
-                        <p className="text-[11px] text-zinc-500">{t("settings.joinPolicy.hint")}</p>
+                        <p className="text-xs font-medium text-ink-soft">{t("settings.joinPolicy")}</p>
+                        <p className="text-[11px] text-ink-faint">{t("settings.joinPolicy.hint")}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-zinc-400">
+                        <span className="text-[11px] text-ink-muted">
                           {snap.room.allowJoinRequest ? t("settings.joinPolicy.allow") : t("settings.joinPolicy.deny")}
                         </span>
                         <SwitchBtn
@@ -2518,14 +2612,14 @@ export default function RoomPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2.5">
+                  <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-medium text-zinc-200">{t("settings.expiry")}</p>
-                        <p className="text-[11px] text-zinc-500">{t("settings.expiry.hint")}</p>
+                        <p className="text-xs font-medium text-ink-soft">{t("settings.expiry")}</p>
+                        <p className="text-[11px] text-ink-faint">{t("settings.expiry.hint")}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-zinc-400">
+                        <span className="text-[11px] text-ink-muted">
                           {snap.room.neverExpire ? t("settings.expiry.on") : t("settings.expiry.off")}
                         </span>
                         <SwitchBtn
@@ -2542,7 +2636,6 @@ export default function RoomPage() {
               </Popover>
             ) : null}
 
-            {error ? <p className="mt-3 text-xs text-zinc-300">{error}</p> : null}
         </aside>
       </main>
 
@@ -2551,7 +2644,7 @@ export default function RoomPage() {
           <div
             ref={floatingRoomMenuRef}
             role="menu"
-            className="fixed z-[90] w-24 rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-2xl"
+            className="fixed z-[90] w-24 rounded-md border border-line bg-panel p-1 shadow-lg"
             style={{ top: `${openRoomMenu.top}px`, left: `${openRoomMenu.left}px` }}
           >
             <button
@@ -2561,7 +2654,7 @@ export default function RoomPage() {
                 void leaveRoom(openRoomMenu.room);
               }}
               disabled={action === `leave-${openRoomMenu.room.roomCode}`}
-              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-60"
+              className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
             >
               退出房间
             </button>
@@ -2571,92 +2664,120 @@ export default function RoomPage() {
         : null}
 
       {roomEntryMode ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4">
+          <section className="w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-semibold text-zinc-100">
+                <h3 className="text-base font-semibold text-ink">
                   {roomEntryMode === "create" ? "创建房间" : "加入房间"}
                 </h3>
-                <p className="mt-1 text-[11px] text-zinc-500">
+                <p className="mt-1 text-[11px] text-ink-faint">
                   当前已加入/创建房间数：{roomCount}/{MAX_USER_ROOMS}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setRoomEntryMode(null)}
-                className="rounded-md border border-zinc-700 p-1 text-zinc-300 hover:bg-zinc-800"
+                className="rounded-md border border-line p-1 text-ink-soft hover:bg-elevated"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {roomEntryMode === "create" ? (
-              <form className="space-y-3" onSubmit={quickCreateRoom}>
+              <form className="space-y-3" onSubmit={quickCreateRoom} noValidate>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">房间名称</span>
+                  <span className="text-xs text-ink-muted">房间名称</span>
                   <input
-                    required
                     value={createName}
-                    onChange={(event) => setCreateName(event.target.value)}
+                    onChange={(event) => {
+                      setCreateName(event.target.value);
+                      if (roomEntryErrors.name) {
+                        setRoomEntryErrors((prev) => ({ ...prev, name: undefined }));
+                      }
+                    }}
                     placeholder="输入房间名"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    aria-invalid={roomEntryErrors.name ? true : undefined}
+                    aria-describedby={roomEntryErrors.name ? "room-entry-create-name-error" : undefined}
                   />
+                  <FieldError id="room-entry-create-name-error" message={roomEntryErrors.name} />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">门禁码（可选，6位数字）</span>
+                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
                   <input
                     value={createGateCode}
-                    onChange={(event) =>
-                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
+                    onChange={(event) => {
+                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      if (roomEntryErrors.gateCode) {
+                        setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
+                      }
+                    }}
                     placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    aria-invalid={roomEntryErrors.gateCode ? true : undefined}
+                    aria-describedby={roomEntryErrors.gateCode ? "room-entry-create-gate-code-error" : undefined}
                   />
+                  <FieldError id="room-entry-create-gate-code-error" message={roomEntryErrors.gateCode} />
                 </label>
                 <button
                   type="submit"
                   disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   创建并进入
                 </button>
               </form>
             ) : (
-              <form className="space-y-3" onSubmit={quickJoinRoom}>
+              <form className="space-y-3" onSubmit={quickJoinRoom} noValidate>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">房间号（URL 随机码）</span>
+                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
                   <input
-                    required
                     value={joinRoomCode}
-                    onChange={(event) => setJoinRoomCode(event.target.value.trim())}
+                    onChange={(event) => {
+                      setJoinRoomCode(event.target.value.trim());
+                      if (roomEntryErrors.roomCode) {
+                        setRoomEntryErrors((prev) => ({ ...prev, roomCode: undefined }));
+                      }
+                    }}
                     placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    aria-invalid={roomEntryErrors.roomCode ? true : undefined}
+                    aria-describedby={roomEntryErrors.roomCode ? "room-entry-join-room-code-error" : undefined}
                   />
+                  <FieldError id="room-entry-join-room-code-error" message={roomEntryErrors.roomCode} />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">门禁码（可选，6位数字）</span>
+                  <span className="text-xs text-ink-muted">门禁码（可选，6位数字）</span>
                   <input
                     value={joinGateCode}
-                    onChange={(event) => setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                    onChange={(event) => {
+                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                      if (roomEntryErrors.gateCode) {
+                        setRoomEntryErrors((prev) => ({ ...prev, gateCode: undefined }));
+                      }
+                    }}
                     placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    aria-invalid={roomEntryErrors.gateCode ? true : undefined}
+                    aria-describedby={roomEntryErrors.gateCode ? "room-entry-join-gate-code-error" : undefined}
                   />
+                  <FieldError id="room-entry-join-gate-code-error" message={roomEntryErrors.gateCode} />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-xs text-zinc-400">邀请 Token（可选）</span>
+                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
                   <input
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
                     placeholder="有邀请链接时填入"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none ring-zinc-500/30 transition focus:ring"
+                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
                   />
                 </label>
                 <button
                   type="submit"
                   disabled={roomEntrySubmitting || !canAddMoreRooms}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   加入房间
@@ -2668,39 +2789,39 @@ export default function RoomPage() {
       ) : null}
 
       {showQr ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-950 p-5">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
+          <section className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-zinc-100">房间二维码</h3>
+              <h3 className="text-base font-semibold text-ink">房间二维码</h3>
               <button
                 type="button"
                 onClick={() => setShowQr(false)}
-                className="rounded-md border border-zinc-700 p-1 text-zinc-300"
+                className="rounded-md border border-line p-1 text-ink-soft"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-zinc-700 bg-white p-2" />
+              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
             ) : (
               <div className="flex h-64 items-center justify-center">
-                <LoaderCircle className="h-5 w-5 animate-spin text-zinc-400" />
+                <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
               </div>
             )}
-            <p className="mt-3 break-all text-xs text-zinc-400">{joinLink}</p>
+            <p className="mt-3 break-all text-xs text-ink-muted">{joinLink}</p>
           </section>
         </div>
       ) : null}
 
       {showNoticeEditor ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-950 p-5">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
+          <section className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-zinc-100">配置公告</h3>
+              <h3 className="text-base font-semibold text-ink">配置公告</h3>
               <button
                 type="button"
                 onClick={closeNoticeEditor}
-                className="rounded-md border border-zinc-700 p-1 text-zinc-300"
+                className="rounded-md border border-line p-1 text-ink-soft"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2710,7 +2831,7 @@ export default function RoomPage() {
               value={noticeText}
               onChange={(e) => setNoticeText(e.target.value)}
               placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none"
+              className="min-h-[120px] w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none"
             />
 
             <input
@@ -2730,7 +2851,7 @@ export default function RoomPage() {
                 {noticeImages.map((image) => (
                   <div
                     key={image.id}
-                    className="group relative h-24 w-24 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900"
+                    className="group relative h-24 w-24 overflow-hidden rounded-xl border border-line bg-panel"
                   >
                     <button
                       type="button"
@@ -2747,7 +2868,7 @@ export default function RoomPage() {
                     <button
                       type="button"
                       onClick={() => removeNoticeImage(image.id)}
-                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 bg-black/80 text-zinc-200 opacity-100 transition hover:bg-zinc-800 group-hover:opacity-100"
+                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-overlay-strong text-ink-soft opacity-100 transition-ui hover:bg-elevated group-hover:opacity-100"
                       title="删除图片"
                     >
                       <X className="h-3 w-3" />
@@ -2759,14 +2880,14 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={() => noticeImageInputRef.current?.click()}
-                    className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-600 bg-zinc-900/70 px-2 text-center text-[11px] text-zinc-300 hover:bg-zinc-800"
+                    className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-panel/70 px-2 text-center text-[11px] text-ink-soft hover:bg-elevated"
                   >
                     <Plus className="mb-1 h-4 w-4" />
                     上传公告图片
                   </button>
                 ) : null}
               </div>
-              <p className="mt-2 text-[11px] text-zinc-500">
+              <p className="mt-2 text-[11px] text-ink-faint">
                 最多上传 {MAX_ANNOUNCEMENT_IMAGES} 张图片
               </p>
             </div>
@@ -2775,14 +2896,14 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={closeNoticeEditor}
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300"
+                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft"
               >
                 取消
               </button>
               <button
                 type="button"
                 onClick={previewNoticeDraft}
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-800"
+                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-soft hover:bg-elevated"
               >
                 预览
               </button>
@@ -2790,7 +2911,7 @@ export default function RoomPage() {
                 type="button"
                 onClick={saveNotice}
                 disabled={action === "notice"}
-                className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink disabled:opacity-60"
               >
                 {action === "notice" ? "保存中..." : "保存公告"}
               </button>
@@ -2801,14 +2922,14 @@ export default function RoomPage() {
       ) : null}
 
       {showNoticePopup ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-zinc-400/50 bg-zinc-950 p-5">
-            <div className="mb-3 flex items-center gap-2 text-zinc-300">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
+          <section className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
+            <div className="mb-3 flex items-center gap-2 text-ink-soft">
               <Megaphone className="h-5 w-5" />
               <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
             </div>
             {noticePopupContent.text ? (
-              <p className="whitespace-pre-wrap text-sm leading-6 text-zinc-100">{noticePopupContent.text}</p>
+              <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{noticePopupContent.text}</p>
             ) : null}
             {noticePopupContent.images.length > 0 ? (
               <div
@@ -2822,7 +2943,7 @@ export default function RoomPage() {
                     key={`${image.imageUrl}-${index}`}
                     type="button"
                     onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
-                    className="overflow-hidden rounded-lg border border-zinc-700 bg-black"
+                    className="overflow-hidden rounded-lg border border-line bg-media"
                   >
                     <img
                       src={image.imageUrl}
@@ -2837,7 +2958,7 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={closeNoticePopup}
-                className="rounded-lg bg-zinc-700 px-3 py-1.5 text-sm text-white"
+                className="rounded-lg bg-elevated-strong px-3 py-1.5 text-sm text-ink"
               >
                 {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
               </button>
@@ -2848,7 +2969,7 @@ export default function RoomPage() {
 
       {imageViewer ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4"
           onClick={() => setImageViewer(null)}
         >
           <section
@@ -2856,11 +2977,11 @@ export default function RoomPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-xs text-zinc-300">{imageViewer.fileName}</p>
+              <p className="truncate text-xs text-ink-soft">{imageViewer.fileName}</p>
               <button
                 type="button"
                 onClick={() => setImageViewer(null)}
-                className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-800"
+                className="rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated"
               >
                 关闭
               </button>
@@ -2868,7 +2989,7 @@ export default function RoomPage() {
             <img
               src={imageViewer.url}
               alt={imageViewer.fileName}
-              className="max-h-[80vh] w-full rounded-lg border border-zinc-700 bg-black object-contain"
+              className="max-h-[80vh] w-full rounded-lg border border-line bg-media object-contain"
             />
           </section>
         </div>

@@ -1,12 +1,22 @@
 "use client";
 
 import clsx from "clsx";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
 // 轻量弹层面板：portal 渲染到 body（规避祖先 overflow 裁剪），
-// 半透明背景遮罩 + 居中卡片，点击遮罩或按 Esc 关闭。主题感知（.popover-panel）。
+// 半透明背景遮罩 + 居中卡片，点击遮罩或按 Esc 关闭；打开时锁定滚动、
+// 聚焦面板并圈定 Tab 焦点，关闭后归还焦点。主题感知（.popover-panel）。
 export function Popover({
   open,
   onClose,
@@ -22,32 +32,90 @@ export function Popover({
   closeLabel?: string;
   className?: string;
 }) {
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+    const panel = panelRef.current;
+    const previous =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    const previousPaddingRight = body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
+    panel?.focus();
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      body.style.paddingRight = previousPaddingRight;
+      previous?.focus();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !panelRef.current) return;
+
+      const panel = panelRef.current;
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (document.activeElement === panel) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-[12vh] backdrop-blur-sm"
+      className="popover-backdrop fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto px-4 py-[12vh]"
       onMouseDown={onClose}
       role="presentation"
     >
       <div
-        className={clsx("popover-panel w-full max-w-sm p-4", className)}
-        onMouseDown={(e) => e.stopPropagation()}
+        ref={panelRef}
+        className={clsx("popover-panel popover-panel--in w-full max-w-sm p-4", className)}
+        onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : closeLabel}
+        tabIndex={-1}
       >
         {title ? (
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-[color:var(--text-primary)]">{title}</h3>
+            <h3 id={titleId} className="text-sm font-semibold text-ink">{title}</h3>
             <button
               type="button"
               onClick={onClose}

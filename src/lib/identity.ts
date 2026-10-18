@@ -11,8 +11,8 @@ const colorPool = [
   "#27272a",
   "#404040",
   "#737373",
-  "#6b7280",
-  "#4b5563",
+  "#6b6b73",
+  "#4b4b52",
 ];
 
 const adjectivePool = [

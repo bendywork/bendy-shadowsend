@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
+
+### Scope
+- Route every action result through the global Toast system and every field-level validation error through inline errors below the control; remove the remaining ad-hoc error bars/text and raw `error.message` toasts.
+- Unify error copy: network failures collapse to one localized message, 4xx business messages stay readable, 5xx/parse/generic failures use the caller's localized fallback.
+- Bump app version to `0.1.68`.
+
+### Changes
+- `src/lib/client.ts`: added `ApiRequestError` with `status` and backend `code`; network/read failures use `NETWORK_ERROR`, parse failures `INVALID_RESPONSE`, non-OK responses carry `HTTP_<status>` or the backend code.
+- `src/lib/feedback.ts` (new): `isNetworkError` / `resolveErrorMessage` / `toastError`; hides URLs, HTTP methods and parser details, preserves user-readable backend messages, and emits exactly one deduped error toast.
+- `src/lib/form-validation.ts` (new): shared `validateRoomName` / `validateGateCode` / `validateRoomCode` returning i18n keys; constants for 48-char room names, 4–64-char room codes and 6-digit gate codes.
+- `src/components/ui/field-error.tsx` (new): inline `role="alert"` error node paired with `aria-invalid` + `aria-describedby`.
+- `src/app/page.tsx`: bootstrap/invite/create/join feedback moved to Toast; join and create forms use `noValidate` plus inline validation with error clearing on edit; removed the `error`/`info` bars.
+- `src/app/room/[roomCode]/page.tsx`: initial load failure is a page-level error with a retry button; poll/sync/upload/send/member/approval/leave/announcement/dissolve/settings failures all go through `toastError` with localized fallbacks; room entry dialog and settings panel use the shared validators and inline errors; removed the remaining raw `error.message` toasts and the aside error line.
+- `src/app/globals.css`: `input/textarea[aria-invalid="true"]` danger border and focus ring; `.field-error` uses `--ds-danger` at 12px/18px.
+- `src/lib/i18n/messages.ts`: added zh/en keys for init/load/poll/sync/create/join/send/upload/member/transfer/approval/leave/notice/dissolve/settings/clipboard/invite failures, form validation, and `common.retry` (compile-time parity check enforced).
+- `vitest.config.ts`: added the `@/*` alias so unit tests can import source modules by path.
+- `docs/design-system-feedback.md` (new): feedback routing matrix, error layering, inline validation contract, coverage and acceptance checklist; `docs/design-system-notifications.md` links to it.
+
+### Regression Checklist
+- `npm test` green: 24/24 tests (toast store, feedback resolver, field validators).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.68`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.67 发布 Tag 规范（REQ-202610-1374）
 
 ### Scope
@@ -27,6 +56,66 @@
 ### Versioning / History
 - Updated `package.json` and `APP_VERSION` (constants) to `0.1.67`.
 - Feature commit `73258ff`; added this entry to `MAINTAIN.md` and README 更新记录.
+
+## 2026-10-18: v0.1.66 提示体系（Tooltip / Popover / Toast，REQ-202610-0469 / ui-06）
+
+### Scope
+- Unify transient feedback across the product: tooltip hover delay, popover interaction contract, and a new global toast system for copy / success / error / network feedback.
+- Remove ad-hoc `hint` bars and `alert()` calls from the room page; every action result now goes through one toast contract.
+- Bump app version to `0.1.66`.
+
+### Changes
+- `src/lib/toast-store.ts` (new): framework-free singleton store with `useSyncExternalStore` subscription, variant durations (`success` 2400ms / `info` 3000ms / `warning` 3600ms / `error` 4800ms), max 3 visible, and dedupe by `variant + message` with a revision bump to restart the timer.
+- `src/components/ui/toast.tsx` (new): `ToastProvider` mounted in `src/app/layout.tsx`; variant icons, hover pause, close button, `role="alert"/"status"` with matching `aria-live`, `aria-atomic`.
+- `src/components/ui/tooltip.tsx`: shared `TOOLTIP_DELAY_MS = 500` and `TOOLTIP_HIDE_DELAY_MS = 120`; keyboard focus shows immediately, `Escape` closes, `aria-describedby` injection and `role="tooltip"` retained.
+- `src/components/ui/popover.tsx`: dialog semantics (`role="dialog"`, `aria-modal`, labelled by title), scroll lock with scrollbar compensation, focus move + Tab trap, focus restore on close, backdrop click / `Escape` close.
+- `src/app/globals.css`: added `.toast-viewport` / `.toast-card` variant styles, `.popover-backdrop`, `popover-in` / `toast-in` keyframes (transform/opacity only), wider wrapping `.tooltip-bubble`; `prefers-reduced-motion` disables all three animations.
+- `src/app/room/[roomCode]/page.tsx`: replaced `hint` state and `alert()` with `toast.success/info/warning/error` for copy link/message, download failure, kick/transfer/review, room limit, join request, leave room, announcement CRUD/images, room name, gate code, join policy and never-expire.
+- `src/lib/i18n/messages.ts`: added 25 `toast.*` keys in zh + en (parity check enforced).
+- `docs/design-system-notifications.md` (new): selection rules, timings, usage, accessibility and acceptance checklist.
+- `vitest.config.ts` + `src/lib/toast-store.test.ts` (new): 8 unit tests covering defaults, dedupe, variant isolation, max visible, dismiss/clear, subscribe lifecycle, blank messages and explicit overrides.
+- `package.json`: added `"test": "vitest run"` and `vitest@^3.2.7` dev dependency; version synced to `0.1.66` via `scripts/sync-version.js`.
+
+### Regression Checklist
+- `npm test` green: 8/8 tests.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1, 12 static pages).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.66`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
+## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
+
+### Scope
+- Rebuild the design-token foundation for the UI revamp: a 10-step neutral gray primitive ramp, semantic surface/line/ink/action tokens, radius, spacing, elevation, motion duration/easing, and semantic status colors (success/warning/danger).
+- Remove the 9 groups of light-theme `!important` overrides and the `--color-zinc-*` inversion hacks. Both themes now share one semantic contract and only swap the primitive ramp.
+- Apply decision dc-02: monochrome accent only; primary buttons are inverted (dark = light surface + dark ink, light = dark surface + light ink).
+- Bump app version to `0.1.65`.
+
+### Changes
+- `src/app/globals.css`:
+  - Added `--ds-gray-0` … `--ds-gray-9` primitive ramp plus semantic tokens: `--ds-surface-*`, `--ds-line-*`, `--ds-ink-*`, `--ds-action-*`, `--ds-success/warning/danger-*`.
+  - Added radius (`--ds-radius-*`), 4px-rhythm spacing (`--ds-space-*`), elevation (`--ds-shadow-*`), motion (`--ds-duration-*` / `--ds-ease-*`), overlay/media/QR/avatar tokens.
+  - Mapped all tokens through `@theme inline` so utilities such as `bg-panel`, `text-ink-muted`, `border-line`, `shadow-md`, `duration-base` resolve to CSS variables.
+  - Rebuilt component helpers (`.surface-card`, `.field`, `.btn-primary/secondary/ghost/danger`, `.segmented`, `.icon-btn`, `.menu-*`, `.notice-*`, `.chip`, `.tooltip-bubble`) to consume semantic tokens only.
+  - Removed every `!important`; light theme no longer re-declares utilities or colors.
+- `src/app/page.tsx`, `src/app/room/[roomCode]/page.tsx`, `src/components/chat/avatar.tsx`, `src/components/ui/popover.tsx`: migrated all legacy `zinc`/`black`/`white`/`red`/`amber`/`emerald` utilities to semantic tokens (210+ occurrences).
+- `src/app/room/[roomCode]/page.tsx`: QR code colors now read `--ds-qr-dark` / `--ds-qr-light` from computed styles instead of hardcoded hex.
+- `src/lib/ad-board.ts`: default ad text color is now empty (= inherit `--ds-ink-soft`) instead of a hardcoded gray; only valid hex overrides remain supported.
+- `src/lib/identity.ts`: avatar color pool neutralized (`#6b7280`/`#4b5563` → `#6b6b73`/`#4b4b52`), no blue-gray values left.
+- `package.json` / `src/lib/constants.ts`: version synced to `0.1.65` via `scripts/sync-version.js`.
+
+### Regression Checklist
+- `npm run lint` green.
+- `npm run build` green (Next.js 16.2.1, 12 static pages).
+- Playwright dual-theme check on `/`: `data-theme` switches correctly; primary button is `rgb(245,245,247)` on `rgb(8,8,10)` in dark and `rgb(17,17,19)` on white in light; surfaces/ink/borders all change with the ramp; no legacy blue accent (`rgb(10,132,255)` / `rgb(0,113,227)`) and no horizontal overflow at 1440px or 390px.
+- Local API 500s during the check are due to no database in the verification environment; rendering and token assertions are unaffected.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.65`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
 
 ## 2026-10-13: v0.1.64 决策回写（7 项决策结论同步路线图与需求卡，REQ-202610-0463）
 
