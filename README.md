@@ -366,6 +366,11 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-18
+
+- `0.1.67` 发布 tag 规范（REQ-202610-1374）：新增 `docs/release-tagging.md` 与 `scripts/release-tag.mjs`/测试，强制每次发布推送同步发布 `-ver` tag（正常 `<version>-ver`、修复 `<version>-fix-<次数>-ver`）；`package.json` / `src/lib/constants.ts` 版本同步至 `0.1.67`（无运行时行为变更）。
+- `本次迭代` `AGENTS.md` 增加发布 tag 强制规范；`README.md` 版本号管理补充发布 tag 流程；`package.json` 新增 `release:tag` / `test:release-tag` 脚本。
+
 ### 2026-10-13
 
 - `0.1.64` 决策回写（REQ-202610-0463）：7 项决策结论（dc-01 ~ dc-07）同步至路线图与平台需求卡——更新 15 张、关闭 7 张决策卡、新增 6 张（REQ-202610-0747 ~ REQ-202610-0752）；UI 清单 46 → 49 条、上传清单 9 → 12 条；实施顺序定为「先上传后 UI」。
@@ -487,3 +492,23 @@ grep "version" package.json src/lib/constants.ts
 - `package.json` 是 npm 包管理的标准位置
 - `src/lib/constants.ts` 是运行时读取版本号的位置
 - 同步脚本确保两处始终保持一致，避免手动修改出错
+
+### 发布 Tag（强制）
+
+每次发布推送（合并 `master` 触发 Vercel 部署）都必须发布对应 tag；本项目所有 tag 一律以 `-ver` 结尾。
+
+- 正常版本：`<version>-ver`，例如 `0.1.1640-ver`
+- 修复版本：`<version>-fix-<次数>-ver`，例如 `0.1.164-fix-210-ver`
+
+```bash
+# 正常发布
+npm run release:tag
+
+# 修复发布（次数可省略，脚本自动取下一个序号）
+npm run release:tag -- --fix 210
+
+# 校验 HEAD 是否已有发布 tag
+npm run release:tag -- --check
+```
+
+详细规范与参数见 `docs/release-tagging.md`。
