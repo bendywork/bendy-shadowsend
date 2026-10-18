@@ -146,6 +146,8 @@
 - Chrome DevTools 设备模拟只用于开发自测与 PR 冒烟，不能替代真机结论。
 - 真机验收需记录：设备型号、OS 版本、浏览器版本、网络（Wi-Fi / 4G / 5G）、截图或录屏。
 - 核心流程必须全部跑通：创建房间 → 邀请 → 加入 → 发文本 / 图片 / 文件 → 接收 / 下载 → 退出 / 解散；任一环节失败即 P0。
+- 自动化辅助：`npm run smoke:mobile` 在 Chromium 移动模拟器验证四条 P0 流程，
+  `npm run perf:mobile` 采集性能基线；执行细节与记录模板见 [`docs/mobile-acceptance.md`](./mobile-acceptance.md)。
 
 ### 7.2 移动端性能基线
 
@@ -160,7 +162,22 @@
 | 首屏 JS（gzip） | 记录并对比上一基线 | 不得无理由增长 > 10% |
 | 长任务 | 首屏无 > 200ms 长任务 | Performance 面板 |
 
+ui-48 已把上述口径落为可执行基线：
+
+```bash
+npm run build && npm start -- -p 3000
+npm run perf:mobile -- --base-url http://127.0.0.1:3000 --version <version>
+npm run smoke:mobile -- --base-url http://127.0.0.1:3000 --version <version>
+```
+
+- 矩阵：2 档位（常规 / CPU 4× + Slow 4G）× 2 页面 × 3 次取中位数。
+- 新增滚动专项：消息列表滚动帧间隔 p95 ≤ 50ms、丢帧率（> 33.3ms）≤ 10%。
+- 结果写入 `docs/visual-baseline/performance/<version>/manifest.json` 与 `smoke.json`；
+  字段、命令与真机记录模板见 [`docs/mobile-acceptance.md`](./mobile-acceptance.md)。
+
 性能基线随版本记录；超过阈值或较上一基线回退 > 20% 时，需在验收记录中说明原因并由负责人签字。
+`0.1.69` 首次基线中 `mobile-standard` 全部通过，`mobile-low-end` 仍有首屏长任务与长列表滚动性能债，
+详见 [`docs/visual-baseline/performance/README.md`](./visual-baseline/performance/README.md)；该记录作为优化起点，不降低阈值。
 
 ## 8. 截图基线
 
@@ -294,7 +311,8 @@ npm run visual:baseline -- --base-url http://127.0.0.1:3000 \
 | 双主题 | PASS | 截图 / 录屏 |
 | 三断点 | PASS | 截图 / 录屏 |
 | 真机矩阵 | PASS | 设备记录 |
-| 性能基线 | PASS | Lighthouse 报告 |
+| 移动端冒烟 | PASS | `docs/visual-baseline/performance/<version>/smoke.json` |
+| 性能基线 | PASS | `docs/visual-baseline/performance/<version>/manifest.json` |
 
 阻塞项：
 - <无 / 列表>

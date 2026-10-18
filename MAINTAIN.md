@@ -3,6 +3,40 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 移动端验收与性能基线（REQ-202610-0748 / ui-48）
+
+### Scope
+- 在 ui-46 视觉基线基础上补齐三平台验收矩阵、四条 P0 核心流程冒烟、移动端性能采集与版本基线记录。
+- Docs/tooling-only iteration — no runtime UI behavior change.
+
+### Changes
+- `docs/mobile-acceptance.md` (new): iOS / Android / 平板 / 桌面 / 低端机矩阵，加入 / 聊天 / 上传 / 抽屉四条 P0 流程，性能测量协议与阈值，真机记录模板，P0/P1/P2 分级与已知限制。
+- `docs/visual-baseline/performance/README.md` / `manifest.template.json` (new): 性能与冒烟目录、采集命令、manifest 字段、评审更新流程；`0.1.69` 基线结论与低端机性能债说明。
+- `scripts/mobile-acceptance-lib.mjs` (new): 视口、档位、页面、预算、冒烟流程常量，`buildPerfPlan`、`aggregateRuns`、`evaluateBudgets`、`createPerfManifest` / `validatePerfManifest`、`createSmokeManifest`、`parsePerfArgs` / `parseSmokeArgs`。
+- `scripts/mobile-performance.mjs` (new): Chromium 移动端性能采集器；CDP CPU 4× + Slow 4G；LCP / FCP / CLS / TTFB / PerformanceEventTiming / longtask / 首屏 JS / 80 步滚动采样；LCP 稳定等待与自动滚动冻结；输出 `manifest.json`，支持 `--previous` / `--dry-run` / `--no-mock`。
+- `scripts/mobile-smoke.mjs` (new): 独立上下文执行加入房间、发送文本、上传并发送文件、打开 / 关闭抽屉；失败截图并写 `smoke.json`。
+- `scripts/demo-fixtures.mjs` / `scripts/chromium.mjs` / `scripts/acceptance-runtime.mjs` (new): 从视觉基线抽出的共享 mock fixture、Chromium 查找与运行时工具。
+- `scripts/visual-baseline.mjs`: 改用共享 fixture / Chromium 查找，截图行为不变。
+- `scripts/mobile-acceptance.test.mjs` (new): 22 条 `node:test`，覆盖矩阵、聚合、预算、manifest、CLI 参数与冒烟汇总。
+- `docs/visual-acceptance-checklist.md` §7: 增加 ui-48 执行命令、滚动阈值、验收记录行，并链接详细文档。
+- `docs/visual-baseline/README.md`: 目录树与性能基线章节。
+- `package.json`: 新增 `test:mobile` / `perf:mobile` / `smoke:mobile`。
+- `docs/visual-baseline/performance/0.1.69/`: 提交性能 `manifest.json` 与冒烟 `smoke.json` 基线。
+
+### Regression Checklist
+- `npm test` green: 24/24.
+- `npm run test:visual` green: 24/24.
+- `npm run test:mobile` green: 22/22.
+- `npm run lint` green.
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+- `npm run smoke:mobile -- --base-url http://127.0.0.1:3200 --version 0.1.69`: 4/4 PASS.
+- `npm run perf:mobile -- --base-url http://127.0.0.1:3200 --version 0.1.69`: mobile-standard 2/2 PASS；mobile-low-end 首页 LCP 820ms PASS 但最长任务 419ms 超限，房间页 LCP 4860ms、最长任务 995ms、滚动 p95 66.7ms、丢帧率 21.25% 超限（已知性能债，后续优化批次处理）。
+
+### Versioning / History
+- Branch `feat/req-202610-0748-mobile-acceptance-perf`, based on ui-46 `bcb4869`.
+- No version bump; extends the `0.1.69` baseline set. Baseline records committed after the feature commit.
+
 ## 2026-10-18: v0.1.69 视觉验收清单与截图基线（REQ-202610-0509 / ui-46）
 
 ### Scope

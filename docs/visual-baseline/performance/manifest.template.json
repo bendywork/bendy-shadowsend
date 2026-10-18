@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "kind": "mobile-performance",
+  "baselineVersion": "0.0.0",
+  "capturedAt": "2026-10-18T00:00:00.000Z",
+  "baseUrl": "http://127.0.0.1:3000",
+  "commit": null,
+  "environment": {
+    "browser": "Chromium <version>",
+    "executablePath": "<path>",
+    "platform": "linux",
+    "viewport": {
+      "name": "mobile-390",
+      "width": 390,
+      "height": 844,
+      "deviceScaleFactor": 3
+    },
+    "locale": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "reducedMotion": "reduce",
+    "mockApi": true,
+    "profiles": ["mobile-standard", "mobile-low-end"],
+    "node": "v22.x"
+  },
+  "budgets": {
+    "lcpMs": 2500,
+    "cls": 0.1,
+    "ttfbMs": 800,
+    "interactionMs": 200,
+    "maxLongTaskMs": 200,
+    "scrollP95FrameMs": 50,
+    "scrollDroppedFrameRatio": 0.1,
+    "jsGrowthRatio": 0.1
+  },
+  "summary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0
+  },
+  "entries": []
+}

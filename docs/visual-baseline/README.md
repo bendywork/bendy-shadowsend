@@ -13,7 +13,13 @@
 ```text
 docs/visual-baseline/
 ├── README.md
-├── manifest.template.json       # manifest 字段说明（空模板）
+├── manifest.template.json       # 截图 manifest 字段说明（空模板）
+├── performance/                 # 移动端性能与冒烟基线（ui-48）
+│   ├── README.md
+│   ├── manifest.template.json
+│   └── <version>/
+│       ├── manifest.json        # LCP / CLS / TTFB / 长任务 / 滚动 / 首屏 JS
+│       └── smoke.json           # 四条 P0 流程冒烟结果
 └── <version>/                   # 例如 0.1.69
     ├── home--dark--390x844.png
     ├── home--light--390x844.png
@@ -84,7 +90,25 @@ npm run visual:baseline -- --dry-run
 - 广告位故意携带旧强调色 `#0a84ff` / `#0071e3`，用于验证前端不会把服务端 color 字段渲染成彩色。
 
 > mock 只覆盖 API 数据，不改变路由与组件。若页面新增了必需接口，需同步扩展
-> `scripts/visual-baseline.mjs` 的 fixture，否则截图会出现空态。
+> `scripts/demo-fixtures.mjs` 的 fixture，否则截图会出现空态。
+
+## 移动端性能与冒烟基线（ui-48）
+
+截图基线回答「看起来变没变」，性能与冒烟基线回答「手机上好不用、快不快」。
+两者共用版本号、mock 数据与 Chromium 查找逻辑，但采集命令独立：
+
+```bash
+# 生产服务已启动
+npm run perf:mobile -- --base-url http://127.0.0.1:3000 --version 0.1.69
+npm run smoke:mobile -- --base-url http://127.0.0.1:3000 --version 0.1.69
+```
+
+- 输出：`docs/visual-baseline/performance/<version>/manifest.json` 与 `smoke.json`。
+- 性能矩阵：2 档位（常规 / CPU 4× + Slow 4G）× 2 页面（`/`、`/room/DEMO01`）× 3 次取中位数。
+- 指标：LCP、CLS、TTFB、INP 代理、长任务、首屏 JS、消息列表滚动 p95 与丢帧率。
+- 冒烟流程：加入房间、发送文本、上传并发送文件、打开 / 关闭抽屉。
+- 详细口径、阈值与真机矩阵见 [`docs/mobile-acceptance.md`](../mobile-acceptance.md)；
+  性能目录说明见 [`performance/README.md`](./performance/README.md)。
 
 ## manifest 字段
 

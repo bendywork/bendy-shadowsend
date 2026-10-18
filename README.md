@@ -368,6 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 移动端验收与性能基线（REQ-202610-0748 / ui-48）：新增 `docs/mobile-acceptance.md`，补齐 iOS / Android / 平板 / 桌面 / 低端机矩阵、四条 P0 核心流程、性能协议、真机记录模板与缺陷分级；新增 `scripts/mobile-acceptance-lib.mjs`、`scripts/mobile-performance.mjs`、`scripts/mobile-smoke.mjs`，支持 2 档位 × 2 页面 × 3 次性能采集、LCP/CLS/TTFB/INP 代理/长任务/首屏 JS/滚动 p95 与丢帧率、四条 P0 冒烟与失败截图；新增 `docs/visual-baseline/performance/README.md`、`manifest.template.json` 及 `0.1.69` 基线记录；`package.json` 增加 `test:mobile` / `perf:mobile` / `smoke:mobile`。
 - `0.1.69` 视觉验收清单与截图基线（REQ-202610-0509 / ui-46，commit `5f486dd`）：新增 `docs/visual-acceptance-checklist.md`，覆盖双主题 × 三断点矩阵、页面/状态清单、黑白灰色彩纪律、全平台真机/模拟器项、缺陷分级与验收记录模板；新增 `docs/visual-baseline/README.md` 与 `manifest.template.json`，定义 `<page>--<theme>--<width>x<height>.png` 命名、采集环境与 manifest 哈希校验规则，并提交 `0.1.69` 基础集 18 张（3 页面 × 2 主题 × 3 视口，Chromium 151 headless + 固定 mock）。
 - 新增 `scripts/visual-baseline.mjs` / `scripts/visual-baseline-lib.mjs`：基于 `playwright-core` + 固定 mock fixture 采集 18 张基础截图（3 页面 × 2 主题 × 3 视口），支持 9 视口扩展、`--dry-run`、manifest 生成与校验；新增 12 条 `node:test`。
 - 新增 `scripts/visual-audit.mjs`：静态检查 Tailwind 彩色工具类、硬编码彩色值、旧强调色 `#0a84ff`/`#0071e3`、`!important`、浅色主题块越权声明、主按钮反色与 4.5:1、二维码 7:1；新增 12 条测试；`package.json` 增加 `visual:baseline` / `visual:audit` / `test:visual`。

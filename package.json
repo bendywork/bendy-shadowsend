@@ -16,6 +16,9 @@
     "release:tag": "node scripts/release-tag.mjs",
     "test:release-tag": "node --test scripts/release-tag.test.mjs",
     "test:visual": "node --test scripts/visual-baseline.test.mjs scripts/visual-audit.test.mjs",
+    "test:mobile": "node --test scripts/mobile-acceptance.test.mjs",
+    "perf:mobile": "node scripts/mobile-performance.mjs",
+    "smoke:mobile": "node scripts/mobile-smoke.mjs",
     "visual:baseline": "node scripts/visual-baseline.mjs",
     "visual:audit": "node scripts/visual-audit.mjs"
   },
