@@ -1,0 +1,73 @@
+/* ============================================================
+   Unified copy feedback (REQ-202610-0494 / ui-31)
+   - Inline controls show a transient icon + label state.
+   - Icon-only controls combine the icon state with a Toast.
+   - Only color/opacity/transform animate; reduced motion disables them.
+   ============================================================ */
+
+.copy-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  transition:
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    border-color var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.copy-button[data-state="copied"] {
+  color: var(--ds-success);
+  border-color: var(--ds-success-border);
+  background: var(--ds-success-soft);
+}
+
+.copy-button[data-state="failed"] {
+  color: var(--ds-danger);
+  border-color: var(--ds-danger-border);
+  background: var(--ds-danger-soft);
+}
+
+.icon-btn[data-state="copied"] {
+  color: var(--ds-success);
+}
+
+.icon-btn[data-state="failed"] {
+  color: var(--ds-danger);
+}
+
+.copy-button__icon {
+  transition:
+    transform var(--ds-duration-fast) var(--ds-ease-standard),
+    opacity var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.copy-button[data-state="copied"] .copy-button__icon,
+.copy-button[data-state="failed"] .copy-button__icon {
+  animation: copy-feedback-pop var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+@keyframes copy-feedback-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copy-button,
+  .copy-button__icon {
+    transition: none;
+  }
+
+  .copy-button[data-state="copied"] .copy-button__icon,
+  .copy-button[data-state="failed"] .copy-button__icon {
+    animation: none;
+  }
+}

@@ -3,6 +3,33 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 复制反馈统一（REQ-202610-0494 / ui-31）
+
+### Scope
+- 所有复制入口收敛到共享 `copyTextToClipboard`：Clipboard API 优先，失败回退 `textarea + execCommand`。
+- 复制反馈按场景统一：常驻文案按钮使用图标态（Check / X + 文案），纯图标按钮使用图标态 + Toast；失败统一走错误 Toast。
+- 去掉复制文案中的 emoji，新增中英文 `chat.copyFailed`，版本升至 `0.1.69`。
+
+### Changes
+- `src/lib/clipboard.ts` (new): `copyTextToClipboard` 统一剪贴板写入与回退，空文本与异常安全返回 `false`。
+- `src/lib/copy-feedback.ts` (new): `COPY_FEEDBACK_DURATION_MS = 1600`、`CopyFeedbackState` 与状态到 i18n 键的映射。
+- `src/components/ui/copy-button.tsx` (new): 共享 `CopyButton`，支持 `text` / `icon` 两种形态、`aria-live` 结果播报、`aria-busy` 防重复、卸载清理计时器。
+- `src/app/copy-feedback.css` (new): 成功/失败语义色、仅 `opacity`/`transform` 的图标切换动画、reduced-motion 回退；由 `layout.tsx` 引入。
+- `src/app/room/[roomCode]/page.tsx`: 消息气泡复制按钮改用 `CopyButton`（移除 `copiedTextKeys`、`copyTextTimerRef`、`copyMessageText` 与手动 Toast）；Header 邀请图标改用 `CopyButton` 并保留 `toast.linkCopied`。
+- `src/lib/i18n/messages.ts`: `chat.copied` 去掉 emoji，新增 zh/en `chat.copyFailed`。
+- `docs/design-system-copy-feedback.md` (new): 反馈路由、组件契约、可访问性与验收清单。
+- 新增 `src/lib/clipboard.test.ts`（5 条）、`src/lib/copy-feedback.test.ts`（3 条）与 `src/components/ui/copy-button.test.tsx`（2 条）。
+
+### Regression Checklist
+- `npm test` green: 6 files / 34 tests.
+- `npm run lint` 0 error.
+- `npx tsc --noEmit` 0 error.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

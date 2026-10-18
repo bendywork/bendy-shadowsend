@@ -14,6 +14,7 @@ import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
@@ -292,8 +293,6 @@ function MessageBubble({
   collapsed,
   visibleContent,
   onToggleExpand,
-  onCopy,
-  copied,
   labels,
   attachments,
   renderAttachmentAction,
@@ -310,9 +309,7 @@ function MessageBubble({
   collapsed: boolean;
   visibleContent: string;
   onToggleExpand: () => void;
-  onCopy: () => void;
-  copied: boolean;
-  labels: { copy: string; copied: string; expand: string; collapse: string };
+  labels: { copy: string; expand: string; collapse: string };
   attachments: BubbleAttachment[];
   renderAttachmentAction?: (attachment: BubbleAttachment) => ReactNode;
   onOpenImage: (url: string | null | undefined, fileName: string) => void;
@@ -341,19 +338,12 @@ function MessageBubble({
           <div className="space-y-2">
             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-ink">{visibleContent}</p>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={onCopy}
-                className={clsx(
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-ui",
-                  copied
-                    ? "border-action-border bg-action-soft text-ink"
-                    : "border-line text-ink-soft hover:bg-elevated",
-                )}
-              >
-                <Copy className="h-3 w-3" />
-                {copied ? labels.copied : labels.copy}
-              </button>
+              <CopyButton
+                value={content}
+                label={labels.copy}
+                className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11px] text-ink-soft transition-ui hover:bg-elevated"
+                iconClassName="h-3 w-3"
+              />
               {content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
                 <button
                   type="button"
@@ -524,7 +514,6 @@ export default function RoomPage() {
   const [enterToSend, setEnterToSend] = useState(true);
   const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
   const [expandedPendingMessageIds, setExpandedPendingMessageIds] = useState<Record<string, boolean>>({});
-  const [copiedTextKeys, setCopiedTextKeys] = useState<Record<string, boolean>>({});
 
   const [membersCollapsed, , toggleMembersCollapsed] = usePersistentBoolean("tb:members-collapsed", false);
   const [navCollapsed, , toggleNavCollapsed] = usePersistentBoolean("tb:nav-collapsed", false);
@@ -562,7 +551,6 @@ export default function RoomPage() {
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
-  const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -720,15 +708,11 @@ export default function RoomPage() {
   }, [noticeImages]);
 
   useEffect(() => {
-    const copyTimerMapRef = copyTextTimerRef;
     return () => {
       noticeImagesRef.current.forEach((item) => {
         if (item.kind === "new" && item.imageUrl.startsWith("blob:")) {
           URL.revokeObjectURL(item.imageUrl);
         }
-      });
-      Object.values(copyTimerMapRef.current).forEach((timer) => {
-        window.clearTimeout(timer);
       });
     };
   }, []);
@@ -1473,43 +1457,6 @@ export default function RoomPage() {
     }
   }
 
-  async function copyLink() {
-    if (!joinLink) return;
-    try { await navigator.clipboard.writeText(joinLink); toast.success(t("toast.linkCopied")); }
-    catch { toast.error(t("toast.copyFailed")); }
-  }
-
-  function markTextCopied(feedbackKey: string) {
-    setCopiedTextKeys((prev) => ({
-      ...prev,
-      [feedbackKey]: true,
-    }));
-
-    const existingTimer = copyTextTimerRef.current[feedbackKey];
-    if (existingTimer) {
-      window.clearTimeout(existingTimer);
-    }
-
-    copyTextTimerRef.current[feedbackKey] = window.setTimeout(() => {
-      setCopiedTextKeys((prev) => {
-        const next = { ...prev };
-        delete next[feedbackKey];
-        return next;
-      });
-      delete copyTextTimerRef.current[feedbackKey];
-    }, 1400);
-  }
-
-  async function copyMessageText(content: string, feedbackKey: string) {
-    if (!content) return;
-    try {
-      await navigator.clipboard.writeText(content);
-      markTextCopied(feedbackKey);
-      toast.success(t("toast.copied"));
-    } catch {
-      toast.error(t("toast.copyFailed"));
-    }
-  }
   function releaseNoticeEditorImages(items: NoticeEditorImage[]) {
     items.forEach((item) => {
       if (item.kind === "new" && item.imageUrl.startsWith("blob:")) {
@@ -2121,9 +2068,14 @@ export default function RoomPage() {
                 </IconButton>
               </Tooltip>
               <Tooltip label={t("header.invite")}>
-                <IconButton aria-label={t("header.invite")} onClick={copyLink}>
-                  <Copy className="h-4 w-4" />
-                </IconButton>
+                <CopyButton
+                  value={joinLink}
+                  label={t("header.invite")}
+                  variant="icon"
+                  toastOnSuccess
+                  successToastMessage={t("toast.linkCopied")}
+                  iconClassName="h-4 w-4"
+                />
               </Tooltip>
               <Tooltip label={t("header.qr")}>
                 <IconButton aria-label={t("header.qr")} onClick={() => setShowQr(true)}>
@@ -2187,7 +2139,6 @@ export default function RoomPage() {
               const deliveryState = getMessageDeliveryState(m);
               const expanded = Boolean(expandedMessageIds[m.id]);
               const collapsed = isMessageCollapsed(m.content, expanded);
-              const copyKey = `message-${m.id}`;
               return (
                 <MessageBubble
                   key={m.id}
@@ -2207,9 +2158,7 @@ export default function RoomPage() {
                   collapsed={collapsed}
                   visibleContent={collapsed ? `${getCollapsedPreviewText(m.content)}...` : m.content}
                   onToggleExpand={() => setExpandedMessageIds((prev) => ({ ...prev, [m.id]: !expanded }))}
-                  onCopy={() => void copyMessageText(m.content, copyKey)}
-                  copied={Boolean(copiedTextKeys[copyKey])}
-                  labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
+                  labels={{ copy: t("chat.copy"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
                   attachments={m.attachments}
                   renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} label={t("chat.download")} />}
                   onOpenImage={openImageViewer}
@@ -2220,7 +2169,6 @@ export default function RoomPage() {
             {pendingMessages.map((message) => {
               const expanded = Boolean(expandedPendingMessageIds[message.localId]);
               const collapsed = isMessageCollapsed(message.content, expanded);
-              const copyKey = `pending-${message.localId}`;
               return (
                 <MessageBubble
                   key={message.localId}
@@ -2246,9 +2194,7 @@ export default function RoomPage() {
                   collapsed={collapsed}
                   visibleContent={collapsed ? `${getCollapsedPreviewText(message.content)}...` : message.content}
                   onToggleExpand={() => setExpandedPendingMessageIds((prev) => ({ ...prev, [message.localId]: !expanded }))}
-                  onCopy={() => void copyMessageText(message.content, copyKey)}
-                  copied={Boolean(copiedTextKeys[copyKey])}
-                  labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
+                  labels={{ copy: t("chat.copy"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
                   attachments={message.attachments}
                   onOpenImage={openImageViewer}
                   footerSlot={
