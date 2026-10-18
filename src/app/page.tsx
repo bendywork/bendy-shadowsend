@@ -1,15 +1,25 @@
 ﻿"use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_USER_ROOMS } from "@/lib/constants";
 import { apiFetch } from "@/lib/client";
+import {
+  GATE_CODE_LENGTH,
+  ROOM_CODE_MAX_LENGTH,
+  ROOM_CODE_MIN_LENGTH,
+  ROOM_NAME_MAX_LENGTH,
+  validateGateCode,
+  validateRoomCode,
+  validateRoomName,
+} from "@/lib/form-validation";
 import type { BootstrapPayload } from "@/types/chat";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useT } from "@/lib/i18n/context";
 import { Avatar } from "@/components/chat/avatar";
+import { Field, SegmentedControl, TextInput } from "@/components/ui/form-controls";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
@@ -36,6 +46,16 @@ type MePayload = {
   };
 };
 
+type JoinFieldErrors = {
+  roomCode?: MessageKey;
+  gateCode?: MessageKey;
+};
+
+type CreateFieldErrors = {
+  name?: MessageKey;
+  gateCode?: MessageKey;
+};
+
 export default function HomePage() {
   const router = useRouter();
   const t = useT();
@@ -53,6 +73,14 @@ export default function HomePage() {
   const [joinRoomCode, setJoinRoomCode] = useState("");
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
+
+  const [joinErrors, setJoinErrors] = useState<JoinFieldErrors>({});
+  const [createErrors, setCreateErrors] = useState<CreateFieldErrors>({});
+
+  const joinRoomRef = useRef<HTMLInputElement>(null);
+  const joinGateRef = useRef<HTMLInputElement>(null);
+  const createNameRef = useRef<HTMLInputElement>(null);
+  const createGateRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -123,18 +151,80 @@ export default function HomePage() {
 
   const displayMe = bootstrap?.me ?? fallbackMe;
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  /**
+   * Validation keys carry their own parameters so switching language keeps
+   * the inline copy in sync with the active locale.
+   */
+  function fieldErrorText(key: MessageKey | undefined): string | undefined {
+    if (!key) return undefined;
+    if (key === "form.roomNameTooLong") return t(key, { max: ROOM_NAME_MAX_LENGTH });
+    if (key === "form.roomCodeTooShort") return t(key, { min: ROOM_CODE_MIN_LENGTH });
+    if (key === "form.roomCodeTooLong") return t(key, { max: ROOM_CODE_MAX_LENGTH });
+    return t(key);
+  }
+
+  function clearStatus() {
     setErrorText(null);
     setErrorKey(null);
     setInfoKey(null);
+  }
+
+  function switchTab(next: TabType) {
+    setTab(next);
+    clearStatus();
+  }
+
+  function validateJoinFields(): boolean {
+    const roomCodeError = validateRoomCode(joinRoomCode);
+    const gateCodeError = validateGateCode(joinGateCode);
+
+    setJoinErrors({
+      ...(roomCodeError ? { roomCode: roomCodeError } : {}),
+      ...(gateCodeError ? { gateCode: gateCodeError } : {}),
+    });
+
+    if (roomCodeError) {
+      joinRoomRef.current?.focus();
+      return false;
+    }
+    if (gateCodeError) {
+      joinGateRef.current?.focus();
+      return false;
+    }
+    return true;
+  }
+
+  function validateCreateFields(): boolean {
+    const nameError = validateRoomName(createName);
+    const gateCodeError = validateGateCode(createGateCode);
+
+    setCreateErrors({
+      ...(nameError ? { name: nameError } : {}),
+      ...(gateCodeError ? { gateCode: gateCodeError } : {}),
+    });
+
+    if (nameError) {
+      createNameRef.current?.focus();
+      return false;
+    }
+    if (gateCodeError) {
+      createGateRef.current?.focus();
+      return false;
+    }
+    return true;
+  }
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    clearStatus();
+    if (!validateCreateFields()) return;
     setSubmitting(true);
 
     try {
       const payload = await apiFetch<CreateResult>("/api/rooms", {
         method: "POST",
         body: JSON.stringify({
-          name: createName,
+          name: createName.trim(),
           gateCode: createGateCode || undefined,
         }),
       });
@@ -152,17 +242,16 @@ export default function HomePage() {
 
   async function handleJoin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorText(null);
-    setErrorKey(null);
-    setInfoKey(null);
+    clearStatus();
+    if (!validateJoinFields()) return;
     setSubmitting(true);
 
     try {
-      const payload = await apiFetch<JoinResult>(`/api/rooms/${joinRoomCode}/join`, {
+      const payload = await apiFetch<JoinResult>(`/api/rooms/${joinRoomCode.trim()}/join`, {
         method: "POST",
         body: JSON.stringify({
           gateCode: joinGateCode || undefined,
-          inviteToken: joinInviteToken || undefined,
+          inviteToken: joinInviteToken.trim() || undefined,
         }),
       });
 
@@ -261,111 +350,197 @@ export default function HomePage() {
             ) : null}
           </div>
 
-          <div className="segmented mb-5 inline-flex w-full p-1 sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setTab("join")}
-              data-active={tab === "join"}
-              className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
-            >
-              <DoorOpen className="h-4 w-4" /> {t("home.tab.join")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("create")}
-              data-active={tab === "create"}
-              className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
-            >
-              <PlusCircle className="h-4 w-4" /> {t("home.tab.create")}
-            </button>
-          </div>
+          <SegmentedControl
+            value={tab}
+            onChange={switchTab}
+            ariaLabel={t("home.tabs.label")}
+            fullWidth
+            className="mb-5"
+            options={[
+              {
+                value: "join",
+                label: t("home.tab.join"),
+                icon: <DoorOpen className="h-4 w-4" aria-hidden="true" />,
+              },
+              {
+                value: "create",
+                label: t("home.tab.create"),
+                icon: <PlusCircle className="h-4 w-4" aria-hidden="true" />,
+              },
+            ]}
+          />
 
           {tab === "join" ? (
-            <form className="space-y-4" onSubmit={handleJoin}>
-              <label className="block space-y-1">
-                <span className="text-xs text-ink-muted">{t("home.join.roomCode.label")}</span>
-                <input
-                  required
+            <form
+              className="space-y-4"
+              onSubmit={handleJoin}
+              noValidate
+              aria-label={t("home.join.formLabel")}
+              aria-busy={submitting}
+            >
+              <Field
+                id="home-join-room-code"
+                label={t("home.join.roomCode.label")}
+                hint={t("home.join.roomCode.hint", {
+                  min: ROOM_CODE_MIN_LENGTH,
+                  max: ROOM_CODE_MAX_LENGTH,
+                })}
+                error={fieldErrorText(joinErrors.roomCode)}
+                required
+              >
+                <TextInput
+                  ref={joinRoomRef}
                   value={joinRoomCode}
-                  onChange={(event) => setJoinRoomCode(event.target.value.trim())}
+                  onChange={(event) => {
+                    setJoinRoomCode(event.target.value.trim());
+                    if (joinErrors.roomCode) {
+                      setJoinErrors((prev) => ({ ...prev, roomCode: undefined }));
+                    }
+                  }}
                   placeholder={t("home.join.roomCode.placeholder")}
-                  className="field px-4 py-2.5 text-sm"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  maxLength={ROOM_CODE_MAX_LENGTH}
+                  required
                 />
-              </label>
+              </Field>
 
-              <label className="block space-y-1">
-                <span className="text-xs text-ink-muted">{t("home.join.gateCode.label")}</span>
-                <input
+              <Field
+                id="home-join-gate-code"
+                label={t("home.join.gateCode.label")}
+                hint={
+                  <span className="flex items-center gap-2">
+                    <span>{t("home.join.gateCode.hint", { length: GATE_CODE_LENGTH })}</span>
+                    <span className="form-counter">
+                      {joinGateCode.length}/{GATE_CODE_LENGTH}
+                    </span>
+                  </span>
+                }
+                error={fieldErrorText(joinErrors.gateCode)}
+              >
+                <TextInput
+                  ref={joinGateRef}
                   value={joinGateCode}
-                  onChange={(event) =>
-                    setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
+                  onChange={(event) => {
+                    setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, GATE_CODE_LENGTH));
+                    if (joinErrors.gateCode) {
+                      setJoinErrors((prev) => ({ ...prev, gateCode: undefined }));
+                    }
+                  }}
                   placeholder={t("home.join.gateCode.placeholder")}
                   inputMode="numeric"
-                  className="field px-4 py-2.5 text-sm"
+                  autoComplete="off"
+                  maxLength={GATE_CODE_LENGTH}
                 />
-              </label>
+              </Field>
 
-              <label className="block space-y-1">
-                <span className="text-xs text-ink-muted">{t("home.join.invite.label")}</span>
-                <input
+              <Field
+                id="home-join-invite"
+                label={t("home.join.invite.label")}
+                hint={t("home.join.invite.hint")}
+              >
+                <TextInput
                   value={joinInviteToken}
                   onChange={(event) => setJoinInviteToken(event.target.value.trim())}
                   placeholder={t("home.join.invite.placeholder")}
-                  className="field px-4 py-2.5 text-sm"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
                 />
-              </label>
+              </Field>
 
               <button
                 type="submit"
                 disabled={submitting || loading}
-                className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                className="btn-primary btn-md w-full"
               >
                 {submitting ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
-                  <DoorOpen className="h-4 w-4" />
+                  <DoorOpen className="h-4 w-4" aria-hidden="true" />
                 )}
-                {t("home.join.submit")}
+                {submitting ? t("home.join.submitting") : t("home.join.submit")}
               </button>
             </form>
           ) : (
-            <form className="space-y-4" onSubmit={handleCreate}>
-              <label className="block space-y-1">
-                <span className="text-xs text-ink-muted">{t("home.create.name.label")}</span>
-                <input
-                  required
+            <form
+              className="space-y-4"
+              onSubmit={handleCreate}
+              noValidate
+              aria-label={t("home.create.formLabel")}
+              aria-busy={submitting}
+            >
+              <Field
+                id="home-create-name"
+                label={t("home.create.name.label")}
+                hint={
+                  <span className="flex items-center gap-2">
+                    <span>{t("home.create.name.hint", { max: ROOM_NAME_MAX_LENGTH })}</span>
+                    <span className="form-counter">
+                      {createName.length}/{ROOM_NAME_MAX_LENGTH}
+                    </span>
+                  </span>
+                }
+                error={fieldErrorText(createErrors.name)}
+                required
+              >
+                <TextInput
+                  ref={createNameRef}
                   value={createName}
-                  onChange={(event) => setCreateName(event.target.value)}
+                  onChange={(event) => {
+                    setCreateName(event.target.value);
+                    if (createErrors.name) {
+                      setCreateErrors((prev) => ({ ...prev, name: undefined }));
+                    }
+                  }}
                   placeholder={t("home.create.name.placeholder")}
-                  className="field px-4 py-2.5 text-sm"
+                  autoComplete="off"
+                  maxLength={ROOM_NAME_MAX_LENGTH}
+                  required
                 />
-              </label>
+              </Field>
 
-              <label className="block space-y-1">
-                <span className="text-xs text-ink-muted">{t("home.create.gateCode.label")}</span>
-                <input
+              <Field
+                id="home-create-gate-code"
+                label={t("home.create.gateCode.label")}
+                hint={
+                  <span className="flex items-center gap-2">
+                    <span>{t("home.create.gateCode.hint", { length: GATE_CODE_LENGTH })}</span>
+                    <span className="form-counter">
+                      {createGateCode.length}/{GATE_CODE_LENGTH}
+                    </span>
+                  </span>
+                }
+                error={fieldErrorText(createErrors.gateCode)}
+              >
+                <TextInput
+                  ref={createGateRef}
                   value={createGateCode}
-                  onChange={(event) =>
-                    setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
+                  onChange={(event) => {
+                    setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, GATE_CODE_LENGTH));
+                    if (createErrors.gateCode) {
+                      setCreateErrors((prev) => ({ ...prev, gateCode: undefined }));
+                    }
+                  }}
                   placeholder={t("home.create.gateCode.placeholder")}
                   inputMode="numeric"
-                  className="field px-4 py-2.5 text-sm"
+                  autoComplete="off"
+                  maxLength={GATE_CODE_LENGTH}
                 />
-              </label>
+              </Field>
 
               <button
                 type="submit"
                 disabled={submitting || loading}
-                className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                className="btn-primary btn-md w-full"
               >
                 {submitting ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
-                  <Sparkles className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
                 )}
-                {t("home.create.submit")}
+                {submitting ? t("home.create.submitting") : t("home.create.submit")}
               </button>
             </form>
           )}
@@ -378,18 +553,25 @@ export default function HomePage() {
               </span>
             </div>
             <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
-              <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />
-              {t("home.stats.gateHint")}
+              <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" aria-hidden="true" />
+              {t("home.stats.gateHint", { length: GATE_CODE_LENGTH })}
             </div>
           </div>
 
           {infoKey ? (
-            <p className="mt-4 rounded-lg border border-line-subtle bg-panel/50 px-3 py-2 text-sm text-ink-soft">
+            <p
+              className="mt-4 rounded-lg border border-line-subtle bg-panel/50 px-3 py-2 text-sm text-ink-soft"
+              role="status"
+              aria-live="polite"
+            >
               {t(infoKey)}
             </p>
           ) : null}
           {errorText || errorKey ? (
-            <p className="mt-4 rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">
+            <p
+              className="mt-4 rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger"
+              role="alert"
+            >
               {errorText ?? (errorKey ? t(errorKey) : null)}
             </p>
           ) : null}

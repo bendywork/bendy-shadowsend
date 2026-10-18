@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 加入/创建房间表单重构（REQ-202610-0478 / ui-15）
+
+### Scope
+- Rebuild the homepage room-entry form on the shared form-control system: `Field` / `TextInput` / `SegmentedControl`, per-field hint + inline error + counter, explicit gate-code guidance, and accessible focus/ARIA wiring.
+- Keep the 0477 hero intact; only the entry card form is replaced.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/ui/form-controls.tsx` (new): `Field` context injects `id`, `aria-invalid` and `aria-describedby` into the control; `TextInput` / `TextArea` / `Select` / `Switch` / `SegmentedControl` share design tokens and focus styles.
+- `src/lib/form-validation.ts` (new): room name 1–48 chars, room code 4–64 chars, gate code exactly 6 digits; returns a `MessageKey` instead of hardcoded copy.
+- `src/app/page.tsx`: join/create forms rebuilt with `Field`; `noValidate`; inline errors; focus moves to the first invalid field; errors clear on edit; gate code accepts digits only with a 0/6 counter; submitting labels and spinners; hint parameters derive from the shared constants.
+- `src/lib/i18n/messages.ts`: added `form.*` validation keys and `home.*` hint/submitting copy in zh/en.
+- `src/app/globals.css`: extended `.field` and added `.form-field` / `.form-label` / `.form-required` / `.form-hint` / `.form-error` / `.form-counter`, textarea/select/switch styles, and segmented full-width/focus/disabled states.
+- `vitest.config.ts` / `vitest.setup.ts` plus tests: added Vitest + Testing Library; 9 cases cover validation and form-control ARIA/selection behavior.
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`: version synced to `0.1.69`.
+
+### Regression Checklist
+- `npm test`: 2 files, 9 tests pass.
+- `npx tsc --noEmit`: 0 errors.
+- `npm run lint`: pass.
+- `npm run build`: pass (Next.js 16.2.1, 12 static pages).
+- Playwright at 1440×900 (dark/light, zh/en), 390×844 and 360×800: create tab, empty-submit inline errors, gate-code format error, `aria-invalid` / `aria-describedby`, first-invalid focus, no horizontal overflow, no page errors.
+- Local `/api/bootstrap` 500s are due to no database in the verification environment; layout and form behavior are unaffected.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 首页 Hero 降噪（REQ-202610-0477 / ui-14）
 
 ### Scope

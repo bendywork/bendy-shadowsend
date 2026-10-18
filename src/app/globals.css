@@ -479,16 +479,26 @@ button {
   -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
+/* ---------- Form controls: field / label / hint / error / switch / segmented ---------- */
 .field {
   width: 100%;
+  min-height: 40px;
+  padding: 0 var(--ds-space-3);
   border-radius: var(--ds-radius-md);
   border: 1px solid var(--ds-line);
   background: color-mix(in srgb, var(--ds-surface-card) 55%, transparent);
   color: var(--ds-ink);
+  font-size: 14px;
+  line-height: 1.4;
   transition:
     border-color var(--ds-duration-base) var(--ds-ease-standard),
     box-shadow var(--ds-duration-base) var(--ds-ease-standard),
     background-color var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.field:hover:not(:disabled):not(:focus) {
+  border-color: var(--ds-line-strong);
+  background: color-mix(in srgb, var(--ds-surface-card) 78%, transparent);
 }
 
 .field::placeholder {
@@ -499,7 +509,191 @@ button {
 .field:focus {
   outline: none;
   border-color: var(--ds-action-border);
+  background: var(--ds-surface-card);
   box-shadow: 0 0 0 3px var(--ds-action-soft);
+}
+
+.field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--ds-surface-elevated);
+}
+
+.field[aria-invalid="true"] {
+  border-color: var(--ds-danger-border);
+  background: color-mix(in srgb, var(--ds-danger-soft) 42%, transparent);
+}
+
+.field[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px var(--ds-danger-soft);
+}
+
+.field-sm {
+  min-height: 32px;
+  padding: 0 var(--ds-space-2);
+  border-radius: var(--ds-radius-sm);
+  font-size: 12px;
+}
+
+textarea.field {
+  min-height: 120px;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+/* Native select keeps the platform menu but shares the field shell. */
+.select-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.select-wrap select.field {
+  appearance: none;
+  padding-right: var(--ds-space-8);
+  cursor: pointer;
+}
+
+.select-chevron {
+  position: absolute;
+  top: 50%;
+  right: var(--ds-space-3);
+  width: 14px;
+  height: 14px;
+  color: var(--ds-ink-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition:
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.select-wrap:focus-within .select-chevron {
+  color: var(--ds-ink);
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.form-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ds-ink-soft);
+}
+
+.form-label--sm {
+  font-size: 11px;
+}
+
+.form-required {
+  color: var(--ds-danger);
+}
+
+.form-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ds-ink-muted);
+}
+
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ds-danger);
+}
+
+.form-counter {
+  margin-left: auto;
+  color: var(--ds-ink-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* Switch: the thumb moves with transform only. */
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--ds-line-strong);
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-surface-elevated-strong);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    border-color var(--ds-duration-base) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.switch:hover:not(:disabled) {
+  border-color: var(--ds-ink-muted);
+}
+
+.switch[data-checked="true"] {
+  border-color: var(--ds-action-bg);
+  background: var(--ds-action-bg);
+}
+
+.switch[data-checked="true"]:hover:not(:disabled) {
+  border-color: var(--ds-action-bg-hover);
+  background: var(--ds-action-bg-hover);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+.switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.switch-thumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ds-ink-soft);
+  box-shadow: var(--ds-shadow-xs);
+  transition:
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    transform var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.switch[data-checked="true"] .switch-thumb {
+  background: var(--ds-action-fg);
+  transform: translateX(18px);
+}
+
+.switch--sm {
+  width: 34px;
+  height: 20px;
+}
+
+.switch--sm .switch-thumb {
+  width: 14px;
+  height: 14px;
+}
+
+.switch--sm[data-checked="true"] .switch-thumb {
+  transform: translateX(14px);
 }
 
 /* Primary action is inverted per theme (dc-02). */
@@ -605,14 +799,39 @@ button {
 }
 
 .segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
   background: color-mix(in srgb, var(--ds-surface-elevated) 60%, transparent);
   border: 1px solid var(--ds-line-subtle);
   border-radius: var(--ds-radius-md);
 }
 
+.segmented--full {
+  display: flex;
+  width: 100%;
+}
+
+.segmented--full .segmented-item {
+  flex: 1;
+}
+
 .segmented-item {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-1);
+  padding: 0 var(--ds-space-3);
+  border: 1px solid transparent;
   border-radius: calc(var(--ds-radius-md) - 4px);
+  background: transparent;
   color: var(--ds-ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
   transition:
     background-color var(--ds-duration-base) var(--ds-ease-standard),
     color var(--ds-duration-base) var(--ds-ease-standard),
@@ -625,9 +844,19 @@ button {
   box-shadow: var(--ds-shadow-xs);
 }
 
-.segmented-item:not([data-active="true"]):hover {
+.segmented-item:not([data-active="true"]):hover:not(:disabled) {
   color: var(--ds-ink);
   background: var(--ds-action-soft);
+}
+
+.segmented-item:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+.segmented-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Icon-only button (header actions, theme / language toggles). */
