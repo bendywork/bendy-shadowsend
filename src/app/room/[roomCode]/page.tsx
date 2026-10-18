@@ -23,6 +23,8 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { getScrollAreaClassName } from "@/lib/scroll";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -574,6 +576,12 @@ export default function RoomPage() {
   const [imageViewer, setImageViewer] = useState<ImageViewerState | null>(null);
 
   const t = useT();
+
+  // All page-level overlays share one reference-counted body scroll lock.
+  useBodyScrollLock(
+    Boolean(roomEntryMode || showQr || showNoticeEditor || showNoticePopup || imageViewer),
+  );
+
   const isOwner = snap?.me.role === "OWNER";
   const membersVisible = !membersCollapsed;
   const navVisible = !navCollapsed;
@@ -1997,7 +2005,12 @@ export default function RoomPage() {
             <span>{t("nav.count", { count: roomCount, max: MAX_USER_ROOMS })}</span>
             {!canAddMoreRooms ? <span className="text-ink-faint">· {t("nav.count.full")}</span> : null}
           </p>
-          <div className="flex-1 space-y-4 overflow-y-auto pb-3">
+          <div
+            className={clsx(getScrollAreaClassName("y"), "flex-1 space-y-4 pb-3")}
+            role="region"
+            aria-label={t("scroll.rooms")}
+            tabIndex={0}
+          >
             <div>
               <div className="mb-2 flex items-center gap-1">
                 <button
@@ -2175,7 +2188,12 @@ export default function RoomPage() {
             <AdCarousel items={snap.adBoard.items} />
           </header>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
+          <div
+            className={clsx(getScrollAreaClassName("y"), "min-h-0 flex-1 space-y-4 px-3 py-3 sm:px-4 sm:py-4")}
+            role="region"
+            aria-label={t("scroll.messages")}
+            tabIndex={0}
+          >
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
               <div className="rounded-xl border border-line-subtle bg-panel/50 px-4 py-6 text-center text-sm text-ink-faint">
                 {t("chat.empty")}
@@ -2417,7 +2435,12 @@ export default function RoomPage() {
             {memberPanelTab === "members" || !isOwner ? (
               <div className="flex min-h-0 flex-1 flex-col">
                 <h2 className="mb-2 text-lg font-semibold text-ink">{t("members.count", { count: snap.members.length })}</h2>
-                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                <div
+                  className={clsx(getScrollAreaClassName("y"), "flex-1 space-y-2 pr-1")}
+                  role="region"
+                  aria-label={t("scroll.members")}
+                  tabIndex={0}
+                >
                   {snap.members.map((m) => (
                     <div key={m.id} className="rounded-lg border border-line-subtle bg-panel/70 px-3 py-2">
                       <div className="flex items-start justify-between gap-2">
@@ -2485,7 +2508,12 @@ export default function RoomPage() {
             {isOwner && memberPanelTab === "approvals" ? (
               <div className="flex min-h-0 flex-1 flex-col">
                 <h2 className="mb-2 text-lg font-semibold text-ink">{t("approvals.title")}</h2>
-                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                <div
+                  className={clsx(getScrollAreaClassName("y"), "flex-1 space-y-2 pr-1")}
+                  role="region"
+                  aria-label={t("scroll.approvals")}
+                  tabIndex={0}
+                >
                   {snap.pendingRequests.length === 0 ? (
                     <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">
                       {t("approvals.empty")}
@@ -2665,7 +2693,7 @@ export default function RoomPage() {
 
       {roomEntryMode ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg">
+          <section className="scroll-area scroll-area--y max-h-[calc(100dvh-2rem)] w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold text-ink">
@@ -2790,7 +2818,7 @@ export default function RoomPage() {
 
       {showQr ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
+          <section className="scroll-area scroll-area--y max-h-[calc(100dvh-2rem)] w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-ink">房间二维码</h3>
               <button
@@ -2815,7 +2843,7 @@ export default function RoomPage() {
 
       {showNoticeEditor ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
+          <section className="scroll-area scroll-area--y max-h-[calc(100dvh-2rem)] w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-ink">配置公告</h3>
               <button
@@ -2923,7 +2951,7 @@ export default function RoomPage() {
 
       {showNoticePopup ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
+          <section className="scroll-area scroll-area--y max-h-[calc(100dvh-2rem)] w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
             <div className="mb-3 flex items-center gap-2 text-ink-soft">
               <Megaphone className="h-5 w-5" />
               <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
@@ -2973,7 +3001,7 @@ export default function RoomPage() {
           onClick={() => setImageViewer(null)}
         >
           <section
-            className="w-full max-w-5xl"
+            className="scroll-area scroll-area--y max-h-[calc(100dvh-2rem)] w-full max-w-5xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between gap-2">

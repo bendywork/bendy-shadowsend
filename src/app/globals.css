@@ -115,7 +115,14 @@
   --ds-qr-light: #ffffff;
   --ds-avatar-fg: #ffffff;
 
-  /* 12 · Ambient wash (neutral, replaces colored glow) */
+  /* 12 · Scrollbars — size + semantic colors (REQ-202610-0507 / ui-44) */
+  --ds-scrollbar-size: 8px;
+  --ds-scrollbar-thumb: color-mix(in srgb, var(--ds-ink-muted) 70%, transparent);
+  --ds-scrollbar-thumb-hover: var(--ds-ink-muted);
+  --ds-scrollbar-track: transparent;
+  --ds-scrollbar-corner: transparent;
+
+  /* 13 · Ambient wash (neutral, replaces colored glow) */
   --ds-ambient-a: rgb(255 255 255 / 0.035);
   --ds-ambient-b: rgb(255 255 255 / 0.02);
 }
@@ -163,6 +170,11 @@
 
   --ds-overlay: rgb(17 17 19 / 0.28);
   --ds-overlay-strong: rgb(17 17 19 / 0.5);
+
+  /* Scrollbar thumb needs a solid, ≥3:1 mark on the light canvas. */
+  --ds-scrollbar-thumb: var(--ds-ink-muted);
+  --ds-scrollbar-thumb-hover: var(--ds-ink-soft);
+
   --ds-ambient-a: rgb(17 17 19 / 0.03);
   --ds-ambient-b: rgb(17 17 19 / 0.018);
 }
@@ -272,27 +284,6 @@ input,
 textarea,
 button {
   font: inherit;
-}
-
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-thumb {
-  border-radius: var(--ds-radius-full);
-  border: 2px solid transparent;
-  background: color-mix(in srgb, var(--ds-ink-muted) 42%, transparent);
-  background-clip: content-box;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--ds-ink-muted) 68%, transparent);
-  background-clip: content-box;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 :where(input, textarea, select, button, a, [tabindex]):focus-visible {

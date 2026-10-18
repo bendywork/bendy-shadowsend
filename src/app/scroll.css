@@ -1,0 +1,74 @@
+/* Scroll container & scrollbar contract — REQ-202610-0507 / ui-44
+   Tokens live in globals.css; this file only defines behavior and applies the
+   tokens to both WebKit and Firefox scrollbars. The contract test
+   (src/lib/scroll.test.ts) keeps the CSS and TS constants in sync. */
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-scrollbar-thumb) var(--ds-scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: var(--ds-scrollbar-size);
+  height: var(--ds-scrollbar-size);
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--ds-radius-full);
+  border: 2px solid transparent;
+  background: var(--ds-scrollbar-thumb);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ds-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ds-scrollbar-track);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--ds-scrollbar-corner);
+}
+
+/* One overflow owner per scroll region:
+   - min-width/min-height: 0 lets flex/grid children actually shrink;
+   - overscroll-behavior: contain stops scroll chaining to the page;
+   - scrollbar-gutter: stable prevents horizontal jumps when content grows. */
+.scroll-area {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-scrollbar-thumb) var(--ds-scrollbar-track);
+}
+
+.scroll-area--y {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: contain;
+}
+
+.scroll-area--x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+}
+
+.scroll-area--both {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* Keyboard-scrollable regions keep an inset ring so the outline is not
+   clipped by the scroll viewport. */
+.scroll-area:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: -2px;
+}

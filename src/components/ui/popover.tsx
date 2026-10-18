@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -35,23 +36,17 @@ export function Popover({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
     const previous =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const { body } = document;
-    const previousOverflow = body.style.overflow;
-    const previousPaddingRight = body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
 
-    body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
     panel?.focus();
 
     return () => {
-      body.style.overflow = previousOverflow;
-      body.style.paddingRight = previousPaddingRight;
       previous?.focus();
     };
   }, [open]);
@@ -99,7 +94,7 @@ export function Popover({
 
   return createPortal(
     <div
-      className="popover-backdrop fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto px-4 py-[12vh]"
+      className="popover-backdrop scroll-area scroll-area--y fixed inset-0 z-[80] flex items-start justify-center px-4 py-[12vh]"
       onMouseDown={onClose}
       role="presentation"
     >

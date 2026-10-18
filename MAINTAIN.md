@@ -3,6 +3,36 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 滚动容器与滚动条规范（REQ-202610-0507 / ui-44）
+
+### Scope
+- Unify every scroll container behind one contract and one set of scrollbar styles across WebKit and Firefox, in both themes.
+- Replace per-overlay body scroll locking with one reference-counted lock shared by Popover and the room page's five page-level overlays.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/app/scroll.css` (new): global WebKit (`::-webkit-scrollbar*`) and Firefox (`scrollbar-width` / `scrollbar-color`) styling from semantic tokens; `.scroll-area` base contract (`min-width/height: 0`, `overflow: auto`, `overscroll-behavior: contain`, `scrollbar-gutter: stable`) plus `--y` / `--x` / `--both` variants and a `:focus-visible` inset ring.
+- `src/app/globals.css`: added `--ds-scrollbar-size/thumb/thumb-hover/track/corner` tokens; light theme overrides thumb/hover for ≥3:1 visibility; removed the old inline WebKit scrollbar rules.
+- `src/app/layout.tsx`: imports `scroll.css` after `globals.css`.
+- `src/lib/scroll.ts` (new): `SCROLLBAR_SIZE_PX`, `SCROLL_AXES`, `getScrollAreaClassName(axis)` and `getScrollbarCompensation(innerWidth, clientWidth)`.
+- `src/lib/scroll-lock.ts` (new): reference-counted `createBodyScrollLock()` that saves/restores `overflow` + `padding-right`, compensates the classic scrollbar width and ignores duplicate releases; `src/lib/use-body-scroll-lock.ts` (new) is the React binding.
+- `src/components/ui/popover.tsx`: dropped the hand-written body overflow/padding logic in favour of `useBodyScrollLock(open)`; backdrop is now a `.scroll-area--y` so short viewports can scroll.
+- `src/app/room/[roomCode]/page.tsx`: room list, message history, member list and approval list now use `getScrollAreaClassName("y")` with `role="region"`, localized `aria-label` and `tabIndex={0}`; all five page-level overlays scroll internally with `max-h-[calc(100dvh-2rem)]`; one `useBodyScrollLock` covers the whole overlay set.
+- `src/lib/i18n/messages.ts`: added `scroll.rooms/messages/members/approvals` in zh/en.
+- `src/lib/scroll.test.ts` (new): 16 tests covering token/CSS sync, WebKit + Firefox rules, container contract, axis variants, focus ring, layout import, class helper, scrollbar compensation and nested/idempotent scroll locking.
+- `docs/design-system-scroll.md` (new): token table, container contract, utility classes, application matrix, scroll-lock rules, accessibility and acceptance checklist.
+
+### Regression Checklist
+- `npm test` green: 40/40 tests (4 files, including 16 new scroll tests).
+- `npm run lint` green.
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+- `grep -rn "overflow-y-auto\|overflow-auto\|overflow-y-scroll" src` returns no matches.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
