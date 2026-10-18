@@ -368,6 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 响应式断点规范（REQ-202610-0502 / ui-39）：新增 `src/lib/responsive.ts` 断点/布局契约、`use-layout-mode` 与 `use-drawer-focus`；房间页按 `<768px` 单栏+双抽屉、`768–1279px` 两栏+成员抽屉、`>=1280px` 三栏可折叠落地，补齐遮罩、Esc、焦点圈定/归还、滚动锁定、安全区、44px 触摸目标与 reduced-motion 降级；`@theme inline` 增加 `--breakpoint-*` 令牌，新增 `docs/design-system-responsive.md` 与响应式契约单测。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

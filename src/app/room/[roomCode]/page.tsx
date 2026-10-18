@@ -1,7 +1,7 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import Image from "next/image";
@@ -23,6 +23,9 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { useLayoutMode } from "@/lib/use-layout-mode";
+import { useDrawerFocus } from "@/lib/use-drawer-focus";
+import { getDesktopGridTemplate } from "@/lib/responsive";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -570,6 +573,7 @@ export default function RoomPage() {
   const memberMenuRef = useRef<HTMLDivElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
   const membersPanelRef = useRef<HTMLElement | null>(null);
+  const [openDrawer, setOpenDrawer] = useState<"rooms" | "members" | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
   const [imageViewer, setImageViewer] = useState<ImageViewerState | null>(null);
 
@@ -577,6 +581,22 @@ export default function RoomPage() {
   const isOwner = snap?.me.role === "OWNER";
   const membersVisible = !membersCollapsed;
   const navVisible = !navCollapsed;
+  const layoutMode = useLayoutMode();
+  const roomsDrawerOpen = openDrawer === "rooms";
+  const membersDrawerOpen = openDrawer === "members";
+  const closeDrawer = useCallback(() => setOpenDrawer(null), []);
+
+  useDrawerFocus({ open: roomsDrawerOpen, onClose: closeDrawer, panelRef: roomsPanelRef });
+  useDrawerFocus({ open: membersDrawerOpen, onClose: closeDrawer, panelRef: membersPanelRef });
+
+  useEffect(() => {
+    setOpenDrawer((current) => {
+      if (!current) return current;
+      if (current === "rooms" && layoutMode !== "mobile") return null;
+      if (current === "members" && layoutMode === "desktop") return null;
+      return current;
+    });
+  }, [layoutMode]);
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
   const pollingEnabled = Boolean(snap && !snap.waitingApproval);
 
@@ -1191,9 +1211,24 @@ export default function RoomPage() {
     });
   }
 
-  function scrollToPanel(target: "rooms" | "members") {
-    const panelRef = target === "rooms" ? roomsPanelRef : membersPanelRef;
-    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function openRoomsPanel() {
+    if (layoutMode === "mobile") setOpenDrawer("rooms");
+  }
+
+  function openMembersPanel() {
+    if (layoutMode === "desktop") {
+      toggleMembersCollapsed();
+      return;
+    }
+    setOpenDrawer("members");
+  }
+
+  function closeMembersPanel() {
+    if (layoutMode === "desktop") {
+      toggleMembersCollapsed();
+      return;
+    }
+    closeDrawer();
   }
 
   async function runSend(localId: string, content: string, sendingFiles: File[]) {
@@ -1949,19 +1984,20 @@ export default function RoomPage() {
   return (
     <>
       <main
-        className={clsx(
-          "grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-canvas xl:h-[100dvh] xl:overflow-hidden",
-          navVisible && membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)_290px]",
-          navVisible && !membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)]",
-          !navVisible && membersVisible && "xl:grid-cols-[minmax(0,1fr)_290px]",
-          !navVisible && !membersVisible && "xl:grid-cols-[minmax(0,1fr)]",
-        )}
+        className="room-layout grid w-full gap-0 bg-canvas"
+        style={{ "--room-desktop-grid": getDesktopGridTemplate(navVisible, membersVisible) } as CSSProperties}
       >
         <aside
           ref={roomsPanelRef}
+          id="room-rooms-panel"
+          tabIndex={-1}
+          role={layoutMode === "mobile" ? "dialog" : undefined}
+          aria-modal={layoutMode === "mobile" ? true : undefined}
+          aria-label={t("nav.rooms")}
+          data-open={roomsDrawerOpen ? "true" : "false"}
           className={clsx(
-            "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-1 xl:max-h-none",
-            navVisible ? "flex" : "hidden",
+            "room-panel room-panel--rooms flex min-h-0 flex-col rounded-none p-4",
+            !navVisible && "xl:hidden",
           )}
         >
           <div className="mb-4 flex items-center justify-between gap-2">
@@ -1987,11 +2023,18 @@ export default function RoomPage() {
                 <h2 className="truncate text-lg font-semibold text-ink">{t("nav.subtitle")}</h2>
               </div>
             </div>
-            <Tooltip label={t("nav.collapse")}>
-              <IconButton aria-label={t("nav.collapse")} onClick={toggleNavCollapsed}>
-                <PanelLeftClose className="h-4 w-4" />
-              </IconButton>
-            </Tooltip>
+            <div className="flex items-center gap-1">
+              <Tooltip label={t("nav.collapse")}>
+                <IconButton aria-label={t("nav.collapse")} className="hidden xl:inline-flex" onClick={toggleNavCollapsed}>
+                  <PanelLeftClose className="h-4 w-4" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip label={t("nav.closeDrawer")}>
+                <IconButton aria-label={t("nav.closeDrawer")} className="room-drawer-close md:hidden" onClick={closeDrawer}>
+                  <X className="h-4 w-4" />
+                </IconButton>
+              </Tooltip>
+            </div>
           </div>
           <p className="mb-3 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-faint">
             <span>{t("nav.count", { count: roomCount, max: MAX_USER_ROOMS })}</span>
@@ -2076,7 +2119,7 @@ export default function RoomPage() {
           </div>
         </aside>
 
-        <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
+        <section className="room-panel--chat flex min-h-0 flex-col rounded-none bg-canvas">
           <header className="space-y-3 border-b border-line-subtle px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -2093,28 +2136,29 @@ export default function RoomPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {navVisible ? (
-                <button
-                  type="button"
-                  onClick={() => scrollToPanel("rooms")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
-                >
-                  {t("nav.rooms")}
-                </button>
-              ) : null}
-              {membersVisible ? (
-                <button
-                  type="button"
-                  onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
-                >
-                  {t("members.list")}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={openRoomsPanel}
+                aria-controls="room-rooms-panel"
+                aria-expanded={roomsDrawerOpen}
+                className="room-drawer-trigger inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft transition-ui hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-soft md:hidden"
+              >
+                {t("nav.rooms")}
+              </button>
+              <button
+                type="button"
+                onClick={openMembersPanel}
+                aria-controls="room-members-panel"
+                aria-expanded={membersDrawerOpen}
+                className="room-drawer-trigger inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft transition-ui hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-soft xl:hidden"
+              >
+                {t("members.list")}
+              </button>
               <Tooltip label={navVisible ? t("control.nav.hide") : t("control.nav.show")}>
                 <IconButton
                   aria-label={navVisible ? t("control.nav.hide") : t("control.nav.show")}
                   active={navVisible}
+                  className="hidden xl:inline-flex"
                   onClick={toggleNavCollapsed}
                 >
                   <PanelLeft className="h-4 w-4" />
@@ -2135,11 +2179,24 @@ export default function RoomPage() {
                   <Megaphone className="h-4 w-4" />
                 </IconButton>
               </Tooltip>
-              <Tooltip label={membersVisible ? t("control.members.hide") : t("control.members.show")}>
+              <Tooltip
+                label={
+                  layoutMode === "desktop"
+                    ? membersVisible ? t("control.members.hide") : t("control.members.show")
+                    : membersDrawerOpen ? t("members.closeDrawer") : t("members.openDrawer")
+                }
+              >
                 <IconButton
-                  aria-label={membersVisible ? t("control.members.hide") : t("control.members.show")}
-                  active={membersVisible}
-                  onClick={toggleMembersCollapsed}
+                  aria-label={
+                    layoutMode === "desktop"
+                      ? membersVisible ? t("control.members.hide") : t("control.members.show")
+                      : membersDrawerOpen ? t("members.closeDrawer") : t("members.openDrawer")
+                  }
+                  aria-controls="room-members-panel"
+                  aria-expanded={layoutMode === "desktop" ? membersVisible : membersDrawerOpen}
+                  active={layoutMode === "desktop" ? membersVisible : membersDrawerOpen}
+                  className="room-drawer-trigger"
+                  onClick={openMembersPanel}
                 >
                   <Users className="h-4 w-4" />
                 </IconButton>
@@ -2364,11 +2421,25 @@ export default function RoomPage() {
           </form>
         </section>
 
+        {openDrawer ? (
+          <div
+            className="room-drawer-backdrop xl:hidden"
+            onClick={closeDrawer}
+            aria-hidden="true"
+          />
+        ) : null}
+
         <aside
           ref={membersPanelRef}
+          id="room-members-panel"
+          tabIndex={-1}
+          role={layoutMode !== "desktop" ? "dialog" : undefined}
+          aria-modal={layoutMode !== "desktop" ? true : undefined}
+          aria-label={t("members.list")}
+          data-open={membersDrawerOpen ? "true" : "false"}
           className={clsx(
-            "order-3 min-h-0 max-h-[56vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-3 xl:max-h-none",
-            membersVisible ? "flex" : "hidden",
+            "room-panel room-panel--members flex min-h-0 flex-col rounded-none p-4",
+            !membersVisible && "xl:hidden",
           )}
         >
             <div className="mb-3">
@@ -2376,11 +2447,11 @@ export default function RoomPage() {
                 <p className="text-xs uppercase tracking-[0.16em] text-ink-faint">
                   {isOwner ? t("members.manage") : t("members.list")}
                 </p>
-                <Tooltip label={t("members.collapse")}>
+                <Tooltip label={layoutMode === "desktop" ? t("members.collapse") : t("members.closeDrawer")}>
                   <IconButton
-                    aria-label={t("members.collapse")}
-                    className="h-7 w-7"
-                    onClick={toggleMembersCollapsed}
+                    aria-label={layoutMode === "desktop" ? t("members.collapse") : t("members.closeDrawer")}
+                    className="room-drawer-close h-7 w-7"
+                    onClick={closeMembersPanel}
                   >
                     <PanelRightClose className="h-4 w-4" />
                   </IconButton>

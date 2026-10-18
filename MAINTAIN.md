@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 响应式断点规范（REQ-202610-0502 / ui-39）
+
+### Scope
+- 落地 dc-04 的「标准实现项」要求：断点矩阵覆盖手机/平板/桌面全适配，包含触摸交互、双主题与抽屉行为，而非仅文档规范。
+- 手机 `<768px` 单栏 + 房间/成员双抽屉；平板 `768–1279px` 两栏 + 成员抽屉；桌面 `>=1280px` 三栏且左右栏可折叠。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/responsive.ts`（new）：断点常量与纯函数布局契约（`getLayoutMode` / `resolveRoomLayout` / `getDesktopGridTemplate` / `getPanelSide` / `isDrawerAt`）。
+- `src/lib/use-layout-mode.ts`（new）：监听 `resize` / `orientationchange`，用 `requestAnimationFrame` 合并更新当前布局模式。
+- `src/lib/use-drawer-focus.ts`（new）：抽屉打开时锁定 body 滚动并补偿滚动条、初始聚焦、Tab/Shift+Tab 焦点圈定、Esc 关闭、关闭后焦点归还。
+- `src/app/responsive.css`（new）：三档媒体查询、移动端左右抽屉、遮罩、安全区内边距、`overscroll-behavior: contain`、44px 触摸目标与 reduced-motion 降级；桌面不覆盖 `display`，避免压过 Tailwind 的 `xl:hidden`。
+- `src/app/globals.css`：`@theme inline` 增加 `--breakpoint-sm/md/lg/xl`（40/48/64/80rem），与 JS 契约同源。
+- `src/app/layout.tsx`：在 `globals.css` 之后引入 `responsive.css`。
+- `src/app/room/[roomCode]/page.tsx`：房间页改为 `.room-layout` 网格；左右面板增加 `data-open` 抽屉状态与 `room-drawer-*` 类；新增遮罩与移动端关闭按钮；`scrollToPanel` 替换为 `openRoomsPanel` / `openMembersPanel` / `closeMembersPanel`；成员按钮按布局模式切换「折叠栏位 / 打开抽屉」；桌面折叠按钮仅在 `xl` 显示。
+- `src/lib/i18n/messages.ts`：新增 zh/en 键 `nav.openDrawer`、`nav.closeDrawer`、`members.openDrawer`、`members.closeDrawer`（编译期键位对齐）。
+- `src/lib/responsive.test.ts`（new）：断点边界、布局矩阵、桌面列宽组合、抽屉归属，以及 CSS 媒体查询/`data-open`/44px/reduced-motion/无硬编码颜色的契约测试。
+- `docs/design-system-responsive.md`（new）：断点矩阵、抽屉契约、触摸与主题规则、ui-46/ui-48 验收清单。
+
+### Regression Checklist
+- `npm test` green（新增 responsive 契约测试）。
+- `npm run lint` green。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

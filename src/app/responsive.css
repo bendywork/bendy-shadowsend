@@ -1,0 +1,155 @@
+/* Responsive room layout — REQ-202610-0502 / ui-39
+   Breakpoint matrix: mobile < 768px · tablet 768–1279px · desktop >= 1280px.
+   Mirrors src/lib/responsive.ts; the CSS contract test enforces the values. */
+
+.room-layout {
+  display: grid;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.room-panel {
+  min-width: 0;
+  min-height: 0;
+}
+
+.room-panel--rooms,
+.room-panel--members {
+  background: var(--ds-surface-canvas);
+}
+
+.room-panel--chat {
+  min-height: 0;
+}
+
+.room-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: var(--ds-overlay);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: room-drawer-backdrop-in var(--ds-duration-base) var(--ds-ease-out);
+}
+
+@keyframes room-drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Mobile — single column; both panels are edge drawers. */
+@media (max-width: 767.98px) {
+  .room-panel--rooms {
+    position: fixed;
+    inset-block: 0;
+    left: 0;
+    z-index: 80;
+    display: flex;
+    width: min(88vw, 340px);
+    max-width: 100%;
+    padding: max(var(--ds-space-4), env(safe-area-inset-top)) var(--ds-space-4)
+      max(var(--ds-space-4), env(safe-area-inset-bottom));
+    border-right: 1px solid var(--ds-line);
+    background: var(--ds-surface-panel);
+    box-shadow: var(--ds-shadow-lg);
+    transform: translateX(-100%);
+    visibility: hidden;
+    overscroll-behavior: contain;
+    transition:
+      transform var(--ds-duration-slow) var(--ds-ease-standard),
+      visibility 0s linear var(--ds-duration-slow);
+  }
+
+  .room-panel--rooms[data-open="true"] {
+    transform: translateX(0);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+}
+
+/* Mobile + tablet — members panel is a right-side drawer. */
+@media (max-width: 1279.98px) {
+  .room-panel--members {
+    position: fixed;
+    inset-block: 0;
+    right: 0;
+    z-index: 80;
+    display: flex;
+    width: min(88vw, 360px);
+    max-width: 100%;
+    padding: max(var(--ds-space-4), env(safe-area-inset-top)) var(--ds-space-4)
+      max(var(--ds-space-4), env(safe-area-inset-bottom));
+    border-left: 1px solid var(--ds-line);
+    background: var(--ds-surface-panel);
+    box-shadow: var(--ds-shadow-lg);
+    transform: translateX(100%);
+    visibility: hidden;
+    overscroll-behavior: contain;
+    transition:
+      transform var(--ds-duration-slow) var(--ds-ease-standard),
+      visibility 0s linear var(--ds-duration-slow);
+  }
+
+  .room-panel--members[data-open="true"] {
+    transform: translateX(0);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+}
+
+/* Tablet — two columns: rooms column + chat. */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .room-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .room-panel--rooms {
+    border-right: 1px solid var(--ds-line-subtle);
+  }
+}
+
+/* Desktop — three columns driven by the persisted sidebar preferences. */
+@media (min-width: 1280px) {
+  .room-layout {
+    grid-template-columns: var(--room-desktop-grid, 290px minmax(0, 1fr) 290px);
+  }
+
+  .room-panel--rooms {
+    border-right: 1px solid var(--ds-line-subtle);
+  }
+
+  .room-panel--members {
+    border-left: 1px solid var(--ds-line-subtle);
+  }
+
+  .room-drawer-backdrop {
+    display: none;
+  }
+}
+
+/* Touch: 44px minimum target for drawer triggers and close controls. */
+@media (pointer: coarse) {
+  .room-drawer-trigger,
+  .room-drawer-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-panel--rooms,
+  .room-panel--members {
+    transition: none;
+  }
+
+  .room-drawer-backdrop {
+    animation: none;
+  }
+}
