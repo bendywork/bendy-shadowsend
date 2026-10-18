@@ -12,6 +12,7 @@ import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, D
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { InviteModal } from "@/components/chat/invite-modal";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -22,6 +23,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
+import { copyTextToClipboard, getInviteRemainingMs, INVITE_DEFAULT_MINUTES } from "@/lib/invite";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
@@ -531,8 +533,15 @@ export default function RoomPage() {
   const [createdCollapsed, , toggleCreatedCollapsed] = usePersistentBoolean("tb:nav-group-created", false);
   const [joinedCollapsed, , toggleJoinedCollapsed] = usePersistentBoolean("tb:nav-group-joined", false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [showQr, setShowQr] = useState(false);
-  const [qr, setQr] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState("");
+  const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
+  const [inviteQr, setInviteQr] = useState<string | null>(null);
+  const [inviteQrLoading, setInviteQrLoading] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteNow, setInviteNow] = useState(() => Date.now());
 
   const [showNoticeEditor, setShowNoticeEditor] = useState(false);
   const [noticeText, setNoticeText] = useState("");
@@ -563,6 +572,8 @@ export default function RoomPage() {
   const [joinInviteToken, setJoinInviteToken] = useState("");
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const copyTextTimerRef = useRef<Record<string, number>>({});
+  const inviteRequestRef = useRef(0);
+  const inviteCopiedTimerRef = useRef<number | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -577,7 +588,6 @@ export default function RoomPage() {
   const isOwner = snap?.me.role === "OWNER";
   const membersVisible = !membersCollapsed;
   const navVisible = !navCollapsed;
-  const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
   const pollingEnabled = Boolean(snap && !snap.waitingApproval);
 
   const refresh = useCallback(async () => {
@@ -601,6 +611,65 @@ export default function RoomPage() {
     setLoadError(null);
   }, [roomCode]);
 
+  const requestInvite = useCallback(async () => {
+    const requestId = inviteRequestRef.current + 1;
+    inviteRequestRef.current = requestId;
+    setInviteLoading(true);
+    setInviteError(null);
+    setInviteLink("");
+    setInviteExpiresAt(null);
+    setInviteQr(null);
+    setInviteQrLoading(false);
+    setInviteCopied(false);
+
+    try {
+      const payload = await apiFetch<{ inviteLink: string; expiresAt: string }>(
+        `/api/rooms/${roomCode}/invite`,
+        {
+          method: "POST",
+          body: JSON.stringify({ expiresInMinutes: INVITE_DEFAULT_MINUTES }),
+        },
+      );
+      if (inviteRequestRef.current !== requestId) return;
+      setInviteLink(payload.inviteLink);
+      setInviteExpiresAt(payload.expiresAt);
+      setInviteNow(Date.now());
+    } catch (e) {
+      if (inviteRequestRef.current !== requestId) return;
+      setInviteError(resolveErrorMessage(e, t("invite.loadFailed"), t));
+      toastError(e, t("invite.loadFailed"), t);
+    } finally {
+      if (inviteRequestRef.current === requestId) setInviteLoading(false);
+    }
+  }, [roomCode, t]);
+
+  const openInviteModal = useCallback(() => {
+    setInviteOpen(true);
+    setInviteNow(Date.now());
+    setInviteCopied(false);
+    if (inviteLoading) return;
+    if (inviteLink && getInviteRemainingMs(inviteExpiresAt, Date.now()) > 0) return;
+    void requestInvite();
+  }, [inviteExpiresAt, inviteLink, inviteLoading, requestInvite]);
+
+  const copyInviteLink = useCallback(async () => {
+    if (!inviteLink) return;
+    const copied = await copyTextToClipboard(inviteLink);
+    if (!copied) {
+      toast.error(t("toast.copyFailed"));
+      return;
+    }
+    toast.success(t("toast.inviteLinkCopied"));
+    setInviteCopied(true);
+    if (inviteCopiedTimerRef.current) {
+      window.clearTimeout(inviteCopiedTimerRef.current);
+    }
+    inviteCopiedTimerRef.current = window.setTimeout(() => {
+      setInviteCopied(false);
+      inviteCopiedTimerRef.current = null;
+    }, 1800);
+  }, [inviteLink, t]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -610,6 +679,12 @@ export default function RoomPage() {
     })();
     return () => { alive = false; };
   }, [roomCode, refresh, t]);
+
+  useEffect(() => () => {
+    if (inviteCopiedTimerRef.current) {
+      window.clearTimeout(inviteCopiedTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!pollingEnabled) return;
@@ -622,13 +697,45 @@ export default function RoomPage() {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
   useEffect(() => {
-    if (!showQr || !joinLink) return;
-    setQr(null);
+    if (!inviteOpen) return;
+    const tick = window.setInterval(() => setInviteNow(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, [inviteOpen]);
+
+  useEffect(() => {
+    if (!inviteOpen || !inviteLink) {
+      setInviteQr(null);
+      setInviteQrLoading(false);
+      return;
+    }
+
+    let alive = true;
+    setInviteQrLoading(true);
+    setInviteQr(null);
     const styles = getComputedStyle(document.documentElement);
     const dark = styles.getPropertyValue("--ds-qr-dark").trim();
     const light = styles.getPropertyValue("--ds-qr-light").trim();
-    void QRCode.toDataURL(joinLink, { width: 280, margin: 1, color: { dark, light } }).then(setQr);
-  }, [showQr, joinLink]);
+
+    void QRCode.toDataURL(inviteLink, {
+      width: 360,
+      margin: 1,
+      errorCorrectionLevel: "M",
+      color: { dark, light },
+    })
+      .then((url) => {
+        if (alive) setInviteQr(url);
+      })
+      .catch(() => {
+        if (alive) setInviteQr(null);
+      })
+      .finally(() => {
+        if (alive) setInviteQrLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [inviteOpen, inviteLink]);
 
   useEffect(() => {
     if (!imageViewer) return;
@@ -1473,12 +1580,6 @@ export default function RoomPage() {
     }
   }
 
-  async function copyLink() {
-    if (!joinLink) return;
-    try { await navigator.clipboard.writeText(joinLink); toast.success(t("toast.linkCopied")); }
-    catch { toast.error(t("toast.copyFailed")); }
-  }
-
   function markTextCopied(feedbackKey: string) {
     setCopiedTextKeys((prev) => ({
       ...prev,
@@ -2120,13 +2221,8 @@ export default function RoomPage() {
                   <PanelLeft className="h-4 w-4" />
                 </IconButton>
               </Tooltip>
-              <Tooltip label={t("header.invite")}>
-                <IconButton aria-label={t("header.invite")} onClick={copyLink}>
-                  <Copy className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip label={t("header.qr")}>
-                <IconButton aria-label={t("header.qr")} onClick={() => setShowQr(true)}>
+              <Tooltip label={t("header.inviteQr")}>
+                <IconButton aria-label={t("header.inviteQr")} onClick={openInviteModal}>
                   <QrCode className="h-4 w-4" />
                 </IconButton>
               </Tooltip>
@@ -2788,29 +2884,22 @@ export default function RoomPage() {
         </div>
       ) : null}
 
-      {showQr ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">房间二维码</h3>
-              <button
-                type="button"
-                onClick={() => setShowQr(false)}
-                className="rounded-md border border-line p-1 text-ink-soft"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
-            ) : (
-              <div className="flex h-64 items-center justify-center">
-                <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
-              </div>
-            )}
-            <p className="mt-3 break-all text-xs text-ink-muted">{joinLink}</p>
-          </section>
-        </div>
+      {inviteOpen ? (
+        <InviteModal
+          roomName={snap?.room.name ?? roomCode}
+          roomCode={roomCode}
+          inviteLink={inviteLink}
+          expiresAt={inviteExpiresAt}
+          qrDataUrl={inviteQr}
+          qrLoading={inviteQrLoading}
+          loading={inviteLoading}
+          error={inviteError}
+          copied={inviteCopied}
+          now={inviteNow}
+          onCopy={() => { void copyInviteLink(); }}
+          onRegenerate={() => { void requestInvite(); }}
+          onClose={() => setInviteOpen(false)}
+        />
       ) : null}
 
       {showNoticeEditor ? (

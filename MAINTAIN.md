@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 邀请 / 二维码弹窗重构（REQ-202610-0489 / ui-26）
+
+### Scope
+- Merge the header's separate "invite" (copy join link) and "QR code" actions into one invite modal that owns QR display, link copy and validity messaging.
+- Mint a real 15-minute, one-time invite link through `POST /api/rooms/:roomCode/invite` instead of showing the generic room URL.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/chat/invite-modal.tsx` (new): `InviteModalContent` presentational pass (QR, status chip + countdown, expiry, validity facts, read-only link, copy/regenerate actions) plus `InviteModal` shell with portal, body scroll lock + scrollbar compensation, initial focus, Tab trap, Esc/overlay close and focus restore.
+- `src/app/invite-modal.css` (new): `.invite-overlay` / `.invite-modal` / `.invite-pass` / `.invite-status` / `.invite-link` styles built from `--ds-*` tokens; QR keeps the white `--ds-qr-surface`; ≤640px full-screen single column with 44px targets; animations only `opacity`/`transform` and disabled under `prefers-reduced-motion`. Imported from `globals.css`.
+- `src/lib/invite.ts` (new): remaining-time clamp, `active`/`expiring`/`expired` status, `mm:ss` countdown, localized "today/tomorrow/date" expiry, and clipboard helper with `execCommand` fallback.
+- `src/app/room/[roomCode]/page.tsx`: removed the old `showQr`/`qr`/`joinLink`/`copyLink` path and the hand-written QR overlay; added invite request state with request-id race guard, 1s countdown tick, theme-aware QR generation (`--ds-qr-*`, 360px, EC level M), copy feedback timer, and a single header `QrCode` entry.
+- `src/lib/i18n/messages.ts`: added zh/en `invite.*` keys plus `header.inviteQr` and `toast.inviteLinkCopied` (parity check enforced).
+- `src/lib/invite.test.ts` (new): 9 unit tests for time/status/format helpers.
+- `src/components/chat/invite-modal.test.tsx` (new): 6 SSR tests covering loading, ready, expiring, expired, error and copied states.
+- `vitest.config.ts`: include extended to `src/**/*.test.{ts,tsx}`.
+- `docs/design-system-invite-qr.md` (new): structure, state machine, tokens, accessibility and acceptance checklist.
+
+### Regression Checklist
+- `npm test` green: 39/39 tests (5 files).
+- `npm run lint` green (0 errors, 0 warnings).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
