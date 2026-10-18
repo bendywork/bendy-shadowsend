@@ -12,7 +12,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "db:reinit:prefixed": "prisma db execute --file prisma/reinit_prefixed.sql --schema prisma/schema.prisma"
+    "db:reinit:prefixed": "prisma db execute --file prisma/reinit_prefixed.sql --schema prisma/schema.prisma",
+    "release:tag": "node scripts/release-tag.mjs",
+    "test:release-tag": "node --test scripts/release-tag.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1014.0",
