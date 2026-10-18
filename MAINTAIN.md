@@ -3,6 +3,38 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.70 上传进度/重试/失败提示 UI（REQ-202610-0514 / up-05）
+
+### Scope
+- 将 up-03 的 relay 通道接入房间页上传 UI，落地多文件并发、进度、失败原因与重试入口。
+- 遵循 dc-06：同服务有限重试（单文件 3 次）后明确报错，不做跨服务兜底、不回退旧 S3/DUFS 通道。
+- 遵循 dc-07：先行接入现行气泡/附件卡片，后续由 ui-19 / ui-21 统一吸收。
+
+### Changes
+- `src/lib/upload/queue.ts` / `queue.test.ts`：有界并发（默认 3）、单文件最多 3 次尝试、`min(3000ms, 400×2^(n-1))` 退避、不可变快照、加权整体进度（未全部完成时最高 99）、`retry(id)` / `retryFailed()`。
+- `src/lib/upload/client.ts` / `client.test.ts`：relay 请求封装；≤4MB 走 `/upload/forward`，>4MB 走 `/upload/sessions` + 逐片 `/sessions/chunk` + `/sessions/complete`；XHR 上传进度、`AbortSignal`、错误分类（网络/超时/非法响应/HTTP 状态可重试）。
+- `src/lib/upload/stored-manifest.ts` / `stored-manifest.test.ts`：manifest JSON 解析与严格校验（字段、服务/存储匹配、≤50 片、索引连续、URL 白名单、大小一致）。
+- `src/lib/upload/remote-stream.ts` / `remote-stream.test.ts`：按 manifest 顺序拉取分片并合并为 `ReadableStream`。
+- `src/lib/upload/attachment-response.ts`：URL 附件 307 跳转、manifest 附件流式响应。
+- `src/components/chat/upload-progress.tsx` / `upload-progress.test.ts`：可访问进度条（`role="progressbar"`、`aria-*`）、失败原因、重试按钮、重试态语义色；动画仅使用 `transform`。
+- `src/app/room/[roomCode]/page.tsx`：删除旧 `uploadByProxy` / `uploadByChunkedProxy` / `uploadDirectToS3` 路径，改为队列驱动；pending 气泡显示整体进度、附件卡片显示文件级进度；失败按 `failedStage` 提供“重试失败文件”/“重试发送”；公告图片改走 relay；卸载时回收 object URL。
+- `src/lib/i18n/messages.ts`：新增 `upload.*` 与 `chat.retrySend` / `chat.retryUploads` 中英文成对文案。
+- `src/lib/validators.ts` / `validators.test.ts`：`s3Key` 上限提升到 `MAX_ATTACHMENT_KEY_CHARS`（20,000），附件存储枚举新增 `SANG` / `PIC_SL`；公告图片 `s3Key` 同步放宽以容纳分片 manifest。
+- `src/lib/announcement.ts` / `announcement.test.ts`：公告图片 JSON 解析保留 `SANG` / `PIC_SL` 存储标识（此前会错误回退为 `S3`）。
+- `prisma/schema.prisma` + `prisma/migrations/20261018140000_add_relay_attachment_storage/`：`AttachmentStorage` 新增 `SANG` / `PIC_SL`（与 up-01/up-02 分支一致的兼容做法，up-08 正式化时可合并）。
+- 下载/预览/公告图片路由与 `attachment-preview.ts`：支持 `SANG` / `PIC_SL`，manifest 附件走合并流式响应。
+- 新增 `docs/upload-progress-ui.md`；`README.md` 更新上传策略与更新记录。
+
+### Regression Checklist
+- `npm test` green: 107/107 tests（18 files）。
+- `npm run lint` green（0 errors / 0 warnings）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.70`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.69 上传服务端转发与分片编排（REQ-202610-0512 / up-03）
 
 ### Scope

@@ -63,22 +63,16 @@ Copy-Item .env.example .env
 > 
 > 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
 >
-> 当前上传策略：
+> 当前上传策略（v0.1.70 起）：
 >
-> - 所有文件（含 `image/*`）：
->   - 若已配置 S3：优先走 S3 预签名直传；失败时（且文件不超过 `200MB`）回退后端中转（`/api/rooms/[roomCode]/upload`）。
->   - 若未配置 S3 且已配置 DUFS：走后端中转并写入 DUFS。
-> - 公告图片与普通聊天附件使用同一套策略。
+> - 聊天附件与公告图片统一走 relay 通道（`file.sang.pub` / `pic.sl.al`），详见 `docs/upload-relay-architecture.md`：
+>   - ≤4MB：`POST /api/rooms/[roomCode]/upload/forward` 单请求转发；
+>   - >4MB：`POST /api/rooms/[roomCode]/upload/sessions` → `/sessions/chunk` → `/sessions/complete` 分片编排（4MB/片）。
+> - 前端按文件有界并发（默认 3 个）、单文件最多 3 次尝试；失败后展示原因并提供单文件/整条消息重试入口，详见 `docs/upload-progress-ui.md`。
+> - 按决策口径 dc-06：不做跨服务兜底，也不回退旧 S3/DUFS 自建通道；旧 `/upload`、`/upload/chunk` 接口仅为兼容旧客户端保留。
+> - 单文件大小上限为 `10GB`（服务端校验）；relay 通道自身限额为 sang ≤100MB、pic.sl.al ≤200MB。
 >
-> 单文件大小上限为 `10GB`（服务端会校验）。
->
-> 若部署在 Vercel 等函数平台，后端中转会受到函数请求体大小限制（可能触发 `413 FUNCTION_PAYLOAD_TOO_LARGE`），建议优先保证 S3 直传链路可用（含 CORS）。
->
-> 新增的第三方上传转发/分片编排（`file.sang.pub` / `pic.sl.al`）见 `docs/upload-relay-architecture.md`：
->
-> - `POST /api/rooms/[roomCode]/upload/forward`：≤4MB 文件单请求转发；
-> - `POST /api/rooms/[roomCode]/upload/sessions` → `/sessions/chunk` → `/sessions/complete`：4MB/片分片编排；
-> - 旧 S3/DUFS 配置在本阶段仍保留原链路，上传 UI 切换与旧配置旁路由后续 up-05/up-07 完成。
+> 若部署在 Vercel 等函数平台，后端转发同样受函数请求体大小限制（可能触发 `413 FUNCTION_PAYLOAD_TOO_LARGE`）；relay 已按 4MB/片拆分规避。
 >
 > 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
 
@@ -134,8 +128,8 @@ curl 'https://www.hi168.com/api/user/oss/preview/url' \
 
 - 启动项目后进入房间，上传任意文件。
 - 文件消息能正常显示且可下载，说明 S3 签名 URL 与存储访问正常。
-- 若报错 `S3_NOT_CONFIGURED`，说明必填项缺失或格式错误。
-- 若前端提示 `Failed to fetch`：项目会自动回退到后端中转上传接口（`/api/rooms/[roomCode]/upload`），当前中转上限为 `200MB`。超过该大小请优先检查 S3 CORS 与网络策略，确保直传链路可用。
+- 若报错 `S3_NOT_CONFIGURED`，说明必填项缺失或格式错误（仅影响旧 S3 兼容接口）。
+- 聊天附件上传失败时，气泡与附件卡片会显示具体原因（网络/超时/服务端状态码），可直接重试；服务端日志会记录 relay 路由级错误细节。
 - 生产环境建议优先使用 `HTTPS` 的 `S3_ENDPOINT`，可减少浏览器混合内容拦截与 CORS 问题。
 - 网络请求出错时：前端会在浏览器控制台输出 `apiFetch`/`upload` 详细上下文；服务端会在 Vercel Function Logs 打印路由级和 S3 级错误细节。
 
@@ -378,6 +372,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.70` 上传进度/重试/失败提示 UI（REQ-202610-0514 / up-05）：房间页上传切换为 relay 通道，新增有界并发队列（3 个文件、单文件 3 次尝试、指数退避）、文件级与消息级加权进度、失败原因展示，以及单文件重试、失败文件批量重试、整条消息重发三个入口；附件卡片与气泡统一使用 `UploadProgress`（`role="progressbar"`、`transform` 动画、语义化颜色）；新增 manifest 校验/合并流式下载与 SANG/PIC_SL 存储枚举兼容；新增 `docs/upload-progress-ui.md` 与 37 条单测。
 - `0.1.69` 上传服务端转发与分片编排（REQ-202610-0512 / up-03）：新增 `/upload/forward` 单请求转发与 `/upload/sessions` → `/sessions/chunk` → `/sessions/complete` 分片编排；4MB/片、单请求 ≤4.5MB、sang ≤100MB / pic.sl.al ≤200MB；无状态 HMAC 会话（2 小时）、来源校验、180 次/分钟限流、2GB/日配额、同服务最多 3 次重试；新增 `docs/upload-relay-architecture.md` 与 46 条单测。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。

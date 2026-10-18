@@ -5,6 +5,8 @@ import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { createDownloadUrl } from "@/lib/s3";
+import { createRemoteAttachmentResponse } from "@/lib/upload/attachment-response";
+import { resolveRemoteAttachment } from "@/lib/upload/stored-manifest";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 
 type Params = {
@@ -52,6 +54,40 @@ export async function GET(
     }
 
     const raw = request.nextUrl.searchParams.get("raw") === "1";
+
+    if (
+      attachment.storage === AttachmentStorage.SANG ||
+      attachment.storage === AttachmentStorage.PIC_SL
+    ) {
+      const remote = resolveRemoteAttachment(
+        attachment.storage,
+        attachment.s3Key,
+      );
+
+      if (!remote) {
+        throw new ApiError(502, "附件远端地址无效", "ATTACHMENT_REMOTE_INVALID");
+      }
+
+      if (raw) {
+        const response = createRemoteAttachmentResponse({
+          remote,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+          disposition: "attachment",
+        });
+        return applyUserCookie(response, cookieToSet);
+      }
+
+      if (remote.kind === "url") {
+        const response = jsonOk({ url: remote.url });
+        return applyUserCookie(response, cookieToSet);
+      }
+
+      const response = jsonOk({
+        url: `/api/rooms/${encodeURIComponent(roomCode)}/attachments/${encodeURIComponent(attachmentId)}/download?raw=1`,
+      });
+      return applyUserCookie(response, cookieToSet);
+    }
 
     if (attachment.storage === AttachmentStorage.DUFS) {
       if (raw) {

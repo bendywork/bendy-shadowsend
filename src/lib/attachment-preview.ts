@@ -1,6 +1,7 @@
 ﻿import { AttachmentStorage, PreviewType } from "@prisma/client";
 import { createDufsPublicUrl } from "@/lib/dufs";
 import { createAttachmentPreviewUrl } from "@/lib/s3";
+import { resolveRemoteAttachment } from "@/lib/upload/stored-manifest";
 
 type PreviewAttachment = {
   id: string;
@@ -48,6 +49,33 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
           }
 
           try {
+            if (
+              attachment.storage === AttachmentStorage.SANG ||
+              attachment.storage === AttachmentStorage.PIC_SL
+            ) {
+              const remote = resolveRemoteAttachment(
+                attachment.storage,
+                attachment.s3Key,
+              );
+
+              if (!remote) {
+                return { ...attachment, previewUrl: null };
+              }
+
+              if (remote.kind === "url") {
+                return { ...attachment, previewUrl: remote.url };
+              }
+
+              if (!options?.roomCode) {
+                return { ...attachment, previewUrl: null };
+              }
+
+              return {
+                ...attachment,
+                previewUrl: `/api/rooms/${encodeURIComponent(options.roomCode)}/attachments/${encodeURIComponent(attachment.id)}/preview`,
+              };
+            }
+
             if (attachment.storage === AttachmentStorage.DUFS) {
               if (options?.roomCode) {
                 return {

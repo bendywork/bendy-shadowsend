@@ -6,6 +6,8 @@ import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 import { createAttachmentPreviewUrl } from "@/lib/s3";
+import { createRemoteAttachmentResponse } from "@/lib/upload/attachment-response";
+import { resolveRemoteAttachment } from "@/lib/upload/stored-manifest";
 
 type Params = {
   roomCode: string;
@@ -54,6 +56,28 @@ export async function GET(
 
     if (!attachment) {
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
+    }
+
+    if (
+      attachment.storage === AttachmentStorage.SANG ||
+      attachment.storage === AttachmentStorage.PIC_SL
+    ) {
+      const remote = resolveRemoteAttachment(
+        attachment.storage,
+        attachment.s3Key,
+      );
+
+      if (!remote) {
+        throw new ApiError(502, "附件远端地址无效", "ATTACHMENT_REMOTE_INVALID");
+      }
+
+      const response = createRemoteAttachmentResponse({
+        remote,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        disposition: "inline",
+      });
+      return applyUserCookie(response, cookieToSet);
     }
 
     if (attachment.storage === AttachmentStorage.DUFS) {

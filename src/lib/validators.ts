@@ -2,6 +2,7 @@
 import {
   MAX_ANNOUNCEMENT_IMAGES,
   MAX_ANNOUNCEMENT_IMAGE_BYTES,
+  MAX_ATTACHMENT_KEY_CHARS,
   MAX_ATTACHMENT_SIZE_BYTES,
   MAX_MESSAGE_TEXT_CHARS,
 } from "@/lib/constants";
@@ -62,8 +63,11 @@ export const sendMessageSchema = z.object({
           .int()
           .positive()
           .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
-        s3Key: z.string().trim().min(1).max(512),
-        storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
+        s3Key: z.string().trim().min(1).max(MAX_ATTACHMENT_KEY_CHARS),
+        storage: z
+          .enum(["S3", "DUFS", "SANG", "PIC_SL"])
+          .optional()
+          .default("S3"),
       }),
     )
     .optional()
@@ -110,7 +114,7 @@ export const updateRoomJoinPolicySchema = z.object({
 });
 
 const announcementImagePayloadSchema = z.object({
-  s3Key: z.string().trim().min(1).max(512),
+  s3Key: z.string().trim().min(1).max(MAX_ATTACHMENT_KEY_CHARS),
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().min(1).max(120),
   sizeBytes: z
@@ -118,7 +122,10 @@ const announcementImagePayloadSchema = z.object({
     .int()
     .positive()
     .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
-  storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
+  storage: z
+    .enum(["S3", "DUFS", "SANG", "PIC_SL"])
+    .optional()
+    .default("S3"),
 });
 
 export const roomAnnouncementSchema = z.object({
