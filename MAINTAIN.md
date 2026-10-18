@@ -3,6 +3,25 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.65 聊天页顶栏重构（REQ-202610-0471 / ui-08）
+
+### Scope
+- Rebuild the chat-page header information hierarchy: room name, room code, member count and room status (role / gate code / no-expiry / pending approvals) now share one identity block.
+- Group actions by frequency: invite, QR code and announcement stay outside; sidebar toggles, appearance, language, room settings and dissolve move into a “更多操作” menu.
+- Keep the mobile panel shortcuts (rooms / members) as compact icon buttons; the header no longer duplicates every action as a flat icon row.
+
+### Changes
+- `src/components/chat/room-header.tsx`: new presentational header with copyable room code, role chip, status line, primary invite button, announcement unread dot, and grouped overflow menu.
+- `src/components/ui/menu.tsx`: reusable dropdown menu primitives (`Menu`, `MenuItem`, `MenuLabel`, `MenuSeparator`) with outside-click / Esc close, focus return and first-item focus.
+- `src/app/room/[roomCode]/page.tsx`: replace the inline header with `RoomHeader`; add copy-room-code, room/member panel reveal and approvals shortcut handlers.
+- `src/lib/i18n/messages.ts`: add `header.role.*`, `header.copyCode`, `header.more`, `header.menu.*`, `header.status.*`, `header.announcement.unread` (zh + en parity).
+
+### Regression Checklist
+- `npm run lint` green.
+- `npm run build` green (Next.js 16.2.1, TypeScript 0 error).
+- Playwright smoke on a temporary header preview: 1440px and 390px, dark + light, no horizontal overflow; menu opens with four room items, first item focused, Esc closes and returns focus; theme toggle inside menu switches `data-theme`; mobile menu stays inside the viewport.
+- No database was available locally, so the real room page was not exercised end-to-end; visual verification used a temporary preview route (removed before commit).
+
 ## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
 
 ### Scope

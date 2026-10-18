@@ -8,14 +8,13 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
+import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeftClose, PanelRightClose, Plus, SendHorizonal, Shield, UserMinus, X } from "lucide-react";
+import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_ROOM_MEMBERS, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { RoomHeader } from "@/components/chat/room-header";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
@@ -1422,6 +1421,32 @@ export default function RoomPage() {
     catch { setError("复制失败，请检查浏览器权限"); }
   }
 
+  async function copyRoomCode() {
+    try {
+      await navigator.clipboard.writeText(roomCode);
+      markTextCopied("room-code");
+      setHint("房间号已复制");
+      window.setTimeout(() => setHint(null), 2200);
+    } catch {
+      setError("复制失败，请检查浏览器权限");
+    }
+  }
+
+  function openRoomsPanel() {
+    if (!navVisible) toggleNavCollapsed();
+    window.setTimeout(() => scrollToPanel("rooms"), 60);
+  }
+
+  function openMembersPanel() {
+    if (!membersVisible) toggleMembersCollapsed();
+    window.setTimeout(() => scrollToPanel("members"), 60);
+  }
+
+  function openApprovalsPanel() {
+    setMemberPanelTab("approvals");
+    openMembersPanel();
+  }
+
   function markTextCopied(feedbackKey: string) {
     setCopiedTextKeys((prev) => ({
       ...prev,
@@ -2001,104 +2026,35 @@ export default function RoomPage() {
         </aside>
 
         <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
-          <header className="space-y-3 border-b border-line-subtle px-3 py-3 sm:px-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl font-semibold text-ink">{snap.room.name}</h1>
-                <p className="font-mono text-xs text-ink-faint">/{snap.room.roomCode}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center text-xs text-ink-muted">
-                  <Users className="mr-1 inline h-3.5 w-3.5" />
-                  {t("header.members", { count: snap.members.length, max: 20 })}
-                </span>
-                <ThemeToggle />
-                <LanguageToggle />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {navVisible ? (
-                <button
-                  type="button"
-                  onClick={() => scrollToPanel("rooms")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
-                >
-                  {t("nav.rooms")}
-                </button>
-              ) : null}
-              {membersVisible ? (
-                <button
-                  type="button"
-                  onClick={() => scrollToPanel("members")}
-                  className="inline-flex items-center rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-soft hover:bg-elevated xl:hidden"
-                >
-                  {t("members.list")}
-                </button>
-              ) : null}
-              <Tooltip label={navVisible ? t("control.nav.hide") : t("control.nav.show")}>
-                <IconButton
-                  aria-label={navVisible ? t("control.nav.hide") : t("control.nav.show")}
-                  active={navVisible}
-                  onClick={toggleNavCollapsed}
-                >
-                  <PanelLeft className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip label={t("header.invite")}>
-                <IconButton aria-label={t("header.invite")} onClick={copyLink}>
-                  <Copy className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip label={t("header.qr")}>
-                <IconButton aria-label={t("header.qr")} onClick={() => setShowQr(true)}>
-                  <QrCode className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip label={isOwner ? t("header.announcement.edit") : t("header.announcement.view")}>
-                <IconButton aria-label={t("header.announcement")} onClick={isOwner ? openNoticeEditor : openNoticeViewer}>
-                  <Megaphone className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip label={membersVisible ? t("control.members.hide") : t("control.members.show")}>
-                <IconButton
-                  aria-label={membersVisible ? t("control.members.hide") : t("control.members.show")}
-                  active={membersVisible}
-                  onClick={toggleMembersCollapsed}
-                >
-                  <Users className="h-4 w-4" />
-                </IconButton>
-              </Tooltip>
-              {isOwner ? (
-                <Tooltip label={t("header.settings")}>
-                  <IconButton
-                    aria-label={t("header.settings")}
-                    active={settingsOpen}
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </IconButton>
-                </Tooltip>
-              ) : null}
-              {isOwner ? (
-                <Tooltip label={action === "dissolve" ? t("header.dissolving") : t("header.dissolve")}>
-                  <IconButton
-                    aria-label={t("header.dissolve")}
-                    danger
-                    onClick={dissolve}
-                    disabled={action === "dissolve"}
-                  >
-                    {action === "dissolve" ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </IconButton>
-                </Tooltip>
-              ) : null}
-            </div>
-            <AdCarousel items={snap.adBoard.items} />
-            {hint ? <div className="rounded-lg border border-action-border bg-action-soft px-3 py-2 text-xs text-ink-soft">{hint}</div> : null}
-          </header>
+          <RoomHeader
+            roomName={snap.room.name}
+            roomCode={snap.room.roomCode}
+            memberCount={snap.members.length}
+            memberLimit={MAX_ROOM_MEMBERS}
+            role={snap.me.role}
+            hasGateCode={snap.room.hasGateCode}
+            neverExpire={snap.room.neverExpire}
+            pendingRequestCount={snap.pendingRequests.length}
+            announcementUnread={snap.announcement.showToMe}
+            navVisible={navVisible}
+            membersVisible={membersVisible}
+            settingsOpen={settingsOpen}
+            dissolving={action === "dissolve"}
+            copiedRoomCode={Boolean(copiedTextKeys["room-code"])}
+            hint={hint}
+            adSlot={<AdCarousel items={snap.adBoard.items} />}
+            onCopyRoomCode={() => void copyRoomCode()}
+            onCopyLink={() => void copyLink()}
+            onOpenQr={() => setShowQr(true)}
+            onOpenAnnouncement={isOwner ? openNoticeEditor : openNoticeViewer}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onDissolve={() => void dissolve()}
+            onToggleNav={toggleNavCollapsed}
+            onToggleMembers={toggleMembersCollapsed}
+            onScrollToRooms={openRoomsPanel}
+            onScrollToMembers={openMembersPanel}
+            onOpenApprovals={openApprovalsPanel}
+          />
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
