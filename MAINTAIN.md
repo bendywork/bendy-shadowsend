@@ -26,7 +26,7 @@
 
 ### Versioning / History
 - Updated `package.json` and `APP_VERSION` (constants) to `0.1.67`.
-- Added this entry to `MAINTAIN.md` and README 更新记录.
+- Feature commit `73258ff`; added this entry to `MAINTAIN.md` and README 更新记录.
 
 ## 2026-10-13: v0.1.64 决策回写（7 项决策结论同步路线图与需求卡，REQ-202610-0463）
 

@@ -369,7 +369,7 @@ npm run db:reinit:prefixed
 ### 2026-10-18
 
 - `0.1.67` 发布 tag 规范（REQ-202610-1374）：新增 `docs/release-tagging.md` 与 `scripts/release-tag.mjs`/测试，强制每次发布推送同步发布 `-ver` tag（正常 `<version>-ver`、修复 `<version>-fix-<次数>-ver`）；`package.json` / `src/lib/constants.ts` 版本同步至 `0.1.67`（无运行时行为变更）。
-- `本次迭代` `AGENTS.md` 增加发布 tag 强制规范；`README.md` 版本号管理补充发布 tag 流程；`package.json` 新增 `release:tag` / `test:release-tag` 脚本。
+- `73258ff` `AGENTS.md` 增加发布 tag 强制规范；`README.md` 版本号管理补充发布 tag 流程；`package.json` 新增 `release:tag` / `test:release-tag` 脚本。
 
 ### 2026-10-13
 
