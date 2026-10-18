@@ -1,14 +1,14 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Pause, Play, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -16,7 +16,9 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
+import { Dialog } from "@/components/ui/dialog";
 import { useT } from "@/lib/i18n/context";
+import { resolveMenuTarget } from "@/lib/a11y";
 import { Popover } from "@/components/ui/popover";
 import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
@@ -46,6 +48,7 @@ type RoomMenuState = {
   room: RoomTreeItem;
   top: number;
   left: number;
+  trigger: HTMLButtonElement;
 };
 type PendingAttachment = {
   id: string;
@@ -169,48 +172,72 @@ function RoomLinks({
   onToggleMenu: (room: RoomTreeItem, triggerButton: HTMLButtonElement) => void;
   emptyLabel?: string;
 }) {
-  return (
-    <div className="space-y-1">
-      {rooms.length === 0 ? <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">{emptyLabel}</p> : rooms.map((r) => (
-        <div
-          key={r.id}
-          className={clsx(
-            "rounded-lg border px-3 py-2 text-sm",
-            activeCode === r.roomCode
-              ? "border-action-border bg-action-soft text-ink"
-              : "border-line-subtle bg-panel/70 text-ink-soft hover:border-line",
-          )}
-        >
-          <div className="flex items-start gap-2">
-            <Link href={`/room/${r.roomCode}`} className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate">{r.name}</span>
-                {activeCode === r.roomCode ? (
-                  <span
-                    title="当前房间"
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-success shadow-[0_0_8px_var(--ds-success-glow)]"
-                  />
-                ) : null}
-                {r.hasGateCode ? <Shield className="h-3.5 w-3.5 shrink-0 text-ink-soft" /> : null}
-              </div>
-              <p className="mt-1 truncate font-mono text-[11px] text-ink-faint">{r.roomCode}</p>
-            </Link>
-            {r.role === "MEMBER" ? (
-              <button
-                type="button"
-                aria-label="房间操作"
-                aria-haspopup="menu"
-                data-room-menu-trigger={r.id}
-                onClick={(event) => onToggleMenu(r, event.currentTarget)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
+  const t = useT();
+
+  return rooms.length === 0 ? (
+    <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">
+      {emptyLabel}
+    </p>
+  ) : (
+    <ul className="space-y-1">
+      {rooms.map((r) => {
+        const isActive = activeCode === r.roomCode;
+
+        return (
+          <li
+            key={r.id}
+            className={clsx(
+              "rounded-lg border px-3 py-2 text-sm",
+              isActive
+                ? "border-action-border bg-action-soft text-ink"
+                : "border-line-subtle bg-panel/70 text-ink-soft hover:border-line",
+            )}
+          >
+            <div className="flex items-start gap-2">
+              <Link
+                href={`/room/${r.roomCode}`}
+                aria-current={isActive ? "page" : undefined}
+                className="min-w-0 flex-1 rounded-sm"
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ))}
-    </div>
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate">{r.name}</span>
+                  {isActive ? (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-success shadow-[0_0_8px_var(--ds-success-glow)]"
+                      />
+                      <span className="sr-only">{t("a11y.currentRoom")}</span>
+                    </>
+                  ) : null}
+                  {r.hasGateCode ? (
+                    <>
+                      <Shield aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ink-soft" />
+                      <span className="sr-only">{t("a11y.gateProtected")}</span>
+                    </>
+                  ) : null}
+                </span>
+                <span className="mt-1 block truncate font-mono text-[11px] text-ink-faint">
+                  {r.roomCode}
+                </span>
+              </Link>
+              {r.role === "MEMBER" ? (
+                <button
+                  type="button"
+                  aria-label={t("a11y.roomActions", { name: r.name })}
+                  aria-haspopup="menu"
+                  data-room-menu-trigger={r.id}
+                  onClick={(event) => onToggleMenu(r, event.currentTarget)}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated"
+                >
+                  <MoreHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -226,7 +253,7 @@ function FileAction({ roomCode, attachment, label }: { roomCode: string; attachm
       toastError(e, t("toast.downloadFailed"), t);
     } finally { setLoading(false); }
   }
-  return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
+  return <button type="button" onClick={open} disabled={loading} aria-busy={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle aria-hidden="true" className="h-3 w-3 animate-spin" /> : <Download aria-hidden="true" className="h-3 w-3" />}{label}</button>;
 }
 
 type BubbleAttachment = {
@@ -247,23 +274,32 @@ function MessageAttachmentCard({
   onOpenImage: (url: string | null | undefined, fileName: string) => void;
   action?: ReactNode;
 }) {
+  const t = useT();
+
   return (
-    <div className="rounded-xl border border-line bg-panel/80 p-2.5">
+    <li className="rounded-xl border border-line bg-panel/80 p-2.5">
       {hasInlinePreview(attachment) ? (
         <div className="mb-2 overflow-hidden rounded-lg border border-line bg-media">
           {attachment.previewType === "IMAGE" ? (
-            <img
-              src={attachment.previewUrl ?? ""}
-              alt={attachment.fileName}
-              className="max-h-[360px] w-full cursor-zoom-in object-contain"
-              loading="lazy"
-              onDoubleClick={() => onOpenImage(attachment.previewUrl, attachment.fileName)}
-            />
+            <button
+              type="button"
+              onClick={() => onOpenImage(attachment.previewUrl, attachment.fileName)}
+              aria-label={t("a11y.previewImage", { name: attachment.fileName })}
+              className="block w-full cursor-zoom-in"
+            >
+              <img
+                src={attachment.previewUrl ?? ""}
+                alt={attachment.fileName}
+                className="max-h-[360px] w-full object-contain"
+                loading="lazy"
+              />
+            </button>
           ) : attachment.previewType === "VIDEO" ? (
             <video
               src={attachment.previewUrl ?? ""}
               controls
               preload="metadata"
+              aria-label={attachment.fileName}
               className="max-h-[360px] w-full"
             />
           ) : null}
@@ -277,7 +313,7 @@ function MessageAttachmentCard({
         </div>
         {action ?? null}
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -318,8 +354,14 @@ function MessageBubble({
   onOpenImage: (url: string | null | undefined, fileName: string) => void;
   footerSlot?: ReactNode;
 }) {
+  const t = useT();
+  const contentId = useId();
+
   return (
-    <article className={clsx("flex", own ? "justify-end" : "justify-start")}>
+    <article
+      aria-label={t("a11y.messageFrom", { name: nickname })}
+      className={clsx("flex", own ? "justify-end" : "justify-start")}
+    >
       <div
         className={clsx(
           "w-full max-w-[92%] rounded-2xl border p-3 shadow-sm sm:max-w-[85%]",
@@ -332,18 +374,24 @@ function MessageBubble({
             <span className="text-sm font-medium text-ink-soft">{nickname}</span>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
-            <time className="tabular-nums">{fmt(createdAt)}</time>
+            <time dateTime={createdAt} className="tabular-nums">{fmt(createdAt)}</time>
             {metaSlot}
           </div>
         </div>
 
         {content ? (
           <div className="space-y-2">
-            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-ink">{visibleContent}</p>
+            <p
+              id={contentId}
+              className="whitespace-pre-wrap break-words text-sm leading-6 text-ink"
+            >
+              {visibleContent}
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={onCopy}
+                aria-label={t("a11y.copyMessage", { name: nickname })}
                 className={clsx(
                   "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-ui",
                   copied
@@ -351,13 +399,18 @@ function MessageBubble({
                     : "border-line text-ink-soft hover:bg-elevated",
                 )}
               >
-                <Copy className="h-3 w-3" />
+                <Copy aria-hidden="true" className="h-3 w-3" />
                 {copied ? labels.copied : labels.copy}
               </button>
+              <span className="sr-only" role="status" aria-live="polite">
+                {copied ? labels.copied : ""}
+              </span>
               {content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
                 <button
                   type="button"
                   onClick={onToggleExpand}
+                  aria-expanded={!collapsed}
+                  aria-controls={contentId}
                   className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11px] text-ink-soft hover:bg-elevated"
                 >
                   {collapsed ? labels.expand : labels.collapse}
@@ -368,7 +421,7 @@ function MessageBubble({
         ) : null}
 
         {attachments.length ? (
-          <div className="mt-3 space-y-2">
+          <ul aria-label={t("a11y.attachmentList")} className="mt-3 space-y-2">
             {attachments.map((attachment) => (
               <MessageAttachmentCard
                 key={attachment.id}
@@ -377,7 +430,7 @@ function MessageBubble({
                 action={renderAttachmentAction?.(attachment)}
               />
             ))}
-          </div>
+          </ul>
         ) : null}
 
         {footerSlot}
@@ -389,10 +442,12 @@ function MessageBubble({
 function SwitchBtn({
   checked,
   disabled,
+  label,
   onToggle,
 }: {
   checked: boolean;
   disabled?: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -400,6 +455,7 @@ function SwitchBtn({
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       disabled={disabled}
       onClick={onToggle}
       className={clsx(
@@ -409,7 +465,7 @@ function SwitchBtn({
           : "border-line-strong bg-elevated-strong",
         disabled
           ? "cursor-not-allowed opacity-60"
-          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action-border",
+          : "hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
       )}
     >
       <span
@@ -438,7 +494,7 @@ function AdCarouselItem({
         target="_blank"
         rel="noopener noreferrer"
         className={clsx(
-          "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-slow ease-out",
+          "absolute inset-0 flex items-center pl-3 pr-10 text-sm transition-transform duration-slow ease-out",
           className,
         )}
         style={{ color: textColor }}
@@ -452,7 +508,7 @@ function AdCarouselItem({
   return (
     <div
       className={clsx(
-        "absolute inset-0 flex items-center px-3 text-sm transition-transform duration-slow ease-out",
+        "absolute inset-0 flex items-center pl-3 pr-10 text-sm transition-transform duration-slow ease-out",
         className,
       )}
       style={{ color: textColor }}
@@ -464,16 +520,28 @@ function AdCarouselItem({
 }
 
 function AdCarousel({ items }: { items: AdBoardItem[] }) {
+  const t = useT();
   const [index, setIndex] = useState(0);
   const [animating, setAnimating] = useState(false);
+  const [playing, setPlaying] = useState(true);
 
   useEffect(() => {
-    if (items.length <= 1) return;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => {
+      if (query.matches) setPlaying(false);
+    };
+    syncPreference();
+    query.addEventListener("change", syncPreference);
+    return () => query.removeEventListener("change", syncPreference);
+  }, []);
+
+  useEffect(() => {
+    if (!playing || items.length <= 1) return;
     const timer = window.setInterval(() => {
       setAnimating(true);
     }, AD_CAROUSEL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [items.length]);
+  }, [items.length, playing]);
 
   useEffect(() => {
     if (!animating || items.length <= 1) return;
@@ -484,6 +552,11 @@ function AdCarousel({ items }: { items: AdBoardItem[] }) {
     return () => window.clearTimeout(timer);
   }, [animating, items.length]);
 
+  function togglePlaying() {
+    if (playing) setAnimating(false);
+    setPlaying((prev) => !prev);
+  }
+
   if (items.length === 0) {
     return null;
   }
@@ -493,7 +566,13 @@ function AdCarousel({ items }: { items: AdBoardItem[] }) {
   const next = items[(safeIndex + 1) % items.length];
 
   return (
-    <div className="relative h-9 overflow-hidden rounded-lg border border-line bg-panel/70">
+    <div
+      role="region"
+      aria-label={t("a11y.advertisement")}
+      aria-roledescription={t("a11y.carousel")}
+      aria-live="off"
+      className="relative h-9 overflow-hidden rounded-lg border border-line bg-panel/70"
+    >
       <AdCarouselItem
         item={current}
         className={animating ? "-translate-y-full" : "translate-y-0"}
@@ -504,6 +583,23 @@ function AdCarousel({ items }: { items: AdBoardItem[] }) {
           className={animating ? "translate-y-0" : "translate-y-full"}
         />
       ) : null}
+      {items.length > 1 ? (
+        <button
+          type="button"
+          onClick={togglePlaying}
+          aria-label={playing ? t("a11y.pauseCarousel") : t("a11y.playCarousel")}
+          className="absolute right-1 top-1/2 z-10 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md border border-line bg-panel/90 text-ink-soft hover:bg-elevated"
+        >
+          {playing ? (
+            <Pause aria-hidden="true" className="h-3.5 w-3.5" />
+          ) : (
+            <Play aria-hidden="true" className="h-3.5 w-3.5" />
+          )}
+        </button>
+      ) : null}
+      <span className="sr-only">
+        {t("a11y.slideStatus", { index: safeIndex + 1, total: items.length })}
+      </span>
     </div>
   );
 }
@@ -659,7 +755,13 @@ export default function RoomPage() {
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        const roomId = openRoomMenu.room.id;
         setOpenRoomMenu(null);
+        window.requestAnimationFrame(() => {
+          document
+            .querySelector<HTMLButtonElement>(`[data-room-menu-trigger="${roomId}"]`)
+            ?.focus();
+        });
       }
     };
     const closeRoomMenu = () => {
@@ -678,6 +780,26 @@ export default function RoomPage() {
   }, [openRoomMenu]);
 
   useEffect(() => {
+    if (!openRoomMenu) return;
+    const frame = window.requestAnimationFrame(() => {
+      floatingRoomMenuRef.current
+        ?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')
+        ?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openRoomMenu]);
+
+  useEffect(() => {
+    if (!openMemberMenuId) return;
+    const frame = window.requestAnimationFrame(() => {
+      memberMenuRef.current
+        ?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')
+        ?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openMemberMenuId]);
+
+  useEffect(() => {
     if (!openMemberMenuId) return;
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
@@ -687,7 +809,13 @@ export default function RoomPage() {
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        const memberId = openMemberMenuId;
         setOpenMemberMenuId(null);
+        window.requestAnimationFrame(() => {
+          document
+            .querySelector<HTMLButtonElement>(`[data-member-menu-trigger="${memberId}"]`)
+            ?.focus();
+        });
       }
     };
     window.addEventListener("mousedown", onMouseDown);
@@ -1871,16 +1999,27 @@ export default function RoomPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-ink-soft">
-        <LoaderCircle className="h-6 w-6 animate-spin" />
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-screen items-center justify-center text-ink-soft"
+      >
+        <span role="status" aria-live="polite" className="sr-only">
+          {t("a11y.loading")}
+        </span>
+        <LoaderCircle aria-hidden="true" className="h-6 w-6 animate-spin" />
       </main>
     );
   }
 
   if (loadError && !snap) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-sm text-ink-soft" role="alert">{loadError}</p>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center"
+      >
+        <p className="text-sm text-ink-soft" role="alert" aria-atomic="true">{loadError}</p>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -1908,9 +2047,13 @@ export default function RoomPage() {
 
   if (snap.waitingApproval) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-screen items-center justify-center px-4"
+      >
         <section className="w-full max-w-lg rounded-2xl border border-line bg-panel/90 p-8 text-center">
-          <Clock3 className="mx-auto h-8 w-8 text-ink-soft" />
+          <Clock3 aria-hidden="true" className="mx-auto h-8 w-8 text-ink-soft" />
           <h1 className="mt-4 text-xl font-semibold text-ink">等待房主审批</h1>
           <p className="mt-2 text-sm text-ink-muted">你曾被移出该房间，再次加入需要房主审批。</p>
           <Link href="/" className="mt-6 inline-flex rounded-xl bg-elevated-strong px-4 py-2 text-sm text-ink">
@@ -1943,12 +2086,29 @@ export default function RoomPage() {
     const nextTop = rect.bottom + 6 + menuHeight > window.innerHeight
       ? Math.max(viewportPadding, rect.top - menuHeight - 6)
       : rect.bottom + 6;
-    setOpenRoomMenu({ room: targetRoom, left: nextLeft, top: nextTop });
+    setOpenRoomMenu({ room: targetRoom, left: nextLeft, top: nextTop, trigger: triggerButton });
+  }
+
+  function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        '[role="menuitem"]:not([disabled])',
+      ),
+    );
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    const targetIndex = resolveMenuTarget(items.length, currentIndex, event.key);
+
+    if (targetIndex === null) return;
+
+    event.preventDefault();
+    items[targetIndex]?.focus();
   }
 
   return (
     <>
       <main
+        id="main-content"
+        tabIndex={-1}
         className={clsx(
           "grid min-h-[100dvh] w-full grid-cols-1 gap-0 bg-canvas xl:h-[100dvh] xl:overflow-hidden",
           navVisible && membersVisible && "xl:grid-cols-[290px_minmax(0,1fr)_290px]",
@@ -1959,6 +2119,7 @@ export default function RoomPage() {
       >
         <aside
           ref={roomsPanelRef}
+          aria-label={t("a11y.roomNavigation")}
           className={clsx(
             "order-2 min-h-0 max-h-[52vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-1 xl:max-h-none",
             navVisible ? "flex" : "hidden",
@@ -2018,7 +2179,7 @@ export default function RoomPage() {
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
                   className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus aria-hidden="true" className="h-3.5 w-3.5" />
                 </button>
               </div>
               {!createdCollapsed ? (
@@ -2045,7 +2206,7 @@ export default function RoomPage() {
                   disabled={!canAddMoreRooms || roomEntrySubmitting}
                   className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus aria-hidden="true" className="h-3.5 w-3.5" />
                 </button>
               </div>
               {!joinedCollapsed ? (
@@ -2076,7 +2237,10 @@ export default function RoomPage() {
           </div>
         </aside>
 
-        <section className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0">
+        <section
+          aria-label={t("a11y.chatRegion")}
+          className="order-1 flex min-h-[60vh] flex-col rounded-none border border-line-subtle bg-canvas xl:order-2 xl:h-full xl:min-h-0"
+        >
           <header className="space-y-3 border-b border-line-subtle px-3 py-3 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -2085,7 +2249,7 @@ export default function RoomPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center text-xs text-ink-muted">
-                  <Users className="mr-1 inline h-3.5 w-3.5" />
+                  <Users aria-hidden="true" className="mr-1 inline h-3.5 w-3.5" />
                   {t("header.members", { count: snap.members.length, max: 20 })}
                 </span>
                 <ThemeToggle />
@@ -2164,7 +2328,7 @@ export default function RoomPage() {
                     disabled={action === "dissolve"}
                   >
                     {action === "dissolve" ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
                     ) : (
                       <Trash2 className="h-4 w-4" />
                     )}
@@ -2175,7 +2339,13 @@ export default function RoomPage() {
             <AdCarousel items={snap.adBoard.items} />
           </header>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
+          <div
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions text"
+            aria-label={t("a11y.messageLog")}
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4"
+          >
             {snap.messages.length === 0 && pendingMessages.length === 0 ? (
               <div className="rounded-xl border border-line-subtle bg-panel/50 px-4 py-6 text-center text-sm text-ink-faint">
                 {t("chat.empty")}
@@ -2198,9 +2368,15 @@ export default function RoomPage() {
                   createdAt={m.createdAt}
                   metaSlot={
                     isOwnMessage && deliveryState === "sent" ? (
-                      <Check className="h-3.5 w-3.5 text-ink-soft" />
+                      <>
+                        <Check aria-hidden="true" className="h-3.5 w-3.5 text-ink-soft" />
+                        <span className="sr-only">{t("a11y.messageStatusSent")}</span>
+                      </>
                     ) : isOwnMessage && deliveryState === "read" ? (
-                      <CheckCheck className="h-3.5 w-3.5 text-ink-soft" />
+                      <>
+                        <CheckCheck aria-hidden="true" className="h-3.5 w-3.5 text-ink-soft" />
+                        <span className="sr-only">{t("a11y.messageStatusRead")}</span>
+                      </>
                     ) : null
                   }
                   content={m.content}
@@ -2232,12 +2408,15 @@ export default function RoomPage() {
                   metaSlot={
                     message.status === "sending" ? (
                       <>
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin text-ink-soft" />
-                        <span>{message.progress}%</span>
+                        <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-ink-soft" />
+                        <span aria-hidden="true">{message.progress}%</span>
+                        <span className="sr-only" role="status">
+                          {t("a11y.messageStatusSending", { percent: message.progress })}
+                        </span>
                       </>
                     ) : (
                       <>
-                        <X className="h-3.5 w-3.5 text-danger" />
+                        <X aria-hidden="true" className="h-3.5 w-3.5 text-danger" />
                         <span>{t("chat.sendFailed")}</span>
                       </>
                     )
@@ -2253,7 +2432,7 @@ export default function RoomPage() {
                   onOpenImage={openImageViewer}
                   footerSlot={
                     message.status === "failed" && message.error ? (
-                      <p className="mt-2 text-xs text-danger">{message.error}</p>
+                      <p role="alert" className="mt-2 text-xs text-danger">{message.error}</p>
                     ) : null
                   }
                 />
@@ -2264,45 +2443,51 @@ export default function RoomPage() {
 
           <form ref={composerFormRef} onSubmit={send} className="border-t border-line-subtle p-3 sm:p-4">
             {files.length ? (
-              <div className="mb-2 flex flex-wrap gap-2">
+              <ul aria-label={t("a11y.attachmentList")} className="mb-2 flex flex-wrap gap-2">
                 {files.map((file, index) => (
-                  <span
+                  <li
                     key={`${file.name}-${file.size}-${index}`}
                     className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-line bg-panel px-2.5 py-1.5 text-xs text-ink-soft"
                   >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                    <FileText aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
                     <span className="max-w-[200px] truncate">{file.name}</span>
                     <span className="shrink-0 text-[10px] text-ink-faint">{formatBytes(file.size)}</span>
                     <button
                       type="button"
-                      aria-label={t("composer.removeFile")}
+                      aria-label={t("a11y.removeAttachment", { name: file.name })}
                       onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
                       className="ml-0.5 rounded-full p-0.5 text-ink-muted transition-ui hover:bg-elevated-strong hover:text-ink"
                     >
-                      <X className="h-3 w-3" />
+                      <X aria-hidden="true" className="h-3 w-3" />
                     </button>
-                  </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : null}
 
-            <div className="rounded-2xl border border-line bg-panel/80 p-2 transition-ui focus-within:border-action-border focus-within:ring-2 focus-within:ring-action-soft">
+            <label htmlFor="composer-input" className="sr-only">
+              {t("a11y.messageInput")}
+            </label>
+            <div className="composer-shell rounded-2xl border border-line bg-panel/80 p-2 transition-ui focus-within:border-action-border">
               <textarea
+                id="composer-input"
                 value={text}
                 onChange={(e) => setText(clampMessageText(e.target.value))}
                 onPaste={onPaste}
                 onKeyDown={onComposerKeyDown}
                 maxLength={MAX_MESSAGE_TEXT_CHARS}
                 placeholder={t("composer.placeholder")}
+                aria-describedby="composer-char-count"
                 className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-6 text-ink outline-none placeholder:text-ink-faint"
               />
               <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated">
-                    <Plus className="h-3.5 w-3.5" />
+                    <Plus aria-hidden="true" className="h-3.5 w-3.5" />
                     {t("composer.attach")}
                     <input
                       type="file"
+                      aria-label={t("a11y.attachFiles")}
                       className="hidden"
                       multiple
                       onChange={(e) => {
@@ -2316,15 +2501,17 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={readClipboard}
+                    aria-label={t("a11y.readClipboard")}
                     className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated"
                   >
-                    <Copy className="h-3.5 w-3.5" />
+                    <Copy aria-hidden="true" className="h-3.5 w-3.5" />
                     {t("composer.clipboard")}
                   </button>
                   <button
                     type="button"
                     role="switch"
                     aria-checked={enterToSend}
+                    aria-label={t("a11y.enterToSend")}
                     onClick={() => setEnterToSend((prev) => !prev)}
                     className={clsx(
                       "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition-ui",
@@ -2339,6 +2526,8 @@ export default function RoomPage() {
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <span
+                    id="composer-char-count"
+                    aria-label={t("a11y.charCount", { count: text.length, max: MAX_MESSAGE_TEXT_CHARS })}
                     className={clsx(
                       "text-[11px] tabular-nums",
                       text.length >= MAX_MESSAGE_TEXT_CHARS
@@ -2353,9 +2542,10 @@ export default function RoomPage() {
                   <button
                     type="submit"
                     disabled={!text.trim() && files.length === 0}
+                    aria-label={t("a11y.sendMessage")}
                     className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <SendHorizonal className="h-3.5 w-3.5" />
+                    <SendHorizonal aria-hidden="true" className="h-3.5 w-3.5" />
                     {t("composer.send")}
                   </button>
                 </div>
@@ -2366,6 +2556,7 @@ export default function RoomPage() {
 
         <aside
           ref={membersPanelRef}
+          aria-label={t("a11y.membersRegion")}
           className={clsx(
             "order-3 min-h-0 max-h-[56vh] flex-col rounded-none border border-line-subtle bg-canvas p-4 xl:order-3 xl:max-h-none",
             membersVisible ? "flex" : "hidden",
@@ -2417,9 +2608,9 @@ export default function RoomPage() {
             {memberPanelTab === "members" || !isOwner ? (
               <div className="flex min-h-0 flex-1 flex-col">
                 <h2 className="mb-2 text-lg font-semibold text-ink">{t("members.count", { count: snap.members.length })}</h2>
-                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                <ul aria-label={t("a11y.memberList")} className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.members.map((m) => (
-                    <div key={m.id} className="rounded-lg border border-line-subtle bg-panel/70 px-3 py-2">
+                    <li key={m.id} className="rounded-lg border border-line-subtle bg-panel/70 px-3 py-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
                           <Avatar initial={m.user.avatarInitial} color={m.user.avatarColor} className="h-7 w-7" />
@@ -2437,16 +2628,22 @@ export default function RoomPage() {
                           >
                             <button
                               type="button"
-                              aria-label="成员操作"
+                              aria-label={t("a11y.memberActions", { name: m.user.nickname })}
                               aria-haspopup="menu"
                               aria-expanded={openMemberMenuId === m.id}
+                              data-member-menu-trigger={m.id}
                               onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-action-border text-ink-soft hover:bg-elevated"
                             >
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
                             </button>
                             {openMemberMenuId === m.id ? (
-                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-line bg-panel p-1.5 shadow-lg">
+                              <div
+                                role="menu"
+                                aria-label={t("a11y.memberActions", { name: m.user.nickname })}
+                                onKeyDown={handleMenuKeyDown}
+                                className="absolute right-0 top-9 z-20 w-40 rounded-md border border-line bg-panel p-1.5 shadow-lg"
+                              >
                                 <button
                                   type="button"
                                   role="menuitem"
@@ -2457,7 +2654,7 @@ export default function RoomPage() {
                                   disabled={action === `transfer-${m.id}`}
                                   className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
-                                  <Crown className="h-3 w-3" /> 房主转让
+                                  <Crown aria-hidden="true" className="h-3 w-3" /> {t("a11y.transferOwner", { name: m.user.nickname })}
                                 </button>
                                 <button
                                   type="button"
@@ -2469,30 +2666,30 @@ export default function RoomPage() {
                                   disabled={action === `kick-${m.id}`}
                                   className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
-                                  <UserMinus className="h-3 w-3" /> 移除房间
+                                  <UserMinus aria-hidden="true" className="h-3 w-3" /> {t("a11y.kickMember", { name: m.user.nickname })}
                                 </button>
                               </div>
                             ) : null}
                           </div>
                         ) : null}
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
             ) : null}
 
             {isOwner && memberPanelTab === "approvals" ? (
               <div className="flex min-h-0 flex-1 flex-col">
                 <h2 className="mb-2 text-lg font-semibold text-ink">{t("approvals.title")}</h2>
-                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                <ul aria-label={t("a11y.approvalsList")} className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {snap.pendingRequests.length === 0 ? (
-                    <p className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">
+                    <li className="rounded-lg border border-line-subtle bg-panel/60 px-3 py-2 text-xs text-ink-faint">
                       {t("approvals.empty")}
-                    </p>
+                    </li>
                   ) : (
                     snap.pendingRequests.map((r) => (
-                      <div key={r.id} className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
+                      <li key={r.id} className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
                         <div className="mb-2 flex items-center gap-2">
                           <Avatar initial={r.user.avatarInitial} color={r.user.avatarColor} className="h-6 w-6" />
                           <div>
@@ -2507,7 +2704,7 @@ export default function RoomPage() {
                             disabled={action === `approve-${r.id}`}
                             className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
                           >
-                            <Check className="h-3 w-3" /> {t("approvals.approve")}
+                            <Check aria-hidden="true" className="h-3 w-3" /> {t("approvals.approve")}
                           </button>
                           <button
                             type="button"
@@ -2515,13 +2712,13 @@ export default function RoomPage() {
                             disabled={action === `reject-${r.id}`}
                             className="inline-flex items-center gap-1 rounded-md border border-action-border px-2 py-1 text-xs text-ink-soft disabled:opacity-60"
                           >
-                            <X className="h-3 w-3" /> {t("approvals.reject")}
+                            <X aria-hidden="true" className="h-3 w-3" /> {t("approvals.reject")}
                           </button>
                         </div>
-                      </div>
+                      </li>
                     ))
                   )}
-                </div>
+                </ul>
               </div>
             ) : null}
 
@@ -2534,9 +2731,12 @@ export default function RoomPage() {
               >
                 <div className="space-y-3">
                   <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <p className="text-xs font-medium text-ink-soft">{t("settings.roomName")}</p>
+                    <label htmlFor="settings-room-name" className="text-xs font-medium text-ink-soft">
+                      {t("settings.roomName")}
+                    </label>
                     <div className="mt-2 flex items-center gap-2">
                       <input
+                        id="settings-room-name"
                         value={roomNameInput}
                         onChange={(e) => {
                           setRoomNameInput(e.target.value.slice(0, 48));
@@ -2545,7 +2745,7 @@ export default function RoomPage() {
                           }
                         }}
                         placeholder={t("settings.roomName.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                        className="field w-full px-2.5 py-1.5 text-xs"
                         aria-invalid={settingsErrors.roomName ? true : undefined}
                         aria-describedby={settingsErrors.roomName ? "settings-room-name-error" : undefined}
                       />
@@ -2561,9 +2761,12 @@ export default function RoomPage() {
                     <FieldError id="settings-room-name-error" message={settingsErrors.roomName} />
                   </div>
                   <div className="rounded-lg border border-line-subtle bg-panel/70 p-2.5">
-                    <p className="text-xs font-medium text-ink-soft">{t("settings.gateCode")}</p>
+                    <label htmlFor="settings-gate-code" className="text-xs font-medium text-ink-soft">
+                      {t("settings.gateCode")}
+                    </label>
                     <div className="mt-2 flex items-center gap-2">
                       <input
+                        id="settings-gate-code"
                         value={gateCodeInput}
                         onChange={(e) => {
                           setGateCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6));
@@ -2572,7 +2775,7 @@ export default function RoomPage() {
                           }
                         }}
                         placeholder={t("settings.gateCode.placeholder")}
-                        className="w-full rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink outline-none"
+                        className="field w-full px-2.5 py-1.5 text-xs"
                         aria-invalid={settingsErrors.gateCode ? true : undefined}
                         aria-describedby={settingsErrors.gateCode ? "settings-gate-code-error" : undefined}
                       />
@@ -2604,6 +2807,7 @@ export default function RoomPage() {
                         </span>
                         <SwitchBtn
                           checked={snap.room.allowJoinRequest}
+                          label={t("a11y.joinPolicySwitch")}
                           disabled={action === "join-policy"}
                           onToggle={() => {
                             void updateJoinPolicy(!snap.room.allowJoinRequest);
@@ -2624,6 +2828,7 @@ export default function RoomPage() {
                         </span>
                         <SwitchBtn
                           checked={snap.room.neverExpire}
+                          label={t("a11y.expirySwitch")}
                           disabled={action === "never-expire"}
                           onToggle={() => {
                             void updateNeverExpire(!snap.room.neverExpire);
@@ -2644,7 +2849,9 @@ export default function RoomPage() {
           <div
             ref={floatingRoomMenuRef}
             role="menu"
-            className="fixed z-[90] w-24 rounded-md border border-line bg-panel p-1 shadow-lg"
+            aria-label={t("a11y.roomMenu", { name: openRoomMenu.room.name })}
+            onKeyDown={handleMenuKeyDown}
+            className="fixed z-[90] w-40 rounded-md border border-line bg-panel p-1 shadow-lg"
             style={{ top: `${openRoomMenu.top}px`, left: `${openRoomMenu.left}px` }}
           >
             <button
@@ -2656,7 +2863,7 @@ export default function RoomPage() {
               disabled={action === `leave-${openRoomMenu.room.roomCode}`}
               className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
             >
-              退出房间
+              {t("a11y.leaveRoom", { name: openRoomMenu.room.name })}
             </button>
           </div>,
           document.body,
@@ -2664,11 +2871,16 @@ export default function RoomPage() {
         : null}
 
       {roomEntryMode ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg">
+        <Dialog
+          open
+          onClose={() => setRoomEntryMode(null)}
+          label={t("a11y.dialog.roomEntry")}
+          labelledBy="room-entry-title"
+          className="w-full max-w-md rounded-2xl border border-line bg-canvas p-5 shadow-lg"
+        >
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-semibold text-ink">
+                <h3 id="room-entry-title" className="text-base font-semibold text-ink">
                   {roomEntryMode === "create" ? "创建房间" : "加入房间"}
                 </h3>
                 <p className="mt-1 text-[11px] text-ink-faint">
@@ -2677,10 +2889,11 @@ export default function RoomPage() {
               </div>
               <button
                 type="button"
+                aria-label={t("common.close")}
                 onClick={() => setRoomEntryMode(null)}
                 className="rounded-md border border-line p-1 text-ink-soft hover:bg-elevated"
               >
-                <X className="h-4 w-4" />
+                <X aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
 
@@ -2697,7 +2910,7 @@ export default function RoomPage() {
                       }
                     }}
                     placeholder="输入房间名"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="field w-full px-3 py-2 text-sm"
                     aria-invalid={roomEntryErrors.name ? true : undefined}
                     aria-describedby={roomEntryErrors.name ? "room-entry-create-name-error" : undefined}
                   />
@@ -2714,7 +2927,7 @@ export default function RoomPage() {
                       }
                     }}
                     placeholder="不填则加入无需门禁码"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="field w-full px-3 py-2 text-sm"
                     aria-invalid={roomEntryErrors.gateCode ? true : undefined}
                     aria-describedby={roomEntryErrors.gateCode ? "room-entry-create-gate-code-error" : undefined}
                   />
@@ -2725,7 +2938,7 @@ export default function RoomPage() {
                   disabled={roomEntrySubmitting || !canAddMoreRooms}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {roomEntrySubmitting ? <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Plus aria-hidden="true" className="h-4 w-4" />}
                   创建并进入
                 </button>
               </form>
@@ -2742,7 +2955,7 @@ export default function RoomPage() {
                       }
                     }}
                     placeholder="例如：8DK1A2M7QX"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="field w-full px-3 py-2 text-sm"
                     aria-invalid={roomEntryErrors.roomCode ? true : undefined}
                     aria-describedby={roomEntryErrors.roomCode ? "room-entry-join-room-code-error" : undefined}
                   />
@@ -2759,7 +2972,7 @@ export default function RoomPage() {
                       }
                     }}
                     placeholder="如果房间设置了门禁码则必填"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="field w-full px-3 py-2 text-sm"
                     aria-invalid={roomEntryErrors.gateCode ? true : undefined}
                     aria-describedby={roomEntryErrors.gateCode ? "room-entry-join-gate-code-error" : undefined}
                   />
@@ -2771,7 +2984,7 @@ export default function RoomPage() {
                     value={joinInviteToken}
                     onChange={(event) => setJoinInviteToken(event.target.value.trim())}
                     placeholder="有邀请链接时填入"
-                    className="w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none ring-action-border transition-ui focus:ring"
+                    className="field w-full px-3 py-2 text-sm"
                   />
                 </label>
                 <button
@@ -2779,65 +2992,91 @@ export default function RoomPage() {
                   disabled={roomEntrySubmitting || !canAddMoreRooms}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-elevated-strong px-4 py-2.5 text-sm font-semibold text-ink transition-ui hover:bg-elevated-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {roomEntrySubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {roomEntrySubmitting ? <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Plus aria-hidden="true" className="h-4 w-4" />}
                   加入房间
                 </button>
               </form>
             )}
-          </section>
-        </div>
+        </Dialog>
       ) : null}
 
       {showQr ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5">
+        <Dialog
+          open
+          onClose={() => setShowQr(false)}
+          label={t("a11y.dialog.qr")}
+          labelledBy="qr-dialog-title"
+          className="w-full max-w-sm rounded-2xl border border-line bg-canvas p-5"
+        >
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">房间二维码</h3>
+              <h3 id="qr-dialog-title" className="text-base font-semibold text-ink">
+                {t("a11y.dialog.qr")}
+              </h3>
               <button
                 type="button"
+                aria-label={t("common.close")}
                 onClick={() => setShowQr(false)}
                 className="rounded-md border border-line p-1 text-ink-soft"
               >
-                <X className="h-4 w-4" />
+                <X aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
             {qr ? (
-              <img src={qr} alt="room-qr" className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2" />
+              <img
+                src={qr}
+                alt={t("a11y.qrAlt", { name: snap.room.name })}
+                className="mx-auto h-64 w-64 rounded-lg border border-line bg-qr-surface p-2"
+              />
             ) : (
               <div className="flex h-64 items-center justify-center">
-                <LoaderCircle className="h-5 w-5 animate-spin text-ink-muted" />
+                <span role="status" aria-live="polite" className="sr-only">
+                  {t("a11y.loading")}
+                </span>
+                <LoaderCircle aria-hidden="true" className="h-5 w-5 animate-spin text-ink-muted" />
               </div>
             )}
             <p className="mt-3 break-all text-xs text-ink-muted">{joinLink}</p>
-          </section>
-        </div>
+        </Dialog>
       ) : null}
 
       {showNoticeEditor ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5">
+        <Dialog
+          open
+          onClose={closeNoticeEditor}
+          label={t("a11y.dialog.noticeEdit")}
+          labelledBy="notice-editor-title"
+          className="w-full max-w-lg rounded-2xl border border-line bg-canvas p-5"
+        >
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-ink">配置公告</h3>
+              <h3 id="notice-editor-title" className="text-base font-semibold text-ink">
+                {t("a11y.dialog.noticeEdit")}
+              </h3>
               <button
                 type="button"
+                aria-label={t("common.close")}
                 onClick={closeNoticeEditor}
                 className="rounded-md border border-line p-1 text-ink-soft"
               >
-                <X className="h-4 w-4" />
+                <X aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
 
+            <label htmlFor="notice-text" className="sr-only">
+              {t("a11y.noticeText")}
+            </label>
             <textarea
+              id="notice-text"
               value={noticeText}
               onChange={(e) => setNoticeText(e.target.value)}
               placeholder="输入公告内容..."
-              className="min-h-[120px] w-full rounded-xl border border-line bg-panel/80 px-3 py-2 text-sm text-ink outline-none"
+              className="field min-h-[120px] w-full px-3 py-2 text-sm"
             />
 
             <input
               ref={noticeImageInputRef}
               type="file"
               accept="image/*"
+              aria-label={t("a11y.uploadNoticeImage")}
               className="hidden"
               multiple
               onChange={(e) => {
@@ -2856,8 +3095,8 @@ export default function RoomPage() {
                     <button
                       type="button"
                       className="h-full w-full"
+                      aria-label={t("a11y.previewImage", { name: image.imageName })}
                       onClick={() => openImageViewer(image.imageUrl, image.imageName)}
-                      title="预览原图"
                     >
                       <img
                         src={image.imageUrl}
@@ -2867,11 +3106,11 @@ export default function RoomPage() {
                     </button>
                     <button
                       type="button"
+                      aria-label={t("a11y.removeNoticeImage", { name: image.imageName })}
                       onClick={() => removeNoticeImage(image.id)}
                       className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-overlay-strong text-ink-soft opacity-100 transition-ui hover:bg-elevated group-hover:opacity-100"
-                      title="删除图片"
                     >
-                      <X className="h-3 w-3" />
+                      <X aria-hidden="true" className="h-3 w-3" />
                     </button>
                   </div>
                 ))}
@@ -2880,9 +3119,10 @@ export default function RoomPage() {
                   <button
                     type="button"
                     onClick={() => noticeImageInputRef.current?.click()}
+                    aria-label={t("a11y.uploadNoticeImage")}
                     className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-panel/70 px-2 text-center text-[11px] text-ink-soft hover:bg-elevated"
                   >
-                    <Plus className="mb-1 h-4 w-4" />
+                    <Plus aria-hidden="true" className="mb-1 h-4 w-4" />
                     上传公告图片
                   </button>
                 ) : null}
@@ -2917,16 +3157,22 @@ export default function RoomPage() {
               </button>
             </div>
 
-          </section>
-        </div>
+        </Dialog>
       ) : null}
 
       {showNoticePopup ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay-strong p-4">
-          <section className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5">
+        <Dialog
+          open
+          onClose={closeNoticePopup}
+          label={t("a11y.dialog.noticeView")}
+          labelledBy="notice-popup-title"
+          className="w-full max-w-lg rounded-2xl border border-line-strong bg-canvas p-5"
+        >
             <div className="mb-3 flex items-center gap-2 text-ink-soft">
-              <Megaphone className="h-5 w-5" />
-              <h3 className="text-base font-semibold">{isPreviewingNoticeDraft ? "公告预览" : "房间公告"}</h3>
+              <Megaphone aria-hidden="true" className="h-5 w-5" />
+              <h3 id="notice-popup-title" className="text-base font-semibold">
+                {isPreviewingNoticeDraft ? "公告预览" : "房间公告"}
+              </h3>
             </div>
             {noticePopupContent.text ? (
               <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{noticePopupContent.text}</p>
@@ -2938,20 +3184,24 @@ export default function RoomPage() {
                   noticePopupContent.images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2",
                 )}
               >
-                {noticePopupContent.images.map((image, index) => (
-                  <button
-                    key={`${image.imageUrl}-${index}`}
-                    type="button"
-                    onClick={() => openImageViewer(image.imageUrl, image.imageName ?? `announcement-${index + 1}`)}
-                    className="overflow-hidden rounded-lg border border-line bg-media"
-                  >
-                    <img
-                      src={image.imageUrl}
-                      alt={image.imageName ?? "announcement"}
-                      className="max-h-[42vh] w-full object-contain"
-                    />
-                  </button>
-                ))}
+                {noticePopupContent.images.map((image, index) => {
+                  const imageName = image.imageName ?? `announcement-${index + 1}`;
+                  return (
+                    <button
+                      key={`${image.imageUrl}-${index}`}
+                      type="button"
+                      aria-label={t("a11y.previewImage", { name: imageName })}
+                      onClick={() => openImageViewer(image.imageUrl, imageName)}
+                      className="overflow-hidden rounded-lg border border-line bg-media"
+                    >
+                      <img
+                        src={image.imageUrl}
+                        alt={imageName}
+                        className="max-h-[42vh] w-full object-contain"
+                      />
+                    </button>
+                  );
+                })}
               </div>
             ) : null}
             <div className="mt-4 flex justify-end">
@@ -2963,27 +3213,29 @@ export default function RoomPage() {
                 {isPreviewingNoticeDraft ? "关闭预览" : "我知道了"}
               </button>
             </div>
-          </section>
-        </div>
+        </Dialog>
       ) : null}
 
       {imageViewer ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-strong p-4"
-          onClick={() => setImageViewer(null)}
+        <Dialog
+          open
+          onClose={() => setImageViewer(null)}
+          label={t("a11y.dialog.imagePreview")}
+          labelledBy="image-viewer-title"
+          className="w-full max-w-5xl"
+          backdropClassName="fixed inset-0 z-[95] flex items-center justify-center bg-overlay-strong p-4"
         >
-          <section
-            className="w-full max-w-5xl"
-            onClick={(event) => event.stopPropagation()}
-          >
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-xs text-ink-soft">{imageViewer.fileName}</p>
+              <p id="image-viewer-title" className="truncate text-xs text-ink-soft">
+                {imageViewer.fileName}
+              </p>
               <button
                 type="button"
+                aria-label={t("common.close")}
                 onClick={() => setImageViewer(null)}
                 className="rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated"
               >
-                关闭
+                {t("common.close")}
               </button>
             </div>
             <img
@@ -2991,8 +3243,7 @@ export default function RoomPage() {
               alt={imageViewer.fileName}
               className="max-h-[80vh] w-full rounded-lg border border-line bg-media object-contain"
             />
-          </section>
-        </div>
+        </Dialog>
       ) : null}
     </>
   );

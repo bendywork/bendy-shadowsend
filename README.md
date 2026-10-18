@@ -368,6 +368,8 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.69` 无障碍补全（REQ-202610-0497）：按 WCAG 2.2 AA 补齐核心页面可访问名称、键盘操作、焦点管理与动态状态播报；新增统一 `Dialog`（焦点圈定 / Esc / 焦点归还 / 滚动锁定）与「跳到主内容」链接；首页标签页支持方向键 / Home / End，房间页菜单支持方向键与焦点归还，消息列表改为 `role="log"` 礼貌播报，轮播支持暂停并遵循 `prefers-reduced-motion`。
+- 校准深色 / 浅色双主题的文本、控件边框、焦点环与状态色对比度，新增 `src/lib/contrast.ts` + 23 条令牌阈值测试、`src/lib/a11y.ts` + 8 条键盘导航测试；新增 `docs/design-system-accessibility.md` 记录对比度矩阵与人工验收清单（测试合计 55 条）。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

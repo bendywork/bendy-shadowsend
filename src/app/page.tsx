@@ -1,7 +1,14 @@
 ﻿"use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
@@ -213,6 +220,23 @@ export default function HomePage() {
     return !nameError && !gateCodeError;
   }
 
+  function handleTabKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const order: TabType[] = ["join", "create"];
+    const index = order.indexOf(tab);
+    let nextTab: TabType | null = null;
+
+    if (event.key === "ArrowRight") nextTab = order[(index + 1) % order.length];
+    else if (event.key === "ArrowLeft") nextTab = order[(index - 1 + order.length) % order.length];
+    else if (event.key === "Home") nextTab = order[0];
+    else if (event.key === "End") nextTab = order[order.length - 1];
+
+    if (!nextTab) return;
+
+    event.preventDefault();
+    setTab(nextTab);
+    document.getElementById(`home-tab-${nextTab}`)?.focus();
+  }
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!validateCreateFields()) return;
@@ -267,7 +291,11 @@ export default function HomePage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 sm:py-10 lg:flex lg:items-center">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 sm:py-10 lg:flex lg:items-center"
+    >
       <section className="relative mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
         <div className="flex min-h-0 items-center px-1 sm:px-3 lg:min-h-[560px]">
           <div className="w-full max-w-xl space-y-6 sm:space-y-7">
@@ -290,15 +318,18 @@ export default function HomePage() {
               />
             </div>
 
-            <h2 className="text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-4xl">
+            <p className="text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-4xl">
               临时信息传递空间
-            </h2>
+            </p>
 
             <p className="max-w-md text-base leading-relaxed text-ink-muted sm:text-lg">
               房间 10 分钟无活跃自动销毁，信息短驻留、低负担。
             </p>
 
-            <p className="min-h-[2rem] font-mono text-base text-ink-faint sm:text-lg">
+            <p
+              aria-hidden="true"
+              className="min-h-[2rem] font-mono text-base text-ink-faint sm:text-lg"
+            >
               {typedText}
               <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-ink-muted align-middle sm:h-5" />
             </p>
@@ -306,7 +337,7 @@ export default function HomePage() {
         </div>
 
         <div className="flex min-h-0 items-center lg:min-h-[560px]">
-          <section className="surface-card w-full p-6 sm:p-7">
+          <section aria-busy={loading} className="surface-card w-full p-6 sm:p-7">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-ink-faint">Session Entry</p>
@@ -331,26 +362,46 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="segmented mb-5 inline-flex w-full p-1 sm:w-auto">
+            <div
+              role="tablist"
+              aria-label={t("a11y.tabs")}
+              className="segmented mb-5 inline-flex w-full p-1 sm:w-auto"
+              onKeyDown={handleTabKeyDown}
+            >
               <button
                 type="button"
+                role="tab"
+                id="home-tab-join"
+                aria-selected={tab === "join"}
+                aria-controls="home-panel-join"
+                tabIndex={tab === "join" ? 0 : -1}
                 onClick={() => setTab("join")}
                 data-active={tab === "join"}
                 className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
               >
-                <DoorOpen className="h-4 w-4" /> 加入
+                <DoorOpen aria-hidden="true" className="h-4 w-4" /> 加入
               </button>
               <button
                 type="button"
+                role="tab"
+                id="home-tab-create"
+                aria-selected={tab === "create"}
+                aria-controls="home-panel-create"
+                tabIndex={tab === "create" ? 0 : -1}
                 onClick={() => setTab("create")}
                 data-active={tab === "create"}
                 className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
               >
-                <PlusCircle className="h-4 w-4" /> 创建
+                <PlusCircle aria-hidden="true" className="h-4 w-4" /> 创建
               </button>
             </div>
 
-            {tab === "join" ? (
+            <div
+              role="tabpanel"
+              id="home-panel-join"
+              aria-labelledby="home-tab-join"
+              hidden={tab !== "join"}
+            >
               <form className="space-y-4" onSubmit={handleJoin} noValidate>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
@@ -402,17 +453,24 @@ export default function HomePage() {
                 <button
                   type="submit"
                   disabled={submitting || loading}
+                  aria-busy={submitting || loading}
                   className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
                 >
                   {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
                   ) : (
-                    <DoorOpen className="h-4 w-4" />
+                    <DoorOpen aria-hidden="true" className="h-4 w-4" />
                   )}
                   进入房间
                 </button>
               </form>
-            ) : (
+            </div>
+            <div
+              role="tabpanel"
+              id="home-panel-create"
+              aria-labelledby="home-tab-create"
+              hidden={tab !== "create"}
+            >
               <form className="space-y-4" onSubmit={handleCreate} noValidate>
                 <label className="block space-y-1">
                   <span className="text-xs text-ink-muted">房间名称</span>
@@ -455,17 +513,18 @@ export default function HomePage() {
                 <button
                   type="submit"
                   disabled={submitting || loading}
+                  aria-busy={submitting || loading}
                   className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
                 >
                   {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Sparkles className="h-4 w-4" />
+                    <Sparkles aria-hidden="true" className="h-4 w-4" />
                   )}
                   创建并进入
                 </button>
               </form>
-            )}
+            </div>
 
             <div className="mt-5 space-y-2 text-xs">
               <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
@@ -473,7 +532,7 @@ export default function HomePage() {
                 <span className="ml-1 font-semibold text-ink-soft">{roomCount}/10</span>
               </div>
               <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
-                <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />
+                <Shield aria-hidden="true" className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />
                 门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
               </div>
             </div>

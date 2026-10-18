@@ -3,6 +3,37 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 无障碍补全（ARIA / 对比度 / 语义化，REQ-202610-0497）
+
+### Scope
+- 按 WCAG 2.2 AA 补全核心页面的可访问名称、键盘操作、焦点管理、动态状态播报与语义结构。
+- 校准深色 / 浅色双主题的设计令牌对比度，并加入自动化阈值测试。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/ui/dialog.tsx` (new): shared accessible modal shell — `role="dialog"` + `aria-modal`, `aria-labelledby`/`aria-label`, initial focus, Tab trap, Escape closes only the topmost layer, focus restore, body scroll lock with stack counting, backdrop close.
+- `src/components/ui/skip-link.tsx` (new): first-focusable “跳到主内容” link targeting `<main id="main-content" tabIndex={-1}>` on every page.
+- `src/lib/a11y.ts` (new): `resolveTabTarget` / `resolveMenuTarget` / `buildDescribedBy` helpers plus the shared focusable selector.
+- `src/lib/contrast.ts` (new): WCAG relative-luminance / contrast-ratio maths and brace-aware CSS custom-property parsing for tests.
+- `src/app/globals.css`: dark/light ink, control-border and focus-ring tokens raised to AA; `.field` uses `--ds-line-control`, focus-visible ring instead of `outline: none`; placeholder opacity 1; `.skip-link` and `.composer-shell:focus-within` styles; new `--color-line-control` / `--color-focus-ring` theme exports.
+- `src/app/layout.tsx`: mounts `SkipLink` before the toast provider.
+- `src/app/page.tsx`: `<main>` landmark + skip target, tablist/tab/tabpanel semantics with Arrow/Home/End keyboard model, `aria-selected`/`aria-controls`, form controls keep labels and error associations, decorative icons hidden.
+- `src/app/room/[roomCode]/page.tsx`: named `main`/`nav`/`aside`/`section` landmarks; room links use `<ul>/<li>` and `aria-current="page"`; message log uses `role="log"` + polite live region; messages/articles, attachments, members and approvals use semantic lists and accessible names; copy/expand/attachment/preview controls labelled; composer textarea label, char-count and enter-to-send descriptions; room/member menus get `aria-haspopup`/`aria-expanded`, Arrow/Home/End navigation and Escape focus restore; carousel gets pause/play, reduced-motion default and slide status; all five custom modals replaced by `Dialog`; loading/error/waiting states expose `role="status"`/`role="alert"`.
+- `src/lib/i18n/messages.ts`: added zh/en `a11y.*` keys for landmarks, tabs, menus, messages, attachments, dialogs, carousel, composer and status labels (compile-time parity enforced).
+- `src/lib/a11y.test.ts` (new): 8 tests for tab/menu target resolution and describedby joining.
+- `src/lib/contrast.test.ts` (new): 23 tests covering colour maths, CSS parsing, and 4.5:1 / 3:1 token thresholds in both themes.
+- `docs/design-system-accessibility.md` (new): token contrast matrix, component patterns, automated coverage, manual acceptance checklist and known limits.
+
+### Regression Checklist
+- `npm test` green: 55/55 tests (5 files).
+- `npm run lint` green (0 errors, 0 warnings).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1, all routes compiled).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
