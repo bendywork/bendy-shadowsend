@@ -7,6 +7,19 @@
   };
 };
 
+/** 带 HTTP 状态与业务错误码的请求异常，便于表单把错误落到具体字段。 */
+export class ApiRequestError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const method = init?.method ?? "GET";
   const url = typeof input === "string" ? input : input.toString();
@@ -69,7 +82,11 @@ export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit):
       payload,
       rawText,
     });
-    throw new Error(payload?.error?.message ?? "请求失败");
+    throw new ApiRequestError(
+      payload?.error?.message ?? "请求失败",
+      response.status,
+      payload?.error?.code,
+    );
   }
 
   return payload.data;

@@ -456,6 +456,22 @@ textarea.field {
   color: var(--ds-danger);
 }
 
+/* Hint row with a trailing counter (room name / gate code). */
+.form-hint--split {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+}
+
+.form-hint--split > span:first-child {
+  min-width: 0;
+}
+
+.form-hint--split > span:last-child {
+  flex-shrink: 0;
+}
+
 /* Switch: the thumb moves with transform only. */
 .switch {
   position: relative;
@@ -863,6 +879,28 @@ textarea.field {
 .tooltip-bubble--open {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Tab panel switch: only opacity/transform animate (ui-35). */
+@keyframes home-form-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.home-form-panel {
+  animation: home-form-panel-in var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-form-panel {
+    animation: none;
+  }
 }
 
 /* Theme-specific artwork (logos) without !important overrides. */

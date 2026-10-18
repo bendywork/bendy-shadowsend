@@ -16,6 +16,7 @@ type FieldContextValue = {
   id: string;
   describedBy?: string;
   invalid: boolean;
+  required: boolean;
 };
 
 const FieldContext = createContext<FieldContextValue | null>(null);
@@ -27,6 +28,7 @@ function useFieldControl() {
     id: field.id,
     "aria-invalid": field.invalid || undefined,
     "aria-describedby": field.describedBy,
+    "aria-required": field.required || undefined,
   };
 }
 
@@ -38,6 +40,7 @@ type FieldProps = {
   required?: boolean;
   className?: string;
   labelClassName?: string;
+  hintClassName?: string;
   children: ReactNode;
 };
 
@@ -46,9 +49,10 @@ export function Field({
   label,
   hint,
   error,
-  required,
+  required = false,
   className,
   labelClassName,
+  hintClassName,
   children,
 }: FieldProps) {
   const hintId = hint ? `${id}-hint` : undefined;
@@ -65,11 +69,13 @@ export function Field({
           </span>
         ) : null}
       </label>
-      <FieldContext.Provider value={{ id, describedBy, invalid: Boolean(error) }}>
+      <FieldContext.Provider
+        value={{ id, describedBy, invalid: Boolean(error), required }}
+      >
         {children}
       </FieldContext.Provider>
       {hint ? (
-        <p className="form-hint" id={hintId}>
+        <p className={clsx("form-hint", hintClassName)} id={hintId}>
           {hint}
         </p>
       ) : null}
@@ -157,6 +163,10 @@ type SegmentedControlProps<T extends string> = {
   ariaLabel: string;
   fullWidth?: boolean;
   className?: string;
+  /** tablist 的 DOM id，按钮会派生为 `${id}-${value}`。 */
+  id?: string;
+  /** 对应 tabpanel 的 DOM id，用于 aria-controls。 */
+  panelId?: string;
 };
 
 export function SegmentedControl<T extends string>({
@@ -166,10 +176,13 @@ export function SegmentedControl<T extends string>({
   ariaLabel,
   fullWidth,
   className,
+  id,
+  panelId,
 }: SegmentedControlProps<T>) {
   return (
     <div
       role="tablist"
+      id={id}
       aria-label={ariaLabel}
       className={clsx("segmented", fullWidth && "segmented--full", className)}
     >
@@ -178,9 +191,11 @@ export function SegmentedControl<T extends string>({
         return (
           <button
             key={option.value}
+            id={id ? `${id}-${option.value}` : undefined}
             type="button"
             role="tab"
             aria-selected={active}
+            aria-controls={panelId}
             data-active={active}
             disabled={option.disabled}
             onClick={() => onChange(option.value)}

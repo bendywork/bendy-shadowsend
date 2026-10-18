@@ -368,6 +368,8 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
+- `0.1.68` 首页加入/创建表单重构（REQ-202610-0478 / ui-15）：房间号支持粘贴邀请链接自动提取，房间名/门禁码补齐长度计数与行内校验；blur + submit 双触发、首个错误字段聚焦、`aria-invalid`/`aria-describedby`/`aria-required` 一体化；服务端 `ROOM_NOT_FOUND`/`GATE_CODE_INVALID`/`GATE_CODE_RECENTLY_USED` 错误落到对应字段。
+- 新增 `home-form.ts` 纯校验函数与 20 个 Vitest 用例；`ApiRequestError` 保留业务错误码；`Field` 支持必填语义与分栏提示，`SegmentedControl` 补齐 tab/panel ARIA 关联。
 - `0.1.66` 表单控件体系统一（REQ-202610-0467 / ui-04）：新增 `Field`/`TextInput`/`TextArea`/`Select`/`Switch`/`SegmentedControl` 共享原语，`Field` 通过 context 自动注入 `id`、`aria-invalid`、`aria-describedby`；输入框、文本域、选择器、开关与分段控件统一 hover/focus/error/disabled 视觉状态。
 - `globals.css` 重建 `.field`（40px、聚焦环、错误态 danger 边框/底色、禁用态）、`.form-label`/`.form-hint`/`.form-error`、`.switch`（含 `--sm`）与 `.segmented` 组件类，全部消费 v0.1.65 语义令牌。
 - 首页加入/创建、房间入口、设置面板、公告编辑器与成员栏标签全部迁移到共享控件；补齐行内必填与 6 位门禁码校验，错误文案与 ARIA 关联同步；新增 zh/en 文案键。

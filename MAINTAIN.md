@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.68 首页加入/创建表单重构（REQ-202610-0478 / ui-15）
+
+### Scope
+- Rebuild the homepage join/create forms on the v0.1.66 form-control contract: one validation and feedback pipeline, clearer gate-code and invite hints, field-level server errors, and paste-an-invite-link support.
+- Keep the existing join/create behavior and visual language; no API or data-model changes.
+
+### Changes
+- `src/lib/home-form.ts` (new): pure helpers for room-code normalization (10 chars, excludes I/O/0/1, extracts `?room=` / `/room/<code>` from invite URLs), gate-code digit normalization, and required/format/length validation.
+- `src/lib/client.ts`: add `ApiRequestError` carrying HTTP status and business code so forms can map `ROOM_NOT_FOUND` / `GATE_CODE_INVALID` / `GATE_CODE_RECENTLY_USED` / `ROOM_LIMIT_REACHED` to the right field or global notice.
+- `src/components/ui/form-controls.tsx`: `Field` now exposes `required` via `aria-required`; add `hintClassName` for split hint/counter rows; `SegmentedControl` supports `id` / `panelId` and `aria-controls` tab semantics.
+- `src/app/page.tsx`: join/create forms rebuilt with `Field` + `TextInput` + `SegmentedControl`; blur + submit validation, first-error focus, live error clearing, 48-char room-name counter, 6-digit gate-code counter, invite-link detection, loading/busy submit states, server error mapping; all copy moved to i18n keys.
+- `src/lib/i18n/messages.ts`: add/replace zh/en keys for card header, identity, hints, validation, submit states, invite detection, room quota and gate-code rules; fix the sample room code to a valid alphabet (`8DK4A2M7QX`).
+- `src/app/globals.css`: add `.form-hint--split` and a `transform/opacity`-only `.home-form-panel` entrance animation with `prefers-reduced-motion` fallback.
+- `src/lib/home-form.test.ts`, `src/components/ui/form-controls.test.tsx` (new): 20 Vitest cases for normalization/validation and ARIA/tab semantics.
+- `vitest.config.mts`, `vitest.setup.ts`, `package.json`: add Vitest + jsdom + Testing Library setup and `test` scripts.
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`: version synced to `0.1.68`.
+
+### Regression Checklist
+- `npm test`: 2 files, 20 tests passed.
+- `npm run lint` green.
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1, 12 static pages).
+- Playwright production-build smoke (1440×900 + 390×844): 15/15 checks — no horizontal overflow; invite URL normalizes to `8DK4A2M7QX`; required/format errors show inline with focus + `aria-invalid`; create tab panel `aria-labelledby` correct; 48/48 and 6/6 counters; gate-code error clears when valid; theme toggle works; mobile join form visible.
+- Local API 500s during the smoke are due to no `DATABASE_URL` in the verification environment; form rendering and client validation are unaffected.
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.68`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.66 表单控件体系统一（REQ-202610-0467 / ui-04）
 
 ### Scope
