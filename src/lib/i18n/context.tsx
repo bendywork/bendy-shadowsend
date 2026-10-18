@@ -18,7 +18,7 @@ import {
   type MessageKey,
 } from "./messages";
 
-type TFn = (key: MessageKey, params?: Record<string, string | number>) => string;
+export type TFn = (key: MessageKey, params?: Record<string, string | number>) => string;
 
 type LanguageContextValue = {
   lang: Lang;

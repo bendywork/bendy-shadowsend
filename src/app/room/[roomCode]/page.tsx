@@ -8,14 +8,13 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, ChevronRight, Clock3, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { SettingsButton } from "@/components/settings/settings-panel";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
 import { FieldError } from "@/components/ui/field-error";
@@ -23,6 +22,7 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import { ENTER_TO_SEND_STORAGE_KEY } from "@/lib/preferences";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
 type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
@@ -521,7 +521,7 @@ export default function RoomPage() {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
-  const [enterToSend, setEnterToSend] = useState(true);
+  const [enterToSend] = usePersistentBoolean(ENTER_TO_SEND_STORAGE_KEY, true);
   const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
   const [expandedPendingMessageIds, setExpandedPendingMessageIds] = useState<Record<string, boolean>>({});
   const [copiedTextKeys, setCopiedTextKeys] = useState<Record<string, boolean>>({});
@@ -2088,8 +2088,7 @@ export default function RoomPage() {
                   <Users className="mr-1 inline h-3.5 w-3.5" />
                   {t("header.members", { count: snap.members.length, max: 20 })}
                 </span>
-                <ThemeToggle />
-                <LanguageToggle />
+                <SettingsButton />
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2320,21 +2319,6 @@ export default function RoomPage() {
                   >
                     <Copy className="h-3.5 w-3.5" />
                     {t("composer.clipboard")}
-                  </button>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={enterToSend}
-                    onClick={() => setEnterToSend((prev) => !prev)}
-                    className={clsx(
-                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition-ui",
-                      enterToSend
-                        ? "border-action-border bg-action-soft text-ink"
-                        : "border-line text-ink-soft hover:bg-elevated",
-                    )}
-                  >
-                    <CornerDownLeft className="h-3.5 w-3.5" />
-                    {t("composer.enterToSend")} · {enterToSend ? t("common.on") : t("common.off")}
                   </button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">

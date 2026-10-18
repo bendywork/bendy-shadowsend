@@ -8,7 +8,7 @@ import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
 import { ApiRequestError, apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
 import { Avatar } from "@/components/chat/avatar";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { SettingsButton } from "@/components/settings/settings-panel";
 import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
 import { toastError } from "@/lib/feedback";
@@ -314,7 +314,7 @@ export default function HomePage() {
                 <p className="mt-1.5 text-sm text-ink-muted">加入或创建房间，消息仅在活跃期内保留。</p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                <ThemeToggle />
+                <SettingsButton />
                 {displayMe ? (
                   <div className="flex items-center gap-3 rounded-2xl border border-line-subtle bg-panel/80 px-3 py-2">
                     <Avatar

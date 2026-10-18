@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 设置面板（主题 / 语言 / 偏好，REQ-202610-0503 / ui-40）
+
+### Scope
+- Centralize theme, language and input preferences into one settings panel opened from a single header button; remove the separate theme toggle and language segmented control from headers.
+- Persist the enter-to-send preference per browser and share it between the settings panel and the composer.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/settings/settings-panel.tsx` (new): `SettingsButton` trigger + shared `Popover`; `SettingsPanelContent` renders appearance (light/dark), language (zh/en) and preferences (enter-to-send) sections with a local-only note.
+- `src/lib/theme.ts` (new): theme storage key/type/normalizer, `useTheme` subscription and `data-theme` application; replaces `src/components/theme/theme-toggle.tsx`.
+- `src/lib/preferences.ts` (new): `ENTER_TO_SEND_STORAGE_KEY` and `readStoredBoolean` with explicit-default semantics.
+- `src/lib/use-persistent-boolean.ts`: use `readStoredBoolean` so a missing key keeps the caller's default (`true` for enter-to-send) instead of silently becoming `false`.
+- `src/app/page.tsx` / `src/app/room/[roomCode]/page.tsx`: replace theme/language controls with `SettingsButton`; composer reads the persisted enter-to-send preference and the duplicate toolbar toggle is removed.
+- `src/lib/i18n/messages.ts`: add zh/en `settings.panel.*` keys (compile-time parity enforced).
+- `src/app/globals.css`: add token-only `.settings-*` styles for sections, segmented options, switch and note.
+- Removed `src/components/ui/language-toggle.tsx`; updated `layout.tsx` prehydration comment.
+- `docs/design-system-settings-panel.md` (new): structure, persistence table, visual/interaction contract and acceptance checklist.
+- Tests: `src/lib/theme.test.ts` (3), `src/lib/preferences.test.ts` (4), `src/components/settings/settings-panel.test.tsx` (2); `vitest.config.ts` includes `.test.tsx`.
+
+### Regression Checklist
+- `npm test` green.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import { readStoredBoolean } from "@/lib/preferences";
 
 // 布尔偏好持久化到 localStorage：用 useSyncExternalStore 读取，
 // 服务端快照固定为 serverDefault（与 SSR 一致，规避水合不匹配），挂载后切到本地真实值。
@@ -28,7 +29,7 @@ export function usePersistentBoolean(
 
   const getSnapshot = useCallback(() => {
     try {
-      return window.localStorage.getItem(key) === "1";
+      return readStoredBoolean(window.localStorage.getItem(key), serverDefault);
     } catch {
       return serverDefault;
     }
