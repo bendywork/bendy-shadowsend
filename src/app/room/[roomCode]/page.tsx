@@ -1,17 +1,22 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import {
+  MessageBubble,
+  type MessageBubbleStatus,
+} from "@/components/chat/message-bubble";
+import { getMessageDeliveryState, getMessageGroupPositions } from "@/lib/message-bubble";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -60,10 +65,14 @@ type PendingMessage = {
   createdAt: string;
   content: string;
   attachments: PendingAttachment[];
+  files: File[];
   progress: number;
   status: "sending" | "failed";
   error?: string;
 };
+type MessageRow =
+  | { kind: "message"; id: string; message: MessageItem }
+  | { kind: "pending"; id: string; pending: PendingMessage };
 type NoticePreviewState = {
   text: string | null;
   images: Array<{
@@ -80,13 +89,7 @@ type NoticeEditorImage = {
   file?: File;
 };
 
-const isPreviewable = (a: { previewType: AttachmentItem["previewType"] }) =>
-  a.previewType === "IMAGE" || a.previewType === "VIDEO";
 const fmt = (v: string) => new Date(v).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const hasInlinePreview = (a: {
-  previewType: AttachmentItem["previewType"];
-  previewUrl?: string | null;
-}) => isPreviewable(a) && Boolean(a.previewUrl);
 const guessPreviewType = (mimeType: string): AttachmentItem["previewType"] => {
   if (mimeType.startsWith("image/")) return "IMAGE";
   if (mimeType.startsWith("video/")) return "VIDEO";
@@ -229,163 +232,6 @@ function FileAction({ roomCode, attachment, label }: { roomCode: string; attachm
   return <button type="button" onClick={open} disabled={loading} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-soft hover:bg-elevated disabled:opacity-50">{loading ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}{label}</button>;
 }
 
-type BubbleAttachment = {
-  id: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  previewType: AttachmentItem["previewType"];
-  previewUrl?: string | null;
-};
-
-function MessageAttachmentCard({
-  attachment,
-  onOpenImage,
-  action,
-}: {
-  attachment: BubbleAttachment;
-  onOpenImage: (url: string | null | undefined, fileName: string) => void;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-panel/80 p-2.5">
-      {hasInlinePreview(attachment) ? (
-        <div className="mb-2 overflow-hidden rounded-lg border border-line bg-media">
-          {attachment.previewType === "IMAGE" ? (
-            <img
-              src={attachment.previewUrl ?? ""}
-              alt={attachment.fileName}
-              className="max-h-[360px] w-full cursor-zoom-in object-contain"
-              loading="lazy"
-              onDoubleClick={() => onOpenImage(attachment.previewUrl, attachment.fileName)}
-            />
-          ) : attachment.previewType === "VIDEO" ? (
-            <video
-              src={attachment.previewUrl ?? ""}
-              controls
-              preload="metadata"
-              className="max-h-[360px] w-full"
-            />
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm text-ink-soft">{attachment.fileName}</p>
-          <p className="text-xs text-ink-faint">{attachment.mimeType} · {formatBytes(attachment.sizeBytes)}</p>
-        </div>
-        {action ?? null}
-      </div>
-    </div>
-  );
-}
-
-function MessageBubble({
-  own,
-  avatarInitial,
-  avatarColor,
-  nickname,
-  createdAt,
-  metaSlot,
-  content,
-  collapsed,
-  visibleContent,
-  onToggleExpand,
-  onCopy,
-  copied,
-  labels,
-  attachments,
-  renderAttachmentAction,
-  onOpenImage,
-  footerSlot,
-}: {
-  own: boolean;
-  avatarInitial: string;
-  avatarColor: string;
-  nickname: string;
-  createdAt: string;
-  metaSlot?: ReactNode;
-  content: string;
-  collapsed: boolean;
-  visibleContent: string;
-  onToggleExpand: () => void;
-  onCopy: () => void;
-  copied: boolean;
-  labels: { copy: string; copied: string; expand: string; collapse: string };
-  attachments: BubbleAttachment[];
-  renderAttachmentAction?: (attachment: BubbleAttachment) => ReactNode;
-  onOpenImage: (url: string | null | undefined, fileName: string) => void;
-  footerSlot?: ReactNode;
-}) {
-  return (
-    <article className={clsx("flex", own ? "justify-end" : "justify-start")}>
-      <div
-        className={clsx(
-          "w-full max-w-[92%] rounded-2xl border p-3 shadow-sm sm:max-w-[85%]",
-          own ? "border-action-border bg-action-soft" : "border-line-subtle bg-panel/60",
-        )}
-      >
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Avatar initial={avatarInitial} color={avatarColor} className="h-7 w-7" />
-            <span className="text-sm font-medium text-ink-soft">{nickname}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
-            <time className="tabular-nums">{fmt(createdAt)}</time>
-            {metaSlot}
-          </div>
-        </div>
-
-        {content ? (
-          <div className="space-y-2">
-            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-ink">{visibleContent}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={onCopy}
-                className={clsx(
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-ui",
-                  copied
-                    ? "border-action-border bg-action-soft text-ink"
-                    : "border-line text-ink-soft hover:bg-elevated",
-                )}
-              >
-                <Copy className="h-3 w-3" />
-                {copied ? labels.copied : labels.copy}
-              </button>
-              {content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD ? (
-                <button
-                  type="button"
-                  onClick={onToggleExpand}
-                  className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11px] text-ink-soft hover:bg-elevated"
-                >
-                  {collapsed ? labels.expand : labels.collapse}
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
-        {attachments.length ? (
-          <div className="mt-3 space-y-2">
-            {attachments.map((attachment) => (
-              <MessageAttachmentCard
-                key={attachment.id}
-                attachment={attachment}
-                onOpenImage={onOpenImage}
-                action={renderAttachmentAction?.(attachment)}
-              />
-            ))}
-          </div>
-        ) : null}
-
-        {footerSlot}
-      </div>
-    </article>
-  );
-}
-
 function SwitchBtn({
   checked,
   disabled,
@@ -522,8 +368,7 @@ export default function RoomPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
   const [enterToSend, setEnterToSend] = useState(true);
-  const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
-  const [expandedPendingMessageIds, setExpandedPendingMessageIds] = useState<Record<string, boolean>>({});
+  const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>({});
   const [copiedTextKeys, setCopiedTextKeys] = useState<Record<string, boolean>>({});
 
   const [membersCollapsed, , toggleMembersCollapsed] = usePersistentBoolean("tb:members-collapsed", false);
@@ -579,6 +424,39 @@ export default function RoomPage() {
   const navVisible = !navCollapsed;
   const joinLink = useMemo(() => typeof window === "undefined" ? "" : `${window.location.origin}/?room=${encodeURIComponent(roomCode)}`, [roomCode]);
   const pollingEnabled = Boolean(snap && !snap.waitingApproval);
+
+  const messageRows = useMemo<MessageRow[]>(() => {
+    if (!snap) return [];
+    return [
+      ...snap.messages.map((message) => ({
+        kind: "message" as const,
+        id: message.id,
+        message,
+      })),
+      ...pendingMessages.map((pending) => ({
+        kind: "pending" as const,
+        id: pending.localId,
+        pending,
+      })),
+    ];
+  }, [snap, pendingMessages]);
+
+  const messageGroupPositions = useMemo(
+    () =>
+      getMessageGroupPositions(
+        messageRows.map((row) => ({
+          senderId:
+            row.kind === "message"
+              ? row.message.sender.id
+              : snap?.me.id ?? "",
+          createdAt:
+            row.kind === "message"
+              ? row.message.createdAt
+              : row.pending.createdAt,
+        })),
+      ),
+    [messageRows, snap],
+  );
 
   const refresh = useCallback(async () => {
     const [b, s] = await Promise.all([apiFetch<BootstrapPayload>("/api/bootstrap"), apiFetch<RoomSnapshot>(`/api/rooms/${roomCode}`)]);
@@ -1168,21 +1046,6 @@ export default function RoomPage() {
     );
   }
 
-  function getMessageDeliveryState(message: MessageItem): "sent" | "read" | null {
-    if (!snap) return null;
-    if (message.sender.id !== snap.me.id) return null;
-
-    const messageTime = new Date(message.createdAt).getTime();
-    const readByOthers = snap.members.some(
-      (member) =>
-        member.userId !== snap.me.id &&
-        member.lastSeenAt &&
-        new Date(member.lastSeenAt).getTime() >= messageTime,
-    );
-
-    return readByOthers ? "read" : "sent";
-  }
-
   function openImageViewer(url: string | null | undefined, fileName: string) {
     if (!url) return;
     setImageViewer({
@@ -1262,6 +1125,18 @@ export default function RoomPage() {
     }
   }
 
+  function retryPendingMessage(localId: string) {
+    const target = pendingMessages.find((item) => item.localId === localId);
+    if (!target || target.status !== "failed") return;
+
+    updatePendingMessage(localId, {
+      status: "sending",
+      progress: 0,
+      error: undefined,
+    });
+    void runSend(localId, target.content, target.files);
+  }
+
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const content = text.trim();
@@ -1288,6 +1163,7 @@ export default function RoomPage() {
         createdAt: new Date().toISOString(),
         content,
         attachments: pendingAttachments,
+        files: sendingFiles,
         progress: 0,
         status: "sending",
       },
@@ -2175,87 +2051,115 @@ export default function RoomPage() {
             <AdCarousel items={snap.adBoard.items} />
           </header>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
-            {snap.messages.length === 0 && pendingMessages.length === 0 ? (
+          <div
+            className="message-list min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4"
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-label={t("chat.messages")}
+          >
+            {messageRows.length === 0 ? (
               <div className="rounded-xl border border-line-subtle bg-panel/50 px-4 py-6 text-center text-sm text-ink-faint">
                 {t("chat.empty")}
               </div>
             ) : null}
 
-            {snap.messages.map((m) => {
-              const isOwnMessage = m.sender.id === snap.me.id;
-              const deliveryState = getMessageDeliveryState(m);
-              const expanded = Boolean(expandedMessageIds[m.id]);
-              const collapsed = isMessageCollapsed(m.content, expanded);
-              const copyKey = `message-${m.id}`;
-              return (
-                <MessageBubble
-                  key={m.id}
-                  own={isOwnMessage}
-                  avatarInitial={m.sender.avatarInitial}
-                  avatarColor={m.sender.avatarColor}
-                  nickname={m.sender.nickname}
-                  createdAt={m.createdAt}
-                  metaSlot={
-                    isOwnMessage && deliveryState === "sent" ? (
-                      <Check className="h-3.5 w-3.5 text-ink-soft" />
-                    ) : isOwnMessage && deliveryState === "read" ? (
-                      <CheckCheck className="h-3.5 w-3.5 text-ink-soft" />
-                    ) : null
-                  }
-                  content={m.content}
-                  collapsed={collapsed}
-                  visibleContent={collapsed ? `${getCollapsedPreviewText(m.content)}...` : m.content}
-                  onToggleExpand={() => setExpandedMessageIds((prev) => ({ ...prev, [m.id]: !expanded }))}
-                  onCopy={() => void copyMessageText(m.content, copyKey)}
-                  copied={Boolean(copiedTextKeys[copyKey])}
-                  labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
-                  attachments={m.attachments}
-                  renderAttachmentAction={(a) => <FileAction roomCode={roomCode} attachment={a as AttachmentItem} label={t("chat.download")} />}
-                  onOpenImage={openImageViewer}
-                />
-              );
-            })}
+            {messageRows.map((row, index) => {
+              const groupPosition = messageGroupPositions[index] ?? "single";
 
-            {pendingMessages.map((message) => {
-              const expanded = Boolean(expandedPendingMessageIds[message.localId]);
+              if (row.kind === "pending") {
+                const expanded = Boolean(expandedRowIds[row.id]);
+                const collapsed = isMessageCollapsed(row.pending.content, expanded);
+                const copyKey = `pending-${row.id}`;
+
+                return (
+                  <MessageBubble
+                    key={row.id}
+                    own
+                    sender={snap.me}
+                    createdAt={row.pending.createdAt}
+                    status={row.pending.status}
+                    progress={row.pending.progress}
+                    error={row.pending.error ?? null}
+                    groupPosition={groupPosition}
+                    content={row.pending.content}
+                    collapsed={collapsed}
+                    visibleContent={
+                      collapsed
+                        ? `${getCollapsedPreviewText(row.pending.content)}...`
+                        : row.pending.content
+                    }
+                    canToggleExpand={
+                      row.pending.content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD
+                    }
+                    onToggleExpand={() =>
+                      setExpandedRowIds((prev) => ({
+                        ...prev,
+                        [row.id]: !expanded,
+                      }))
+                    }
+                    onCopy={() =>
+                      void copyMessageText(row.pending.content, copyKey)
+                    }
+                    copied={Boolean(copiedTextKeys[copyKey])}
+                    attachments={row.pending.attachments}
+                    onOpenImage={openImageViewer}
+                    onRetry={() => retryPendingMessage(row.pending.localId)}
+                  />
+                );
+              }
+
+              const message = row.message;
+              const isOwnMessage = message.sender.id === snap.me.id;
+              const status: MessageBubbleStatus = isOwnMessage
+                ? getMessageDeliveryState(
+                    {
+                      senderId: message.sender.id,
+                      createdAt: message.createdAt,
+                    },
+                    snap.me.id,
+                    snap.members,
+                  ) ?? "sent"
+                : "received";
+              const expanded = Boolean(expandedRowIds[row.id]);
               const collapsed = isMessageCollapsed(message.content, expanded);
-              const copyKey = `pending-${message.localId}`;
+              const copyKey = `message-${row.id}`;
+
               return (
                 <MessageBubble
-                  key={message.localId}
-                  own
-                  avatarInitial={snap.me.avatarInitial}
-                  avatarColor={snap.me.avatarColor}
-                  nickname={snap.me.nickname}
+                  key={row.id}
+                  own={isOwnMessage}
+                  sender={message.sender}
                   createdAt={message.createdAt}
-                  metaSlot={
-                    message.status === "sending" ? (
-                      <>
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin text-ink-soft" />
-                        <span>{message.progress}%</span>
-                      </>
-                    ) : (
-                      <>
-                        <X className="h-3.5 w-3.5 text-danger" />
-                        <span>{t("chat.sendFailed")}</span>
-                      </>
-                    )
-                  }
+                  status={status}
+                  groupPosition={groupPosition}
                   content={message.content}
                   collapsed={collapsed}
-                  visibleContent={collapsed ? `${getCollapsedPreviewText(message.content)}...` : message.content}
-                  onToggleExpand={() => setExpandedPendingMessageIds((prev) => ({ ...prev, [message.localId]: !expanded }))}
+                  visibleContent={
+                    collapsed
+                      ? `${getCollapsedPreviewText(message.content)}...`
+                      : message.content
+                  }
+                  canToggleExpand={
+                    message.content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD
+                  }
+                  onToggleExpand={() =>
+                    setExpandedRowIds((prev) => ({
+                      ...prev,
+                      [row.id]: !expanded,
+                    }))
+                  }
                   onCopy={() => void copyMessageText(message.content, copyKey)}
                   copied={Boolean(copiedTextKeys[copyKey])}
-                  labels={{ copy: t("chat.copy"), copied: t("chat.copied"), expand: t("chat.expand"), collapse: t("chat.collapse") }}
                   attachments={message.attachments}
+                  renderAttachmentAction={(attachment) => (
+                    <FileAction
+                      roomCode={roomCode}
+                      attachment={attachment as AttachmentItem}
+                      label={t("chat.download")}
+                    />
+                  )}
                   onOpenImage={openImageViewer}
-                  footerSlot={
-                    message.status === "failed" && message.error ? (
-                      <p className="mt-2 text-xs text-danger">{message.error}</p>
-                    ) : null
-                  }
                 />
               );
             })}

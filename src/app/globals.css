@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./message-bubbles.css";
 
 /* ============================================================
    Design tokens — monochrome foundation (REQ-202610-0464 / dc-02)

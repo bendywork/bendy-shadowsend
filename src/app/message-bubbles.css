@@ -1,0 +1,386 @@
+/* ---------------------------------------------------------------------------
+   Message bubbles
+   One rhythm for every conversation: groups of same-sender messages tighten to
+   4px, separate groups breathe at 16px, and the meta line (time + receipt)
+   sits outside the bubble so status never competes with the message itself.
+--------------------------------------------------------------------------- */
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--ds-space-1) var(--ds-space-2);
+}
+
+.message-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+
+.message-row + .message-row {
+  margin-top: var(--ds-space-4);
+}
+
+.message-row[data-group-position="middle"],
+.message-row[data-group-position="last"] {
+  margin-top: var(--ds-space-1);
+}
+
+.message-row[data-own="true"] {
+  justify-content: flex-end;
+}
+
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  align-self: flex-start;
+  margin-top: 18px;
+}
+
+.message-avatar-spacer {
+  width: 32px;
+  flex: none;
+}
+
+.message-body {
+  display: flex;
+  min-width: 0;
+  max-width: min(82%, 42rem);
+  flex-direction: column;
+  gap: 2px;
+}
+
+.message-row[data-own="true"] .message-body {
+  align-items: flex-end;
+}
+
+.message-sender {
+  margin: 0 0 2px var(--ds-space-1);
+  color: var(--ds-ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.message-bubble {
+  --message-bubble-bg: var(--ds-surface-card);
+  --message-bubble-fg: var(--ds-ink);
+  --message-bubble-soft: color-mix(in srgb, var(--ds-ink) 6%, transparent);
+  --message-bubble-line: color-mix(in srgb, var(--ds-ink) 12%, transparent);
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--ds-radius-lg);
+  background: var(--message-bubble-bg);
+  box-shadow: var(--ds-shadow-xs);
+  color: var(--message-bubble-fg);
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.message-bubble[data-own="true"] {
+  --message-bubble-bg: var(--ds-action-bg);
+  --message-bubble-fg: var(--ds-action-fg);
+  --message-bubble-soft: color-mix(in srgb, var(--ds-action-fg) 12%, transparent);
+  --message-bubble-line: color-mix(in srgb, var(--ds-action-fg) 20%, transparent);
+}
+
+.message-bubble[data-own="false"][data-group-position="single"],
+.message-bubble[data-own="false"][data-group-position="last"] {
+  border-bottom-left-radius: var(--ds-radius-xs);
+}
+
+.message-bubble[data-own="true"][data-group-position="single"],
+.message-bubble[data-own="true"][data-group-position="last"] {
+  border-bottom-right-radius: var(--ds-radius-xs);
+}
+
+.message-bubble[data-status="failed"] {
+  --message-bubble-bg: var(--ds-danger-soft);
+  --message-bubble-fg: var(--ds-ink);
+  --message-bubble-soft: color-mix(in srgb, var(--ds-ink) 6%, transparent);
+  --message-bubble-line: var(--ds-danger-border);
+  box-shadow: inset 0 0 0 1px var(--ds-danger-border);
+}
+
+.message-content {
+  min-width: 0;
+}
+
+.message-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  letter-spacing: 0.005em;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.message-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-start: 2px;
+  opacity: 0;
+  transform: translateY(1px);
+  transition:
+    opacity var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.message-row:hover .message-actions,
+.message-row:focus-within .message-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (hover: none) {
+  .message-actions {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.message-action {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ds-radius-xs);
+  background: transparent;
+  color: inherit;
+  opacity: 0.62;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    opacity var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.message-action:hover {
+  background: var(--ds-action-soft);
+  opacity: 1;
+}
+
+.message-action:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+.message-action--copied {
+  color: var(--ds-success);
+  opacity: 1;
+}
+
+.message-action__icon {
+  width: 12px;
+  height: 12px;
+}
+
+.message-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.message-content + .message-attachments {
+  margin-top: var(--ds-space-2);
+}
+
+.message-attachment {
+  overflow: hidden;
+  border: 1px solid var(--message-bubble-line);
+  border-radius: var(--ds-radius-md);
+  background: var(--message-bubble-soft);
+}
+
+.message-attachment__preview {
+  display: block;
+  background: var(--ds-media-backdrop);
+}
+
+.message-attachment__image,
+.message-attachment__video {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+}
+
+.message-attachment__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  padding: 8px 10px;
+}
+
+.message-attachment__text {
+  min-width: 0;
+}
+
+.message-attachment__name {
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-attachment__detail {
+  margin: 1px 0 0;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+/* Keep attachment actions legible on both inverted own bubbles and received
+   bubbles, where the page-level button colours would lose contrast. */
+.message-attachment__meta :is(a, button) {
+  border-color: var(--message-bubble-line);
+  background: transparent;
+  color: inherit;
+}
+
+.message-attachment__meta :is(a, button):hover {
+  background: var(--message-bubble-soft);
+}
+
+.message-attachment__meta :is(a, button):focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+.message-progress {
+  height: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: var(--ds-radius-full);
+  background: var(--message-bubble-soft);
+}
+
+.message-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: currentColor;
+  transition: transform var(--ds-duration-base) var(--ds-ease-out);
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 2px;
+  color: var(--ds-ink-muted);
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.message-meta[data-own="true"] {
+  justify-content: flex-end;
+}
+
+.message-meta time {
+  font-variant-numeric: tabular-nums;
+}
+
+.message-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.message-status__icon {
+  width: 12px;
+  height: 12px;
+}
+
+.message-status--sending {
+  color: var(--ds-ink-muted);
+}
+
+.message-status--sending .message-status__icon {
+  animation: message-spin 900ms linear infinite;
+}
+
+.message-status--read {
+  color: var(--ds-success);
+}
+
+.message-status--failed {
+  color: var(--ds-danger);
+}
+
+.message-retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-danger);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.message-retry:hover {
+  color: var(--ds-ink);
+}
+
+.message-retry:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.message-error {
+  max-width: 100%;
+  margin: 0;
+  padding-inline: 2px;
+  color: var(--ds-danger);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.message-row[data-own="true"] .message-error {
+  text-align: end;
+}
+
+@keyframes message-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (min-width: 640px) {
+  .message-body {
+    max-width: min(76%, 42rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-bubble,
+  .message-actions,
+  .message-action,
+  .message-progress span {
+    transition: none;
+  }
+
+  .message-status--sending .message-status__icon {
+    animation: none;
+  }
+}

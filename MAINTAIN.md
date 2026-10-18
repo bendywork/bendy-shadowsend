@@ -3,6 +3,31 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 消息气泡体系重构（REQ-202610-0481 / ui-18）
+
+### Scope
+- Unify bubble shape, radius and spacing; group consecutive same-sender messages (5-minute window) with one avatar/nickname per group.
+- Move time and delivery state into a dedicated meta line; add explicit `sending` (percent + progress bar), `sent`, `read` and `failed` (error detail + retry) states.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/message-bubble.ts` (new): pure helpers `isSameMessageGroup` / `getMessageGroupPositions` / `getMessageDeliveryState` / `formatMessageTime`; 5-minute grouping window, invalid-timestamp safety, locale-aware compact timestamps.
+- `src/components/chat/message-bubble.tsx` (new): extracted and rebuilt `MessageBubble` + `MessageAttachmentCard`; own/received alignment, group positions, status meta row, sending progress (`transform: scaleX`), failed alert with retry, copy/expand actions, attachment previews and bubble-scoped action styling.
+- `src/app/room/[roomCode]/page.tsx`: removed the inline bubble/attachment components and local delivery helper; added `messageRows` + group-position memo, unified expansion state, `files` retained on `PendingMessage`, and `retryPendingMessage`; message list now uses `role="log"` with localized label.
+- `src/app/globals.css`: added `.message-list` / `.message-row` / `.message-bubble` / `.message-meta` / `.message-status` / `.message-attachment*` styles; 16px radius, 6px tail, 4px intra-group and 16px inter-group spacing, inverted own bubbles, danger failed state, hover/focus actions, reduced-motion handling.
+- `src/lib/i18n/messages.ts`: added zh/en `chat.messages`, `chat.sending`, `chat.delivery.sent`, `chat.delivery.read` (parity check enforced).
+- `docs/design-system-message-bubbles.md` (new): anatomy, shape/spacing table, status hierarchy, interaction/a11y rules and acceptance checklist.
+
+### Regression Checklist
+- `npm test` green: 50/50 tests (16 new bubble helper tests + 10 new component rendering tests).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
