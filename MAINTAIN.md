@@ -30,6 +30,7 @@
 - `npm run visual:baseline -- --dry-run` prints 18 entries.
 
 ### Versioning / History
+- Feature commit `5f486dd`; baseline images committed in the follow-up docs commit.
 - Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
 - Added this entry to `MAINTAIN.md` and README 更新记录.
 

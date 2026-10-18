@@ -368,7 +368,7 @@ npm run db:reinit:prefixed
 
 ### 2026-10-18
 
-- `0.1.69` 视觉验收清单与截图基线（REQ-202610-0509 / ui-46）：新增 `docs/visual-acceptance-checklist.md`，覆盖双主题 × 三断点矩阵、页面/状态清单、黑白灰色彩纪律、全平台真机/模拟器项、缺陷分级与验收记录模板；新增 `docs/visual-baseline/README.md` 与 `manifest.template.json`，定义 `<page>--<theme>--<width>x<height>.png` 命名、采集环境与 manifest 哈希校验规则。
+- `0.1.69` 视觉验收清单与截图基线（REQ-202610-0509 / ui-46，commit `5f486dd`）：新增 `docs/visual-acceptance-checklist.md`，覆盖双主题 × 三断点矩阵、页面/状态清单、黑白灰色彩纪律、全平台真机/模拟器项、缺陷分级与验收记录模板；新增 `docs/visual-baseline/README.md` 与 `manifest.template.json`，定义 `<page>--<theme>--<width>x<height>.png` 命名、采集环境与 manifest 哈希校验规则，并提交 `0.1.69` 基础集 18 张（3 页面 × 2 主题 × 3 视口，Chromium 151 headless + 固定 mock）。
 - 新增 `scripts/visual-baseline.mjs` / `scripts/visual-baseline-lib.mjs`：基于 `playwright-core` + 固定 mock fixture 采集 18 张基础截图（3 页面 × 2 主题 × 3 视口），支持 9 视口扩展、`--dry-run`、manifest 生成与校验；新增 12 条 `node:test`。
 - 新增 `scripts/visual-audit.mjs`：静态检查 Tailwind 彩色工具类、硬编码彩色值、旧强调色 `#0a84ff`/`#0071e3`、`!important`、浅色主题块越权声明、主按钮反色与 4.5:1、二维码 7:1；新增 12 条测试；`package.json` 增加 `visual:baseline` / `visual:audit` / `test:visual`。
 - 头像色池改为纯中性灰（移除 zinc 色偏），满足 dc-02「除语义状态色外无彩色残留」；版本同步至 `0.1.69`。

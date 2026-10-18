@@ -23,6 +23,8 @@ docs/visual-baseline/
 ```
 
 - `<version>` 取 `package.json` 的 semver，与发布版本一致。
+- 当前已提交 `0.1.69` 基础集（18 张，采集于提交 `5f486dd`，Chromium 151 headless，
+  固定 mock 数据）；后续 UI 批次合并后按「评审与更新」重新采集，不覆盖本目录。
 - 基础集固定为 **3 页面 × 2 主题 × 3 视口 = 18 张**：
   - 页面：`home`（`/`）、`room`（`/room/DEMO01`）、`not-found`（不存在路由）。
   - 视口：`390×844`（mobile）、`834×1194`（tablet）、`1440×900`（desktop）。
