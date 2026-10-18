@@ -39,14 +39,14 @@ function validManifest(overrides: Record<string, unknown> = {}) {
 }
 
 describe("attachment storage values", () => {
-  it("accepts the four persisted storage values", () => {
-    for (const value of ["S3", "DUFS", "SANG", "PIC_SL"]) {
+  it("accepts only the two remote storage values", () => {
+    for (const value of ["SANG", "PIC_SL"]) {
       expect(isAttachmentStorageValue(value)).toBe(true);
     }
   });
 
   it("rejects unknown, lowercase or non-string storage values", () => {
-    for (const value of ["sang", "PIC-SL", "OSS", "", null, undefined, 1]) {
+    for (const value of ["sang", "PIC-SL", "OSS", "S3", "DUFS", "", null, undefined, 1]) {
       expect(isAttachmentStorageValue(value)).toBe(false);
     }
   });
@@ -54,8 +54,6 @@ describe("attachment storage values", () => {
   it("marks only SANG and PIC_SL as remote storages", () => {
     expect(isRemoteAttachmentStorage("SANG")).toBe(true);
     expect(isRemoteAttachmentStorage("PIC_SL")).toBe(true);
-    expect(isRemoteAttachmentStorage("S3")).toBe(false);
-    expect(isRemoteAttachmentStorage("DUFS")).toBe(false);
     expect(isRemoteAttachmentStorage("unknown")).toBe(false);
   });
 });
@@ -105,9 +103,6 @@ describe("remote attachment URLs", () => {
         "https://pic.sl.al/f/pic/2026-10-18/file_abc.pdf",
       ),
     ).toBe(false);
-    expect(
-      isAllowedRemoteAttachmentUrl("S3", "https://file.icve.com.cn/a.pdf"),
-    ).toBe(false);
   });
 });
 
@@ -156,9 +151,8 @@ describe("attachment chunk manifest", () => {
     expect(manifest?.chunks).toHaveLength(3);
   });
 
-  it("rejects manifests for non-remote storages", () => {
-    expect(parseAttachmentChunkManifest(validManifest(), "S3")).toBeNull();
-    expect(parseAttachmentChunkManifest(validManifest(), "DUFS")).toBeNull();
+  it("rejects manifests for unknown storages", () => {
+    expect(parseAttachmentChunkManifest(validManifest(), "OSS")).toBeNull();
   });
 
   it("rejects a chunk count that does not match totalChunks", () => {
@@ -222,15 +216,16 @@ describe("attachment chunk manifest", () => {
   it("detects only valid chunk manifests", () => {
     expect(isChunkedAttachment(validManifest(), "SANG")).toBe(true);
     expect(isChunkedAttachment(null, "SANG")).toBe(false);
-    expect(isChunkedAttachment(validManifest(), "S3")).toBe(false);
+    expect(isChunkedAttachment(validManifest(), "OSS")).toBe(false);
     expect(isChunkedAttachment({ totalChunks: 2 }, "SANG")).toBe(false);
   });
 });
 
 describe("attachment read mode", () => {
-  it("routes legacy storages to S3 or DUFS", () => {
-    expect(resolveAttachmentReadMode("S3")).toBe("s3");
-    expect(resolveAttachmentReadMode("DUFS")).toBe("dufs");
+  it("rejects unknown storages", () => {
+    expect(resolveAttachmentReadMode("S3")).toBeNull();
+    expect(resolveAttachmentReadMode("DUFS")).toBeNull();
+    expect(resolveAttachmentReadMode("OSS")).toBeNull();
   });
 
   it("routes remote storages to a direct URL or the chunked path", () => {
@@ -260,8 +255,9 @@ describe("attachment read mode", () => {
     expect(resolveAttachmentReadMode("PIC_SL", picSlManifest)).toBe("chunked");
   });
 
-  it("never treats a legacy storage as chunked", () => {
-    expect(resolveAttachmentReadMode("S3", validManifest())).toBe("s3");
-    expect(resolveAttachmentReadMode("DUFS", validManifest())).toBe("dufs");
+  it("rejects an invalid chunk manifest instead of serving a partial file", () => {
+    expect(
+      resolveAttachmentReadMode("SANG", { totalChunks: 2 }),
+    ).toBeNull();
   });
 });

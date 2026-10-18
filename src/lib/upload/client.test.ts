@@ -5,7 +5,6 @@ import {
   uploadFileViaRelay,
   type UploadClientMessages,
 } from "@/lib/upload/client";
-import { parseStoredUploadManifest } from "@/lib/upload/stored-manifest";
 
 const messages: UploadClientMessages = {
   networkError: "网络异常",
@@ -135,6 +134,7 @@ describe("uploadFileViaRelay", () => {
       storage: "SANG",
       previewUrl: "https://file.sang.pub/files/photo.png",
       chunked: false,
+      chunkManifest: null,
     });
   });
 
@@ -272,7 +272,8 @@ describe("uploadFileViaRelay", () => {
     expect(result.storage).toBe("PIC_SL");
     expect(result.chunked).toBe(true);
     expect(result.previewUrl).toBeNull();
-    expect(parseStoredUploadManifest(result.s3Key)?.chunks).toHaveLength(2);
+    expect(result.chunkManifest?.chunks).toHaveLength(2);
+    expect(result.s3Key).toBe("https://pic.sl.al/f/part-0");
     expect(progress.at(-1)).toBe(100);
   });
 });

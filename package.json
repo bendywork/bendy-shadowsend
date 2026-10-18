@@ -1,6 +1,6 @@
 {
   "name": "bendy-shadowsend",
-  "version": "0.1.70",
+  "version": "0.1.71",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,8 +17,6 @@
     "test:release-tag": "node --test scripts/release-tag.test.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1014.0",
-    "@aws-sdk/s3-request-presigner": "^3.1014.0",
     "@prisma/client": "^6.11.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

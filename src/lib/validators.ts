@@ -13,7 +13,7 @@ import {
   MAX_MESSAGE_TEXT_CHARS,
 } from "@/lib/constants";
 
-const attachmentStorageSchema = z.enum(["S3", "DUFS", "SANG", "PIC_SL"]);
+const attachmentStorageSchema = z.enum(["SANG", "PIC_SL"]);
 
 const chunkDescriptorSchema = z.object({
   index: z.number().int().min(0),
@@ -51,12 +51,12 @@ const attachmentPayloadSchema = z
       .trim()
       .min(1)
       .max(MAX_REMOTE_ATTACHMENT_URL_LENGTH),
-    storage: attachmentStorageSchema.optional().default("S3"),
+    storage: attachmentStorageSchema,
     chunkManifest: chunkManifestSchema.optional(),
   })
   .superRefine((attachment, ctx) => {
     if (
-      isRemoteAttachmentStorage(attachment.storage) &&
+      !isRemoteAttachmentStorage(attachment.storage) ||
       !isAllowedRemoteAttachmentUrl(attachment.storage, attachment.s3Key)
     ) {
       ctx.addIssue({
@@ -67,15 +67,6 @@ const attachmentPayloadSchema = z
     }
 
     if (!attachment.chunkManifest) {
-      return;
-    }
-
-    if (!isRemoteAttachmentStorage(attachment.storage)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["chunkManifest"],
-        message: "仅 SANG / PIC_SL 附件支持分片清单",
-      });
       return;
     }
 
@@ -207,17 +198,44 @@ const announcementImagePayloadSchema = z
       .int()
       .positive()
       .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
-    storage: attachmentStorageSchema.optional().default("S3"),
+    storage: attachmentStorageSchema,
+    chunkManifest: chunkManifestSchema.optional(),
   })
   .superRefine((image, ctx) => {
     if (
-      isRemoteAttachmentStorage(image.storage) &&
+      !isRemoteAttachmentStorage(image.storage) ||
       !isAllowedRemoteAttachmentUrl(image.storage, image.s3Key)
     ) {
       ctx.addIssue({
         code: "custom",
         path: ["s3Key"],
         message: "远端公告图片必须使用对应服务的 HTTPS 公网 URL",
+      });
+    }
+
+    if (!image.chunkManifest) {
+      return;
+    }
+
+    const manifest = parseAttachmentChunkManifest(
+      image.chunkManifest,
+      image.storage,
+    );
+
+    if (!manifest) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["chunkManifest"],
+        message: "分片清单不合法",
+      });
+      return;
+    }
+
+    if (manifest.chunks[0]?.url !== image.s3Key) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["s3Key"],
+        message: "分片公告图片的 s3Key 必须为首片远端 URL",
       });
     }
   });

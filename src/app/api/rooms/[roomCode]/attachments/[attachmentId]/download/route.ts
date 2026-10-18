@@ -1,18 +1,20 @@
-﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+﻿import { RoomStatus } from "@prisma/client";
+import { NextRequest } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
-import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
-import { createDownloadUrl } from "@/lib/s3";
 import { createRemoteAttachmentResponse } from "@/lib/upload/attachment-response";
-import { resolveRemoteAttachment } from "@/lib/upload/stored-manifest";
+import { resolveStoredRemoteAttachment } from "@/lib/upload/stored-manifest";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 
 type Params = {
   roomCode: string;
   attachmentId: string;
 };
+
+function toSizeBytes(sizeBytes: bigint) {
+  return Number(sizeBytes);
+}
 
 export async function GET(
   request: NextRequest,
@@ -45,7 +47,9 @@ export async function GET(
         s3Key: true,
         fileName: true,
         mimeType: true,
+        sizeBytes: true,
         storage: true,
+        chunkManifest: true,
       },
     });
 
@@ -53,73 +57,39 @@ export async function GET(
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
     }
 
+    const remote = resolveStoredRemoteAttachment({
+      storage: attachment.storage,
+      s3Key: attachment.s3Key,
+      chunkManifest: attachment.chunkManifest,
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+      sizeBytes: toSizeBytes(attachment.sizeBytes),
+    });
+
+    if (!remote) {
+      throw new ApiError(502, "附件远端地址无效", "ATTACHMENT_REMOTE_INVALID");
+    }
+
     const raw = request.nextUrl.searchParams.get("raw") === "1";
 
-    if (
-      attachment.storage === AttachmentStorage.SANG ||
-      attachment.storage === AttachmentStorage.PIC_SL
-    ) {
-      const remote = resolveRemoteAttachment(
-        attachment.storage,
-        attachment.s3Key,
-      );
-
-      if (!remote) {
-        throw new ApiError(502, "附件远端地址无效", "ATTACHMENT_REMOTE_INVALID");
-      }
-
-      if (raw) {
-        const response = createRemoteAttachmentResponse({
-          remote,
-          fileName: attachment.fileName,
-          mimeType: attachment.mimeType,
-          disposition: "attachment",
-        });
-        return applyUserCookie(response, cookieToSet);
-      }
-
-      if (remote.kind === "url") {
-        const response = jsonOk({ url: remote.url });
-        return applyUserCookie(response, cookieToSet);
-      }
-
-      const response = jsonOk({
-        url: `/api/rooms/${encodeURIComponent(roomCode)}/attachments/${encodeURIComponent(attachmentId)}/download?raw=1`,
+    if (raw) {
+      const response = createRemoteAttachmentResponse({
+        remote,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        disposition: "attachment",
       });
       return applyUserCookie(response, cookieToSet);
     }
 
-    if (attachment.storage === AttachmentStorage.DUFS) {
-      if (raw) {
-        const upstream = await fetchDufsFile(attachment.s3Key);
-        const response = new NextResponse(upstream.body, {
-          status: 200,
-          headers: {
-            "Content-Type": upstream.headers.get("content-type") || attachment.mimeType,
-            "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
-            "Cache-Control": "private, max-age=60",
-          },
-        });
-
-        return applyUserCookie(response, cookieToSet);
-      }
-
-      const response = jsonOk({
-        url: `/api/rooms/${encodeURIComponent(roomCode)}/attachments/${encodeURIComponent(attachmentId)}/download?raw=1`,
-      });
+    if (remote.kind === "url") {
+      const response = jsonOk({ url: remote.url });
       return applyUserCookie(response, cookieToSet);
     }
-
-    const downloadUrl = await createDownloadUrl({
-      key: attachment.s3Key,
-      filename: attachment.fileName,
-      expiresInSeconds: 90,
-    });
 
     const response = jsonOk({
-      url: downloadUrl,
+      url: `/api/rooms/${encodeURIComponent(roomCode)}/attachments/${encodeURIComponent(attachmentId)}/download?raw=1`,
     });
-
     return applyUserCookie(response, cookieToSet);
   } catch (error) {
     return jsonError(error);

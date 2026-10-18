@@ -1,3 +1,4 @@
+import { parseAttachmentChunkManifest } from "@/lib/attachment-storage";
 import { UPLOAD_MAX_CHUNKS } from "@/lib/upload/constants";
 import { isAllowedRemoteUrl } from "@/lib/upload/remote/urls";
 import type {
@@ -159,4 +160,67 @@ export function resolveRemoteAttachment(
   return isAllowedRemoteUrl(service, trimmed)
     ? { kind: "url", url: trimmed }
     : null;
+}
+
+/**
+ * Resolve a persisted attachment from the current storage model:
+ * `chunkManifest` (JSONB) is authoritative, while `s3Key` keeps the direct URL
+ * or the first chunk URL. Serialized manifests in `s3Key` remain readable for
+ * attachments created before the chunkManifest column was populated.
+ */
+export function resolveStoredRemoteAttachment(params: {
+  storage: unknown;
+  s3Key: string;
+  chunkManifest?: unknown;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+}): RemoteAttachment | null {
+  const typedStorage = readStorage(params.storage);
+  if (!typedStorage) return null;
+
+  const service = STORAGE_SERVICE[typedStorage];
+
+  if (params.chunkManifest !== null && params.chunkManifest !== undefined) {
+    const parsed = parseAttachmentChunkManifest(
+      params.chunkManifest,
+      typedStorage,
+    );
+
+    if (!parsed || parsed.chunks[0]?.url !== params.s3Key) {
+      return null;
+    }
+
+    const chunkTotal = parsed.chunks.reduce(
+      (sum, chunk) => sum + chunk.sizeBytes,
+      0,
+    );
+
+    if (chunkTotal !== params.sizeBytes) {
+      return null;
+    }
+
+    return {
+      kind: "manifest",
+      manifest: {
+        uploadId: parsed.uploadId ?? "stored",
+        service,
+        storage: typedStorage,
+        fileName: params.fileName,
+        mimeType: params.mimeType,
+        sizeBytes: params.sizeBytes,
+        chunkSize: parsed.chunkSize,
+        totalChunks: parsed.totalChunks,
+        chunks: parsed.chunks,
+      },
+    };
+  }
+
+  const remote = resolveRemoteAttachment(typedStorage, params.s3Key);
+
+  if (remote?.kind === "manifest" && remote.manifest.sizeBytes !== params.sizeBytes) {
+    return null;
+  }
+
+  return remote;
 }

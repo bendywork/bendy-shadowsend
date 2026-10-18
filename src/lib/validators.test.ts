@@ -36,15 +36,26 @@ function parseAttachment(attachment: Record<string, unknown>) {
 }
 
 describe("sendMessageSchema attachment storage", () => {
-  it("keeps accepting legacy S3 and DUFS attachments", () => {
+  it("rejects legacy S3 and DUFS attachments", () => {
     expect(
       parseAttachment({ ...baseAttachment, s3Key: "rooms/a/file.pdf", storage: "S3" })
         .success,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       parseAttachment({ ...baseAttachment, s3Key: "file-abc.pdf", storage: "DUFS" })
         .success,
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it("requires an explicit storage value", () => {
+    expect(
+      parseAttachment({
+        fileName: baseAttachment.fileName,
+        mimeType: baseAttachment.mimeType,
+        sizeBytes: baseAttachment.sizeBytes,
+        s3Key: baseAttachment.s3Key,
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts SANG and PIC_SL remote attachments", () => {

@@ -3,7 +3,7 @@ import type { MessageKey } from "@/lib/i18n/messages";
 /**
  * 上传前置校验（REQ-202610-0515 / up-06）。
  *
- * 浏览器与服务端共用同一套规则，避免前端只按旧 S3/DUFS 规则校验、
+ * 浏览器与服务端共用同一套规则，避免前端只做本地校验、
  * 直到服务端才因新服务限额或白名单失败：
  * - 图片走 file.sang.pub（meitu ≤20MB / icve ≤100MB，拒绝 html/htm）；
  * - 非图片走 pic.sl.al（≤200MB，仅允许 58 项扩展名白名单）；

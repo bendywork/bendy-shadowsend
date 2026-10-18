@@ -159,8 +159,6 @@ export async function GET(
       messagesRaw.reverse(),
       {
         roomCode,
-        cookieHeader: request.headers.get("cookie") ?? undefined,
-        expiresInSeconds: 3600,
         logLabel: "room-snapshot",
       },
     );

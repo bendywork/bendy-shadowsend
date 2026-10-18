@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseStoredUploadManifest,
   resolveRemoteAttachment,
+  resolveStoredRemoteAttachment,
   serializeStoredUploadManifest,
 } from "@/lib/upload/stored-manifest";
 import type { UploadManifest } from "@/lib/upload/types";
@@ -102,8 +103,78 @@ describe("resolveRemoteAttachment", () => {
     ).toBeNull();
   });
 
-  it("returns null for legacy storage", () => {
-    expect(resolveRemoteAttachment("S3", "rooms/a/file.txt")).toBeNull();
-    expect(resolveRemoteAttachment("DUFS", "file-a.txt")).toBeNull();
+  it("returns null for unknown storage", () => {
+    expect(resolveRemoteAttachment("OSS", "rooms/a/file.txt")).toBeNull();
+  });
+});
+
+describe("resolveStoredRemoteAttachment", () => {
+  const chunkManifest = {
+    uploadId: "upload-1",
+    chunkSize: 4,
+    totalChunks: 2,
+    sizeBytes: 6,
+    chunks: [
+      { index: 0, url: "https://pic.sl.al/f/part-0", sizeBytes: 4 },
+      { index: 1, url: "https://pic.sl.al/f/part-1", sizeBytes: 2 },
+    ],
+  };
+
+  it("resolves the chunkManifest column into a mergeable manifest", () => {
+    const resolved = resolveStoredRemoteAttachment({
+      storage: "PIC_SL",
+      s3Key: chunkManifest.chunks[0].url,
+      chunkManifest,
+      fileName: "report.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 6,
+    });
+
+    expect(resolved?.kind).toBe("manifest");
+    if (resolved?.kind === "manifest") {
+      expect(resolved.manifest.chunks).toHaveLength(2);
+      expect(resolved.manifest.sizeBytes).toBe(6);
+    }
+  });
+
+  it("rejects a manifest whose first chunk is not s3Key", () => {
+    expect(
+      resolveStoredRemoteAttachment({
+        storage: "PIC_SL",
+        s3Key: "https://pic.sl.al/f/other",
+        chunkManifest,
+        fileName: "report.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 6,
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects a manifest whose chunk total differs from the attachment size", () => {
+    expect(
+      resolveStoredRemoteAttachment({
+        storage: "PIC_SL",
+        s3Key: chunkManifest.chunks[0].url,
+        chunkManifest,
+        fileName: "report.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 7,
+      }),
+    ).toBeNull();
+  });
+
+  it("falls back to a direct URL when no chunkManifest is stored", () => {
+    expect(
+      resolveStoredRemoteAttachment({
+        storage: "SANG",
+        s3Key: "https://file.sang.pub/files/a.png",
+        fileName: "a.png",
+        mimeType: "image/png",
+        sizeBytes: 1024,
+      }),
+    ).toEqual({
+      kind: "url",
+      url: "https://file.sang.pub/files/a.png",
+    });
   });
 });

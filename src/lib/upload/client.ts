@@ -1,9 +1,6 @@
 import { UPLOAD_MAX_CHUNKS, UPLOAD_SINGLE_REQUEST_MAX_BYTES } from "@/lib/upload/constants";
 import { isAllowedRemoteUrl } from "@/lib/upload/remote/urls";
-import {
-  parseStoredUploadManifest,
-  serializeStoredUploadManifest,
-} from "@/lib/upload/stored-manifest";
+import { parseStoredUploadManifest } from "@/lib/upload/stored-manifest";
 import type {
   UploadChunkDescriptor,
   UploadManifest,
@@ -25,6 +22,7 @@ export type RelayUploadResult = {
   storage: UploadStorageId;
   previewUrl: string | null;
   chunked: boolean;
+  chunkManifest: UploadManifest | null;
 };
 
 type UploadEnvelope<T> = {
@@ -349,6 +347,7 @@ async function uploadSingle(params: {
     storage: data.storage,
     previewUrl: isPreviewable(data.mimeType) ? data.url : null,
     chunked: false,
+    chunkManifest: null,
   };
 }
 
@@ -450,8 +449,7 @@ async function uploadChunked(params: {
     signal,
   });
 
-  const serialized = serializeStoredUploadManifest(manifest);
-  const parsed = parseStoredUploadManifest(serialized);
+  const parsed = parseStoredUploadManifest(JSON.stringify(manifest));
   if (!parsed) {
     throw new UploadRequestError(messages.invalidResponse, {
       code: "UPLOAD_INVALID_RESPONSE",
@@ -462,13 +460,14 @@ async function uploadChunked(params: {
   onProgress?.(100);
 
   return {
-    s3Key: serialized,
+    s3Key: parsed.chunks[0].url,
     fileName: parsed.fileName,
     mimeType: parsed.mimeType,
     sizeBytes: parsed.sizeBytes,
     storage: parsed.storage,
     previewUrl: null,
     chunked: true,
+    chunkManifest: parsed,
   };
 }
 

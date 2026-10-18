@@ -192,7 +192,7 @@ file.sang.pub /api/upload        或        pic.sl.al /api/upload-token + /api/u
 
 ## 7. 已知边界
 
-- **持久化未接入**：`AttachmentStorage` 目前只有 `S3 | DUFS`，本迭代路由返回字符串 `storage`，不写 `MessageAttachment`。up-08 完成枚举迁移后再落库。
+- **持久化**：路由返回 `storage`，由客户端连同 `s3Key` / `chunkManifest` 提交并写入 `MessageAttachment`；旧存储枚举已在 up-12 移除。
 - **manifest 为客户端回传**：在无新增表的前提下，服务端只能校验结构与域名，无法证明某片确实由本服务上传；落库时应结合 up-08/up-10 的完整性校验。
 - **每日配额统计**：当前聚合已持久化附件的 `sizeBytes`；在 up-08 落库前，新通道上传不会计入配额。落库后自动生效。
 - **限流与 token 缓存是进程内状态**：Vercel 多实例下为近似限流；`pic.sl.al` token 按实例缓存（有效期 600s，提前 30s 刷新），不跨实例共享。

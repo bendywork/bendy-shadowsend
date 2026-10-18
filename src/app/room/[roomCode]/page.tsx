@@ -1029,6 +1029,7 @@ export default function RoomPage() {
         sizeBytes: item.result!.sizeBytes,
         s3Key: item.result!.s3Key,
         storage: item.result!.storage,
+        chunkManifest: item.result!.chunkManifest ?? undefined,
       }));
 
       const result = await apiFetch<{ message: MessageItem }>(
@@ -1575,6 +1576,7 @@ export default function RoomPage() {
             mimeType: image.mimeType,
             sizeBytes: image.sizeBytes,
             storage: image.storage,
+            chunkManifest: image.chunkManifest ?? undefined,
           })),
         }),
       });

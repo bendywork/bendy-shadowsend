@@ -1,6 +1,6 @@
 # 上传前置校验与服务规则对齐（REQ-202610-0515 / up-06）
 
-上传前在浏览器与服务端共用同一套校验规则，避免旧 S3/DUFS 规则放行、直到新服务（file.sang.pub / pic.sl.al）才失败。实现位于 `src/lib/upload-preflight.ts`。
+上传前在浏览器与服务端共用同一套校验规则，避免本地规则放行、直到新服务（file.sang.pub / pic.sl.al）才失败。实现位于 `src/lib/upload-preflight.ts`。
 
 ## 服务与限额
 
@@ -17,7 +17,7 @@
 - Vercel Functions 非流式请求体上限：4.5MB（`VERCEL_FUNCTION_BODY_LIMIT_BYTES`）。
 - 新服务分片大小：4MB（`UPLOAD_CHUNK_SIZE_BYTES`），为 multipart 边界和协议头留出余量。
 - 200MB ÷ 4MB = 50 片（`UPLOAD_MAX_CHUNKS`）。
-- 旧 DUFS 分片链路仍使用 3MB（`DUFS_CHUNK_SIZE_BYTES`），通过 `createUploadChunkPlan(size, chunkSize)` 参数化复用。
+- 分片规划支持自定义 `chunkSize`，默认 4MB；旧存储链路已在 up-12 移除。
 - `createUploadChunkPlan` 预计算 `totalChunks` 与 `lastChunkBytes`；服务端分片接口逐片核对分片数与精确字节数，不再接受“不超过上限”的模糊分片。
 
 ## 错误码
@@ -36,7 +36,7 @@
 
 - `src/app/room/[roomCode]/page.tsx`：选择/粘贴文件时逐个预检，仅接受通过的文件；文件条展示分片数；上传前再次预检兜底。
 - `POST /api/rooms/[roomCode]/upload`：读取 `File` 后、落存储前校验。
-- `POST /api/rooms/[roomCode]/upload-url`：房间鉴权后、签发 S3 URL 前校验。
+- `POST /api/rooms/[roomCode]/upload/sessions`：创建分片会话前校验。
 - `POST /api/rooms/[roomCode]/upload/chunk`：校验总大小与服务限额，核对 `totalChunks` 和当前分片字节数。
 
 ## 验收清单

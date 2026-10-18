@@ -1,7 +1,5 @@
-﻿import { AttachmentStorage, PreviewType } from "@prisma/client";
-import { createDufsPublicUrl } from "@/lib/dufs";
-import { createAttachmentPreviewUrl } from "@/lib/s3";
-import { resolveRemoteAttachment } from "@/lib/upload/stored-manifest";
+﻿import { PreviewType } from "@prisma/client";
+import { resolveStoredRemoteAttachment } from "@/lib/upload/stored-manifest";
 
 type PreviewAttachment = {
   id: string;
@@ -9,8 +7,9 @@ type PreviewAttachment = {
   fileName: string;
   mimeType: string;
   sizeBytes: number | bigint;
-  storage: AttachmentStorage;
+  storage: string;
   previewType: PreviewType;
+  chunkManifest?: unknown;
 };
 
 type PreviewMessage<TAttachment extends PreviewAttachment = PreviewAttachment> = {
@@ -28,8 +27,6 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
   messages: TMessage[],
   options?: {
     roomCode?: string;
-    cookieHeader?: string;
-    expiresInSeconds?: number;
     logLabel?: string;
   },
 ): Promise<Array<TMessage & { attachments: Array<TAttachment & { previewUrl: string | null }> }>> {
@@ -49,59 +46,30 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
           }
 
           try {
-            if (
-              attachment.storage === AttachmentStorage.SANG ||
-              attachment.storage === AttachmentStorage.PIC_SL
-            ) {
-              const remote = resolveRemoteAttachment(
-                attachment.storage,
-                attachment.s3Key,
-              );
-
-              if (!remote) {
-                return { ...attachment, previewUrl: null };
-              }
-
-              if (remote.kind === "url") {
-                return { ...attachment, previewUrl: remote.url };
-              }
-
-              if (!options?.roomCode) {
-                return { ...attachment, previewUrl: null };
-              }
-
-              return {
-                ...attachment,
-                previewUrl: `/api/rooms/${encodeURIComponent(options.roomCode)}/attachments/${encodeURIComponent(attachment.id)}/preview`,
-              };
-            }
-
-            if (attachment.storage === AttachmentStorage.DUFS) {
-              if (options?.roomCode) {
-                return {
-                  ...attachment,
-                  previewUrl: `/api/rooms/${encodeURIComponent(options.roomCode)}/attachments/${encodeURIComponent(attachment.id)}/preview`,
-                };
-              }
-
-              return {
-                ...attachment,
-                previewUrl: createDufsPublicUrl(attachment.s3Key),
-              };
-            }
-
-            const previewUrl = await createAttachmentPreviewUrl({
-              key: attachment.s3Key,
+            const remote = resolveStoredRemoteAttachment({
+              storage: attachment.storage,
+              s3Key: attachment.s3Key,
+              chunkManifest: attachment.chunkManifest,
               fileName: attachment.fileName,
               mimeType: attachment.mimeType,
               sizeBytes: toPreviewSizeBytes(attachment.sizeBytes),
-              cookieHeader: options?.cookieHeader,
-              expiresInSeconds: options?.expiresInSeconds ?? 3600,
             });
+
+            if (!remote) {
+              return { ...attachment, previewUrl: null };
+            }
+
+            if (remote.kind === "url") {
+              return { ...attachment, previewUrl: remote.url };
+            }
+
+            if (!options?.roomCode) {
+              return { ...attachment, previewUrl: null };
+            }
 
             return {
               ...attachment,
-              previewUrl,
+              previewUrl: `/api/rooms/${encodeURIComponent(options.roomCode)}/attachments/${encodeURIComponent(attachment.id)}/preview`,
             };
           } catch (error) {
             console.error("[preview] enrich failed", {

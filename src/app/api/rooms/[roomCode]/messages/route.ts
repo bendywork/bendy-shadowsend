@@ -85,8 +85,6 @@ export async function GET(
       orderedMessages,
       {
         roomCode,
-        cookieHeader: request.headers.get("cookie") ?? undefined,
-        expiresInSeconds: 3600,
         logLabel: isIncrementalFetch ? "message-list-incremental" : "message-list",
       },
     );
@@ -193,8 +191,6 @@ export async function POST(
       [message],
       {
         roomCode,
-        cookieHeader: request.headers.get("cookie") ?? undefined,
-        expiresInSeconds: 3600,
         logLabel: "message-create",
       },
     );

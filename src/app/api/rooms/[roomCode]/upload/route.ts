@@ -5,7 +5,6 @@ import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
 import { uploadToSang } from "@/lib/sang";
-import { throwLegacyStorageUploadDisabled } from "@/lib/storage-policy";
 import {
   SANG_SINGLE_REQUEST_MAX_BYTES,
   isImageFile,
@@ -56,10 +55,13 @@ export async function POST(
     const rawMimeType = uploaded.type?.trim() || "application/octet-stream";
     const isImage = isImageFile(fileName, rawMimeType);
 
-    // REQ-202610-0516（up-07）：该接口只保留 file.sang.pub 图片通道。
-    // 非图片的 S3/DUFS 旧写入路径已旁路，统一由 /upload/pic-sl 承接。
+    // 该接口仅保留 file.sang.pub 图片通道；非图片统一走 /upload/pic-sl。
     if (!isImage) {
-      throwLegacyStorageUploadDisabled();
+      throw new ApiError(
+        400,
+        "该接口仅支持图片，非图片请使用 /upload/pic-sl",
+        "IMAGE_ONLY_UPLOAD",
+      );
     }
 
     const mimeType = resolveImageMimeType(fileName, rawMimeType);

@@ -2,19 +2,13 @@
  * Attachment storage model helpers.
  *
  * Persisted `MessageAttachment.storage` values:
- * - S3 / DUFS: legacy object storage (key in `s3Key`).
  * - SANG / PIC_SL: third-party remote storage (public HTTPS URL in `s3Key`).
  *
  * Chunked uploads keep the first chunk URL in `s3Key` and persist the full
  * manifest in `MessageAttachment.chunkManifest` (JSONB). No extra table.
  */
 
-export const ATTACHMENT_STORAGE_VALUES = [
-  "S3",
-  "DUFS",
-  "SANG",
-  "PIC_SL",
-] as const;
+export const ATTACHMENT_STORAGE_VALUES = ["SANG", "PIC_SL"] as const;
 
 export type AttachmentStorageValue = (typeof ATTACHMENT_STORAGE_VALUES)[number];
 
@@ -208,15 +202,19 @@ export function isChunkedAttachment(value: unknown, storage?: unknown) {
   return parseAttachmentChunkManifest(value, storage) !== null;
 }
 
-export type AttachmentReadMode = "s3" | "dufs" | "remote" | "chunked";
+export type AttachmentReadMode = "remote" | "chunked";
 
 export function resolveAttachmentReadMode(
   storage: unknown,
   chunkManifest?: unknown,
-): AttachmentReadMode {
-  if (isRemoteAttachmentStorage(storage)) {
-    return isChunkedAttachment(chunkManifest, storage) ? "chunked" : "remote";
+): AttachmentReadMode | null {
+  if (!isRemoteAttachmentStorage(storage)) {
+    return null;
   }
 
-  return storage === "DUFS" ? "dufs" : "s3";
+  if (chunkManifest === null || chunkManifest === undefined) {
+    return "remote";
+  }
+
+  return isChunkedAttachment(chunkManifest, storage) ? "chunked" : null;
 }

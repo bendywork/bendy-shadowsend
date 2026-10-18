@@ -1,21 +1,19 @@
-﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+﻿import { RoomStatus } from "@prisma/client";
+import { NextRequest } from "next/server";
 import { ApiError, jsonError } from "@/lib/api";
-import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
-import { createAttachmentPreviewUrl } from "@/lib/s3";
 import { createRemoteAttachmentResponse } from "@/lib/upload/attachment-response";
-import { resolveRemoteAttachment } from "@/lib/upload/stored-manifest";
+import { resolveStoredRemoteAttachment } from "@/lib/upload/stored-manifest";
 
 type Params = {
   roomCode: string;
   attachmentId: string;
 };
 
-function toPreviewSizeBytes(sizeBytes: number | bigint) {
-  return typeof sizeBytes === "bigint" ? Number(sizeBytes) : sizeBytes;
+function toSizeBytes(sizeBytes: bigint) {
+  return Number(sizeBytes);
 }
 
 export async function GET(
@@ -51,6 +49,7 @@ export async function GET(
         mimeType: true,
         sizeBytes: true,
         storage: true,
+        chunkManifest: true,
       },
     });
 
@@ -58,51 +57,25 @@ export async function GET(
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
     }
 
-    if (
-      attachment.storage === AttachmentStorage.SANG ||
-      attachment.storage === AttachmentStorage.PIC_SL
-    ) {
-      const remote = resolveRemoteAttachment(
-        attachment.storage,
-        attachment.s3Key,
-      );
-
-      if (!remote) {
-        throw new ApiError(502, "附件远端地址无效", "ATTACHMENT_REMOTE_INVALID");
-      }
-
-      const response = createRemoteAttachmentResponse({
-        remote,
-        fileName: attachment.fileName,
-        mimeType: attachment.mimeType,
-        disposition: "inline",
-      });
-      return applyUserCookie(response, cookieToSet);
-    }
-
-    if (attachment.storage === AttachmentStorage.DUFS) {
-      const upstream = await fetchDufsFile(attachment.s3Key);
-      const response = new NextResponse(upstream.body, {
-        status: 200,
-        headers: {
-          "Content-Type": upstream.headers.get("content-type") || attachment.mimeType,
-          "Cache-Control": "private, max-age=60",
-        },
-      });
-
-      return applyUserCookie(response, cookieToSet);
-    }
-
-    const previewUrl = await createAttachmentPreviewUrl({
-      key: attachment.s3Key,
+    const remote = resolveStoredRemoteAttachment({
+      storage: attachment.storage,
+      s3Key: attachment.s3Key,
+      chunkManifest: attachment.chunkManifest,
       fileName: attachment.fileName,
       mimeType: attachment.mimeType,
-      sizeBytes: toPreviewSizeBytes(attachment.sizeBytes),
-      cookieHeader: request.headers.get("cookie") ?? undefined,
-      expiresInSeconds: 120,
+      sizeBytes: toSizeBytes(attachment.sizeBytes),
     });
 
-    const response = NextResponse.redirect(previewUrl, 307);
+    if (!remote) {
+      throw new ApiError(502, "附件远端地址无效", "ATTACHMENT_REMOTE_INVALID");
+    }
+
+    const response = createRemoteAttachmentResponse({
+      remote,
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+      disposition: "inline",
+    });
     return applyUserCookie(response, cookieToSet);
   } catch (error) {
     console.error("[route] /api/rooms/[roomCode]/attachments/[attachmentId]/preview failed", {

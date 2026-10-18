@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.71 旧存储彻底下线（REQ-202610-0752 / up-12）
+
+### Scope
+- 存量附件清零后，移除 S3 / DUFS / OSS Preview 的代码、配置、环境变量与依赖。
+- 保留 `s3Key` 字段作为远端 URL / 首片 URL；分片清单一律写入 `chunkManifest`（JSONB）。
+
+### Changes
+- 删除 `src/lib/s3.ts`、`src/lib/dufs.ts`、`src/lib/storage-policy.ts` 及其测试；移除 `@aws-sdk/client-s3`、`@aws-sdk/s3-request-presigner` 依赖。
+- 删除旧上传入口 `/upload-url`、`/upload/chunk`；`/upload` 仅保留 SANG 图片通道，非图片返回 `IMAGE_ONLY_UPLOAD`。
+- `src/lib/env.ts`：移除 `S3_*`、`DUFS_*`、`OSS_PREVIEW_*` 与 `env.s3` / `env.dufs` / `env.ossPreview` / `isS3Configured`。
+- `src/app/getInfo/route.ts`：移除 `fileServerInfo`（含明文密钥回显）。
+- `src/lib/attachment-storage.ts` / `validators.ts` / `announcement.ts`：存储枚举收敛为 `SANG` / `PIC_SL`，取消 S3 默认值，读取模式仅 `remote` / `chunked`。
+- 下载、预览、公告图片路由与 `attachment-preview.ts`：仅保留远端直链与 `chunkManifest` 合并流，移除 S3 签名 / DUFS 代理分支。
+- `src/lib/upload/client.ts` / 房间页：分片上传返回首片 URL 与 manifest 对象，消息与公告写入 `chunkManifest`。
+- `prisma/schema.prisma` + `prisma/migrations/20261018160000_remove_legacy_attachment_storage/`：枚举重建为 `SANG` / `PIC_SL`，迁移前检查存量 S3/DUFS 行并主动失败。
+- 新增 `src/lib/legacy-storage-removed.test.ts`：扫描生产源码、`.env.example`、依赖与旧路由，防止旧存储回流。
+- `README.md` / `.env.example` 更新为 relay 上传配置；版本升至 `0.1.71`。
+
+### Regression Checklist
+- `npm test` green: 218/218 tests（26 files）。
+- `npm run lint` green（0 errors / 0 warnings）。
+- `npx tsc --noEmit` green。
+- `npm run build` green（Next.js 16.2.1）。
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.71`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.70 上传进度/重试/失败提示 UI（REQ-202610-0514 / up-05）
 
 ### Scope

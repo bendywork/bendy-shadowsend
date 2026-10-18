@@ -131,7 +131,7 @@ describe("createUploadChunkPlan", () => {
     expect(plan.totalChunks).toBe(UPLOAD_MAX_CHUNKS);
   });
 
-  it("supports the legacy DUFS chunk size", () => {
+  it("supports a custom chunk size", () => {
     const plan = createUploadChunkPlan(7 * MB, 3 * MB);
     expect(plan.totalChunks).toBe(3);
     expect(plan.lastChunkBytes).toBe(1 * MB);

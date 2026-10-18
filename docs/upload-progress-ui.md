@@ -23,9 +23,8 @@
        └─ 全部完成后 finalizePendingSend() → POST /messages
 ```
 
-上传成功后 `RelayUploadResult.s3Key` 直接作为 `MessageAttachment.s3Key` 提交；分片文件保存的是
-`UploadManifest` JSON（up-08 正式化前的过渡形态），下载/预览端通过
-`resolveRemoteAttachment()` 识别并合并分片。
+上传成功后 `RelayUploadResult.s3Key`（单文件远端 URL 或首片 URL）与 `chunkManifest` 一起提交；下载/预览端通过
+`resolveStoredRemoteAttachment()` 校验分片清单与总大小，并按 manifest 顺序合并为流式响应。
 
 ## 状态机
 
@@ -68,7 +67,7 @@
 - `stored-manifest.test.ts`：字段校验、服务/存储匹配、片数与索引、URL 白名单、大小一致性。
 - `remote-stream.test.ts`：顺序合并、非法 URL、下载失败。
 - `upload-progress.test.ts`：进度语义、失败原因、重试按钮、重试态配色。
-- `validators.test.ts`：manifest 长 `s3Key` 与新增存储枚举。
+- `validators.test.ts`：`chunkManifest` 校验与 `SANG` / `PIC_SL` 存储枚举。
 
 ## 验收清单
 

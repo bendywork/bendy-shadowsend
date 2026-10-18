@@ -6,12 +6,12 @@
 
 ## 1. 范围
 
-本迭代将**图片上传主路径**从「S3 直传 / DUFS」切换为 `file.sang.pub`：
+本迭代将**图片上传主路径**切换为 `file.sang.pub`（旧存储链路已在 up-12 移除）：
 
 - 图片由浏览器先传到本项目后端路由，再由服务端调用 `file.sang.pub`，避免浏览器直连的 CORS 限制。
 - 服务端负责通道选择、协议头拼装、响应校验与 URL 回写。
-- 非图片上传保持原有 S3 直传 / 后端中转 / DUFS 逻辑不变。
-- 超过单请求上限（4MB）的图片分片属于 up-04，本迭代暂沿用 DUFS 分片链路作为过渡。
+- 非图片上传由 `pic.sl.al` 承接。
+- 超过单请求上限（4MB）的文件走 relay 4MB 分片编排。
 
 ## 2. 上游协议
 
@@ -82,7 +82,7 @@ src/lib/sang.ts :: uploadToSang()
 | --- | --- |
 | `src/lib/upload-rules.ts` | 通道常量、扩展名/MIME 判断、通道选择、可重试状态码 |
 | `src/lib/sang.ts` | `uploadToSang()`：协议头、超时、有限重试、响应解析、URL 校验 |
-| `src/app/api/rooms/[roomCode]/upload/route.ts` | 图片走 sang；非图片保持 S3/DUFS |
+| `src/app/api/rooms/[roomCode]/upload/route.ts` | 仅保留 SANG 图片通道；非图片返回 `IMAGE_ONLY_UPLOAD` |
 | `src/app/api/rooms/[roomCode]/upload-url/route.ts` | 拒绝图片预签名直传（`IMAGE_UPLOAD_USE_PROXY`） |
 | `src/lib/attachment-preview.ts` | `SANG` 附件直接返回远端 URL |
 | `attachments/[attachmentId]/download` | `SANG` 返回远端 URL / 307 跳转 |
@@ -94,7 +94,7 @@ src/lib/sang.ts :: uploadToSang()
 
 - 网络错误、HTTP 408/409/429/500/502/503/504/520/522/524：最多 3 次，间隔约 400ms / 900ms。
 - HTTP 4xx（除可重试项）、上游业务码 4xx、返回 URL 非法：不重试，直接返回 `502 SANG_UPLOAD_FAILED` 或 `400 SANG_CHANNEL_UNSUPPORTED`。
-- 不跨服务回退到 S3/DUFS（dc-06）。
+- 不跨服务回退（dc-06）。
 - 前端展示后端返回的具体错误文案；413 时优先展示服务端的 4MB 提示。
 
 ## 7. 环境变量
@@ -107,10 +107,10 @@ src/lib/sang.ts :: uploadToSang()
 
 - [ ] 上传 1 张 ≤4MB 的 JPG/PNG，返回 `storage=SANG`，`s3Key` 为 `https://` 远端 URL，消息可正常预览。
 - [ ] 上传 GIF/WebP 走 `meitu`；上传 PDF 等非图片仍走原有链路。
-- [ ] 上传 >4MB 图片走 DUFS 分片（过渡行为），不报 413。
+- [ ] 上传 >4MB 图片走 relay 分片，不报 413。
 - [ ] 调用 `/upload-url` 上传图片返回 `400 IMAGE_UPLOAD_USE_PROXY`。
 - [ ] 公告图片上传、展示、下载正常。
-- [ ] 模拟 sang.pub 503：确认同服务重试后明确报错，不落 S3/DUFS。
+- [ ] 模拟 sang.pub 503：确认同服务重试后明确报错，不切换其他存储。
 - [ ] `npm test`、`npm run lint`、`npx tsc --noEmit`、`npm run build` 全绿。
 
 ## 9. 后续

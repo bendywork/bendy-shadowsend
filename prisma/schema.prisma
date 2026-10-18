@@ -63,8 +63,6 @@ enum PreviewType {
 }
 
 enum AttachmentStorage {
-  S3
-  DUFS
   SANG
   PIC_SL
 
@@ -212,7 +210,7 @@ model MessageAttachment {
   mimeType   String
   sizeBytes  BigInt
   s3Key      String
-  storage    AttachmentStorage @default(S3)
+  storage    AttachmentStorage
   chunkManifest Json?
   previewType PreviewType @default(NONE)
   createdAt  DateTime     @default(now())

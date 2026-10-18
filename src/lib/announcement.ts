@@ -1,5 +1,9 @@
 import { AttachmentStorage } from "@prisma/client";
-import { isAttachmentStorageValue } from "@/lib/attachment-storage";
+import {
+  isAttachmentStorageValue,
+  parseAttachmentChunkManifest,
+  type AttachmentChunkManifest,
+} from "@/lib/attachment-storage";
 
 export type AnnouncementImage = {
   s3Key: string;
@@ -7,6 +11,7 @@ export type AnnouncementImage = {
   mimeType: string;
   sizeBytes: number;
   storage: AttachmentStorage;
+  chunkManifest?: AttachmentChunkManifest;
 };
 
 type AnnouncementFields = {
@@ -30,6 +35,10 @@ function normalizeAnnouncementImage(value: unknown): AnnouncementImage | null {
         : null;
   if (!s3Key) return null;
 
+  if (!isAttachmentStorageValue(candidate.storage)) {
+    return null;
+  }
+
   const fileName =
     typeof candidate.fileName === "string"
       ? candidate.fileName
@@ -47,16 +56,25 @@ function normalizeAnnouncementImage(value: unknown): AnnouncementImage | null {
     candidate.sizeBytes >= 0
       ? candidate.sizeBytes
       : 0;
-  const storage = isAttachmentStorageValue(candidate.storage)
-    ? candidate.storage
-    : AttachmentStorage.S3;
+  const chunkManifest = candidate.chunkManifest
+    ? parseAttachmentChunkManifest(candidate.chunkManifest, candidate.storage)
+    : null;
+
+  if (candidate.chunkManifest && !chunkManifest) {
+    return null;
+  }
+
+  if (chunkManifest && chunkManifest.chunks[0]?.url !== s3Key) {
+    return null;
+  }
 
   return {
     s3Key,
     fileName,
     mimeType,
     sizeBytes,
-    storage,
+    storage: candidate.storage,
+    chunkManifest: chunkManifest ?? undefined,
   };
 }
 
@@ -80,15 +98,13 @@ export function parseAnnouncementImages(
           ? (parsed as { images: unknown[] }).images
           : [];
 
-      const normalized = list
-        .map(normalizeAnnouncementImage)
-        .filter((item): item is AnnouncementImage => Boolean(item));
-
-      if (normalized.length > 0) {
-        return normalized;
+      if (list.length > 0) {
+        return list
+          .map(normalizeAnnouncementImage)
+          .filter((item): item is AnnouncementImage => Boolean(item));
       }
     } catch {
-      // Fallback to legacy format below.
+      // Fallback to the legacy single-image format below.
     }
   }
 

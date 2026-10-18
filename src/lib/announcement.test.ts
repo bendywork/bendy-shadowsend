@@ -32,6 +32,24 @@ describe("parseAnnouncementImages", () => {
     ]);
   });
 
+  it("drops stored images whose storage is no longer supported", () => {
+    const images = parseAnnouncementImages({
+      announcementImageKey: JSON.stringify([
+        {
+          s3Key: "rooms/legacy.png",
+          fileName: "legacy.png",
+          mimeType: "image/png",
+          sizeBytes: 10,
+          storage: "S3",
+        },
+      ]),
+      announcementImageName: "legacy.png",
+      announcementImageStorage: null,
+    });
+
+    expect(images).toEqual([]);
+  });
+
   it("preserves relay storage on the legacy single-image fields", () => {
     const images = parseAnnouncementImages({
       announcementImageKey: "https://pic.sl.al/f/three.png",

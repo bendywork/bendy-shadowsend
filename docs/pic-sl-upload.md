@@ -6,7 +6,7 @@
 ## 1. 范围
 
 - 非图片附件（文档、压缩包、音视频等）的主上传路径改为 `pic.sl.al`。
-- 图片附件仍沿用现有 S3 / DUFS 链路，等待 up-01 接入 `file.sang.pub`。
+- 图片附件统一走 `file.sang.pub`；旧存储链路已在 up-12 移除。
 - 本阶段单请求上限按 Vercel Functions 的 4.5MB 约束收敛为 **4MB**；超过 4MB 的文件明确报错，等待 up-04 分片编排，不做跨服务静默回退（dc-06 = A）。
 - 新增 `AttachmentStorage.PIC_SL` 枚举值，`s3Key` 复用为 pic.sl.al 公网直链。
 
@@ -98,7 +98,7 @@
 - `AttachmentStorage.PIC_SL` 已加入 Prisma 枚举（迁移 `20261018130000_add_pic_sl_storage`）。
 - 下载/预览：直接返回或 307 跳转 `s3Key` 中的 pic.sl.al 公网直链，不经中转层（roadmap §4.3「下载侧」）。
 - 公告图片：若历史/异常数据为 `PIC_SL`，公告图片路由同样支持跳转。
-- 旧 `S3` / `DUFS` 存量附件读取路径不变；旧配置在新上传中是否旁路由 up-07 处理。
+- 旧 `S3` / `DUFS` 代码与配置已在 up-12 彻底移除。
 
 ## 5. 前端接入
 

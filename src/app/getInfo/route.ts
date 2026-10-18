@@ -12,30 +12,6 @@ function getRequestIp(request: NextRequest) {
   return request.headers.get("x-real-ip") ?? "unknown";
 }
 
-function parseUrlInfo(rawUrl: string | undefined) {
-  if (!rawUrl) return null;
-  try {
-    const parsed = new URL(rawUrl);
-    return {
-      raw: rawUrl,
-      protocol: parsed.protocol.replace(":", ""),
-      host: parsed.hostname,
-      port: parsed.port || null,
-      path: parsed.pathname,
-      origin: parsed.origin,
-    };
-  } catch {
-    return {
-      raw: rawUrl,
-      protocol: null,
-      host: null,
-      port: null,
-      path: null,
-      origin: null,
-    };
-  }
-}
-
 async function readAuthParam(request: NextRequest) {
   const queryAuth = request.nextUrl.searchParams.get("auth");
   if (queryAuth) return queryAuth;
@@ -116,42 +92,6 @@ async function handleRequest(request: NextRequest) {
     rooms: allRooms,
     onlineUsers,
     serverAddress: request.nextUrl.origin,
-    fileServerInfo: {
-      Dufs: {
-        baseUrl: env.dufs.baseUrl ?? null,
-        publicBaseUrl: env.dufs.publicBaseUrl ?? null,
-        pathPrefix: env.dufs.pathPrefix ?? null,
-        auth: env.dufs.auth ?? null,
-        baseParsed: parseUrlInfo(env.dufs.baseUrl),
-        publicParsed: parseUrlInfo(env.dufs.publicBaseUrl),
-      },
-      S1: {
-        region: env.s3.region,
-        endpoint: env.s3.endpoint ?? null,
-        bucket: env.s3.bucket ?? null,
-        accessKeyId: env.s3.accessKeyId ?? null,
-        secretAccessKey: env.s3.secretAccessKey ?? null,
-        forcePathStyle: env.s3.forcePathStyle,
-        endpointParsed: parseUrlInfo(env.s3.endpoint),
-      },
-      dufs: {
-        baseUrl: env.dufs.baseUrl ?? null,
-        publicBaseUrl: env.dufs.publicBaseUrl ?? null,
-        pathPrefix: env.dufs.pathPrefix ?? null,
-        auth: env.dufs.auth ?? null,
-        baseParsed: parseUrlInfo(env.dufs.baseUrl),
-        publicParsed: parseUrlInfo(env.dufs.publicBaseUrl),
-      },
-      s1: {
-        region: env.s3.region,
-        endpoint: env.s3.endpoint ?? null,
-        bucket: env.s3.bucket ?? null,
-        accessKeyId: env.s3.accessKeyId ?? null,
-        secretAccessKey: env.s3.secretAccessKey ?? null,
-        forcePathStyle: env.s3.forcePathStyle,
-        endpointParsed: parseUrlInfo(env.s3.endpoint),
-      },
-    },
   };
 
   console.info("[system:getInfo] privileged info requested", {
