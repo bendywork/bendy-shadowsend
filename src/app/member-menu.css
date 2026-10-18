@@ -1,0 +1,109 @@
+/* Member action menu + shared confirm dialog (REQ-202610-0490 / ui-27). */
+
+.menu-panel--floating {
+  position: fixed;
+  z-index: 92;
+  min-width: 176px;
+  max-width: min(248px, calc(100vw - 16px));
+  transform-origin: top right;
+  animation: menu-pop var(--ds-duration-base) var(--ds-ease-out);
+}
+
+.menu-panel--top {
+  transform-origin: bottom right;
+}
+
+.menu-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-group__label {
+  padding: var(--ds-space-1) var(--ds-space-2);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-ink-faint);
+}
+
+.menu-panel--floating .menu-item {
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-2);
+  font-size: 12px;
+  border-radius: var(--ds-radius-sm);
+}
+
+.menu-item__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-item__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-separator {
+  height: 1px;
+  margin: var(--ds-space-1) var(--ds-space-1);
+  background: var(--ds-line-subtle);
+}
+
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.confirm-backdrop {
+  background: var(--ds-overlay);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.confirm-panel {
+  width: 100%;
+  max-width: 360px;
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface-panel);
+  box-shadow: var(--ds-shadow-lg);
+}
+
+.confirm-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ds-ink);
+}
+
+.confirm-description {
+  margin-top: var(--ds-space-2);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ds-ink-muted);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ds-space-2);
+  margin-top: var(--ds-space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-panel--floating {
+    animation: none;
+  }
+}

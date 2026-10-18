@@ -18,6 +18,8 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
+import { Menu, MenuGroup, MenuItem, MenuSeparator } from "@/components/ui/menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FieldError } from "@/components/ui/field-error";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
@@ -46,6 +48,11 @@ type RoomMenuState = {
   room: RoomTreeItem;
   top: number;
   left: number;
+};
+type MemberActionKind = "transfer" | "kick";
+type MemberConfirmState = {
+  action: MemberActionKind;
+  member: RoomMemberItem;
 };
 type PendingAttachment = {
   id: string;
@@ -544,6 +551,7 @@ export default function RoomPage() {
   const [roomNameInput, setRoomNameInput] = useState("");
   const [openRoomMenu, setOpenRoomMenu] = useState<RoomMenuState | null>(null);
   const [openMemberMenuId, setOpenMemberMenuId] = useState<string | null>(null);
+  const [memberConfirm, setMemberConfirm] = useState<MemberConfirmState | null>(null);
   const [memberPanelTab, setMemberPanelTab] = useState<"members" | "approvals">("members");
   const [roomEntryMode, setRoomEntryMode] = useState<"create" | "join" | null>(null);
   const [roomEntrySubmitting, setRoomEntrySubmitting] = useState(false);
@@ -567,7 +575,7 @@ export default function RoomPage() {
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
   const noticeImageInputRef = useRef<HTMLInputElement | null>(null);
   const floatingRoomMenuRef = useRef<HTMLDivElement | null>(null);
-  const memberMenuRef = useRef<HTMLDivElement | null>(null);
+  const memberMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const roomsPanelRef = useRef<HTMLElement | null>(null);
   const membersPanelRef = useRef<HTMLElement | null>(null);
   const latestMessageAtRef = useRef<string | null>(null);
@@ -676,27 +684,6 @@ export default function RoomPage() {
       window.removeEventListener("scroll", closeRoomMenu, true);
     };
   }, [openRoomMenu]);
-
-  useEffect(() => {
-    if (!openMemberMenuId) return;
-    const onMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (memberMenuRef.current?.contains(target)) return;
-      setOpenMemberMenuId(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenMemberMenuId(null);
-      }
-    };
-    window.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [openMemberMenuId]);
 
   useEffect(() => {
     if (isOwner) return;
@@ -1299,7 +1286,6 @@ export default function RoomPage() {
     void runSend(localId, content, sendingFiles);
   }
   async function kick(m: RoomMemberItem) {
-    if (!window.confirm(`确认将 ${m.user.nickname} 移出房间吗？`)) return;
     setAction(`kick-${m.id}`);
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/kick`, { method: "POST", body: JSON.stringify({}) });
@@ -1310,7 +1296,6 @@ export default function RoomPage() {
   }
 
   async function transferOwner(m: RoomMemberItem) {
-    if (!window.confirm(`确认将房主身份转让给 ${m.user.nickname} 吗？转让后你将变为普通成员。`)) return;
     setAction(`transfer-${m.id}`);
     try {
       await apiFetch<{ success: boolean }>(`/api/rooms/${roomCode}/members/${m.id}/transfer`, {
@@ -1324,6 +1309,17 @@ export default function RoomPage() {
     } finally {
       setAction(null);
     }
+  }
+
+  const memberConfirmBusy = memberConfirm
+    ? action === `${memberConfirm.action}-${memberConfirm.member.id}`
+    : false;
+
+  function confirmMemberAction() {
+    if (!memberConfirm || memberConfirmBusy) return;
+    const { action: kind, member } = memberConfirm;
+    const request = kind === "kick" ? kick(member) : transferOwner(member);
+    void request.finally(() => setMemberConfirm(null));
   }
 
   async function review(r: PendingRequestItem, act: "approve" | "reject") {
@@ -2431,48 +2427,52 @@ export default function RoomPage() {
                           </div>
                         </div>
                         {isOwner && m.role !== "OWNER" ? (
-                          <div
-                            ref={openMemberMenuId === m.id ? memberMenuRef : null}
-                            className="relative shrink-0"
-                          >
+                          <div className="relative shrink-0">
                             <button
                               type="button"
-                              aria-label="成员操作"
+                              aria-label={t("members.actions")}
                               aria-haspopup="menu"
                               aria-expanded={openMemberMenuId === m.id}
-                              onClick={() => setOpenMemberMenuId((prev) => prev === m.id ? null : m.id)}
+                              onClick={(event) => {
+                                memberMenuTriggerRef.current = event.currentTarget;
+                                setOpenMemberMenuId((prev) => prev === m.id ? null : m.id);
+                              }}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-action-border text-ink-soft hover:bg-elevated"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
-                            {openMemberMenuId === m.id ? (
-                              <div role="menu" className="absolute right-0 top-9 z-20 w-32 rounded-md border border-line bg-panel p-1.5 shadow-lg">
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
+                            <Menu
+                              open={openMemberMenuId === m.id}
+                              onClose={() => setOpenMemberMenuId(null)}
+                              anchorRef={memberMenuTriggerRef}
+                              returnFocusRef={memberMenuTriggerRef}
+                              ariaLabel={t("members.actions")}
+                            >
+                              <MenuGroup label={t("members.actions.group.general")}>
+                                <MenuItem
+                                  icon={<Crown className="h-3.5 w-3.5" />}
+                                  onSelect={() => {
                                     setOpenMemberMenuId(null);
-                                    void transferOwner(m);
+                                    setMemberConfirm({ action: "transfer", member: m });
                                   }}
-                                  disabled={action === `transfer-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
-                                  <Crown className="h-3 w-3" /> 房主转让
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
+                                  {t("members.actions.transfer")}
+                                </MenuItem>
+                              </MenuGroup>
+                              <MenuSeparator />
+                              <MenuGroup label={t("members.actions.group.danger")}>
+                                <MenuItem
+                                  danger
+                                  icon={<UserMinus className="h-3.5 w-3.5" />}
+                                  onSelect={() => {
                                     setOpenMemberMenuId(null);
-                                    void kick(m);
+                                    setMemberConfirm({ action: "kick", member: m });
                                   }}
-                                  disabled={action === `kick-${m.id}`}
-                                  className="inline-flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs text-ink-soft hover:bg-elevated disabled:opacity-60"
                                 >
-                                  <UserMinus className="h-3 w-3" /> 移除房间
-                                </button>
-                              </div>
-                            ) : null}
+                                  {t("members.actions.kick")}
+                                </MenuItem>
+                              </MenuGroup>
+                            </Menu>
                           </div>
                         ) : null}
                       </div>
@@ -2638,6 +2638,36 @@ export default function RoomPage() {
 
         </aside>
       </main>
+
+      {memberConfirm ? (
+        <ConfirmDialog
+          open
+          title={t(
+            memberConfirm.action === "kick"
+              ? "confirm.kick.title"
+              : "confirm.transfer.title",
+          )}
+          description={t(
+            memberConfirm.action === "kick"
+              ? "confirm.kick.description"
+              : "confirm.transfer.description",
+            { name: memberConfirm.member.user.nickname },
+          )}
+          confirmLabel={t(
+            memberConfirm.action === "kick"
+              ? "confirm.kick.confirm"
+              : "confirm.transfer.confirm",
+          )}
+          cancelLabel={t("common.cancel")}
+          tone="danger"
+          busy={memberConfirmBusy}
+          onConfirm={confirmMemberAction}
+          onCancel={() => {
+            if (!memberConfirmBusy) setMemberConfirm(null);
+          }}
+          returnFocusRef={memberMenuTriggerRef}
+        />
+      ) : null}
 
       {openRoomMenu
         ? createPortal(

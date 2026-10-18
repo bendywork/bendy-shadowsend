@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 成员操作菜单重构（REQ-202610-0490 / ui-27）
+
+### Scope
+- 将成员操作从页面内手写绝对定位菜单收敛为共享菜单原语；按「常规操作 / 危险操作」分组并加入分隔线。
+- 成员菜单的危险动作改用共享确认对话框，为 ui-28 全站确认体系提供基础。
+
+### Changes
+- `src/components/ui/menu.tsx`（新增）：`Menu`（portal、视口夹取、上下翻转、外部点击/滚动/Esc 关闭、焦点归还、方向键/Home/End 导航）、`MenuGroup`、`MenuItem`、`MenuSeparator`、`MenuSurface`。
+- `src/components/ui/confirm-dialog.tsx`（新增）：`ConfirmDialog` / `ConfirmDialogContent`，`role="alertdialog"`、焦点圈定、Esc/遮罩取消、`busy` 防重复提交与 `aria-busy`。
+- `src/lib/menu.ts`（新增）：`computeMenuPosition` 纯函数与视口/间距常量。
+- `src/app/room/[roomCode]/page.tsx`：成员菜单改为 `Menu` + 分组条目；`kick` / `transferOwner` 移除 `window.confirm`，改由 `ConfirmDialog` 确认后调用。
+- `src/app/member-menu.css`（新增）并在 `globals.css` 引入：菜单分组、分隔线、危险项、确认框样式，全部使用 `--ds-*` 令牌。
+- `src/lib/i18n/messages.ts`：新增 zh/en `members.actions.*`、`confirm.kick.*`、`confirm.transfer.*` 与 `common.cancel`。
+- `src/lib/menu.test.ts`、`src/components/ui/menu.test.tsx`、`src/components/ui/confirm-dialog.test.tsx`（新增）：13 条测试；`vitest.config.ts` include 扩展为 `.test.{ts,tsx}`。
+- `docs/design-system-member-menu.md`（新增）：组件 API、分组规范、确认体系衔接与验收清单。
+
+### Regression Checklist
+- `npm test` green: 6 files / 37 tests.
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope
