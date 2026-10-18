@@ -3,6 +3,35 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 全页状态页重构（404 / 错误 / 等待审批，REQ-202610-0506 / ui-43）
+
+### Scope
+- Replace the outdated 404, route-error and waiting-approval screens with one full-page status system built on the `--ds-*` design tokens.
+- Distinguish "room missing" from "room failed to load" on the room page; add automatic polling plus a manual check action to the waiting-approval screen.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/components/system/status-page.tsx` (new): `StatusPageContent` (brand header with theme/language toggles, editorial panel, oversized ghost code, tone variants, link/button actions, optional details/footnote/body) and `StatusSteps` (three-state progress rail).
+- `src/app/status-page.css` (new): token-only full-page styles — hairline grid texture, asymmetric panel radius, editorial title scale, staggered entrance motion, waiting-step pulse, mobile layout and `prefers-reduced-motion` fallbacks; imported from `src/app/layout.tsx`.
+- `src/lib/status-page.ts` (new): `classifyRoomLoadFailure` maps HTTP 404 / `ROOM_NOT_FOUND` to the missing-room variant and everything else to the generic error variant; `WAITING_APPROVAL_POLL_MS = 5000`.
+- `src/app/not-found.tsx` (new): 404 page with home and back actions; back falls back to `/` when there is no history.
+- `src/app/error.tsx` (new): route error boundary with `reset` retry, home link, `error.digest` details and `[app:error]` logging.
+- `src/app/room/[roomCode]/page.tsx`: load failure now renders the shared status page (404 room-missing vs 500 generic, retry keeps the failure kind current); waiting approval renders a three-step rail, a 5s polling effect and a disabled-while-checking "check now" action.
+- `src/lib/i18n/messages.ts`: added zh/en `status.*` keys for all four status surfaces; compile-time key parity retained.
+- `vitest.config.ts`: test include extended to `src/**/*.test.{ts,tsx}`.
+- Tests (new): `src/components/system/status-page.test.tsx` (5 cases) and `src/lib/status-page.test.ts` (6 cases).
+- `docs/design-system-status-pages.md` (new): variants, anatomy, action hierarchy, tokens, motion, responsive, accessibility, i18n, tests and acceptance checklist.
+
+### Regression Checklist
+- `npm test` green: 35/35 tests (5 files).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1, 12 static pages generated).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

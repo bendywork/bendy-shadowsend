@@ -8,7 +8,7 @@ import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, ChevronRight, CloudOff, CornerDownLeft, Copy, Crown, Download, FileText, Home, Hourglass, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, RefreshCw, SearchX, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
@@ -19,6 +19,12 @@ import { LanguageToggle } from "@/components/ui/language-toggle";
 import { useT } from "@/lib/i18n/context";
 import { Popover } from "@/components/ui/popover";
 import { FieldError } from "@/components/ui/field-error";
+import { StatusPageContent, StatusSteps } from "@/components/system/status-page";
+import {
+  classifyRoomLoadFailure,
+  WAITING_APPROVAL_POLL_MS,
+  type RoomLoadFailureKind,
+} from "@/lib/status-page";
 import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
@@ -516,6 +522,8 @@ export default function RoomPage() {
   const [snap, setSnap] = useState<RoomSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadFailureKind, setLoadFailureKind] = useState<RoomLoadFailureKind>("error");
+  const [checkingApproval, setCheckingApproval] = useState(false);
   const [action, setAction] = useState<string | null>(null);
 
   const [text, setText] = useState("");
@@ -605,7 +613,12 @@ export default function RoomPage() {
     let alive = true;
     (async () => {
       try { await refresh(); if (alive) localStorage.setItem(LAST_ROOM_STORAGE_KEY, roomCode); }
-      catch (e) { if (alive) setLoadError(resolveErrorMessage(e, t("toast.loadFailed"), t)); }
+      catch (e) {
+        if (alive) {
+          setLoadError(resolveErrorMessage(e, t("toast.loadFailed"), t));
+          setLoadFailureKind(classifyRoomLoadFailure(e));
+        }
+      }
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
@@ -618,6 +631,14 @@ export default function RoomPage() {
     const snapshotSync = window.setInterval(() => { void refresh().catch((e) => toastError(e, t("toast.roomSyncFailed"), t)); }, SNAPSHOT_SYNC_INTERVAL_MS);
     return () => { window.clearInterval(hb); window.clearInterval(messagePoll); window.clearInterval(snapshotSync); };
   }, [roomCode, pollingEnabled, pollLatestMessages, refresh, t]);
+
+  useEffect(() => {
+    if (!snap?.waitingApproval) return;
+    const timer = window.setInterval(() => {
+      void refresh().catch(() => undefined);
+    }, WAITING_APPROVAL_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [snap?.waitingApproval, refresh]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
@@ -1869,6 +1890,17 @@ export default function RoomPage() {
     }
   }
 
+  async function checkApproval() {
+    setCheckingApproval(true);
+    try {
+      await refresh();
+    } catch (approvalError) {
+      toastError(approvalError, t("status.waiting.checkFailed"), t);
+    } finally {
+      setCheckingApproval(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center text-ink-soft">
@@ -1878,29 +1910,74 @@ export default function RoomPage() {
   }
 
   if (loadError && !snap) {
+    const roomMissing = loadFailureKind === "not-found";
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-sm text-ink-soft" role="alert">{loadError}</p>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setLoading(true);
-              void refresh()
-                .catch((retryError) =>
-                  setLoadError(resolveErrorMessage(retryError, t("toast.loadFailed"), t)),
-                )
-                .finally(() => setLoading(false));
-            }}
-            className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft"
-          >
-            {t("common.retry")}
-          </button>
-          <Link href="/" className="rounded-xl border border-line px-4 py-2 text-sm text-ink-soft">
-            返回首页
-          </Link>
-        </div>
-      </main>
+      <StatusPageContent
+        code={roomMissing ? "404" : "500"}
+        tone={roomMissing ? "neutral" : "danger"}
+        brandLabel={t("status.brand")}
+        eyebrow={
+          roomMissing
+            ? t("status.roomMissing.eyebrow")
+            : t("status.loadError.eyebrow")
+        }
+        title={
+          roomMissing
+            ? t("status.roomMissing.title")
+            : t("status.loadError.title")
+        }
+        description={
+          roomMissing ? t("status.roomMissing.description") : loadError
+        }
+        icon={
+          roomMissing ? (
+            <SearchX className="h-6 w-6" />
+          ) : (
+            <CloudOff className="h-6 w-6" />
+          )
+        }
+        actions={[
+          ...(roomMissing
+            ? []
+            : [
+                {
+                  key: "retry",
+                  label: t("status.retry"),
+                  variant: "primary" as const,
+                  icon: <RefreshCw className="h-4 w-4" />,
+                  onClick: () => {
+                    setLoading(true);
+                    void refresh()
+                      .catch((retryError) => {
+                        setLoadError(
+                          resolveErrorMessage(
+                            retryError,
+                            t("toast.loadFailed"),
+                            t,
+                          ),
+                        );
+                        setLoadFailureKind(
+                          classifyRoomLoadFailure(retryError),
+                        );
+                      })
+                      .finally(() => setLoading(false));
+                  },
+                },
+              ]),
+          {
+            key: "home",
+            label: t("status.backHome"),
+            href: "/",
+            variant: "secondary",
+            icon: <Home className="h-4 w-4" />,
+          },
+        ]}
+        footnote={
+          roomMissing
+            ? t("status.roomMissing.footnote")
+            : t("status.loadError.footnote")
+        }
+      />
     );
   }
 
@@ -1908,16 +1985,63 @@ export default function RoomPage() {
 
   if (snap.waitingApproval) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <section className="w-full max-w-lg rounded-2xl border border-line bg-panel/90 p-8 text-center">
-          <Clock3 className="mx-auto h-8 w-8 text-ink-soft" />
-          <h1 className="mt-4 text-xl font-semibold text-ink">等待房主审批</h1>
-          <p className="mt-2 text-sm text-ink-muted">你曾被移出该房间，再次加入需要房主审批。</p>
-          <Link href="/" className="mt-6 inline-flex rounded-xl bg-elevated-strong px-4 py-2 text-sm text-ink">
-            返回首页
-          </Link>
-        </section>
-      </main>
+      <StatusPageContent
+        code="WAIT"
+        tone="warning"
+        brandLabel={t("status.brand")}
+        eyebrow={t("status.waiting.eyebrow")}
+        title={t("status.waiting.title")}
+        description={t("status.waiting.description")}
+        icon={<Hourglass className="h-6 w-6" />}
+        actions={[
+          {
+            key: "check",
+            label: checkingApproval
+              ? t("status.waiting.checking")
+              : t("status.waiting.refresh"),
+            variant: "primary",
+            disabled: checkingApproval,
+            icon: checkingApproval ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            ),
+            onClick: checkApproval,
+          },
+          {
+            key: "home",
+            label: t("status.waiting.backHome"),
+            href: "/",
+            variant: "secondary",
+            icon: <Home className="h-4 w-4" />,
+          },
+        ]}
+        footnote={t("status.waiting.footnote")}
+      >
+        <StatusSteps
+          label={t("status.waiting.stepsLabel")}
+          steps={[
+            {
+              key: "submitted",
+              label: t("status.waiting.step.submitted"),
+              state: "done",
+            },
+            {
+              key: "pending",
+              label: t("status.waiting.step.pending"),
+              state: "current",
+            },
+            {
+              key: "enter",
+              label: t("status.waiting.step.enter"),
+              state: "upcoming",
+            },
+          ]}
+        />
+        <p className="status-page__auto-check" role="status">
+          {t("status.waiting.autoCheck")}
+        </p>
+      </StatusPageContent>
     );
   }
 
