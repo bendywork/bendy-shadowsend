@@ -3,6 +3,32 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.69 Composer 二次打磨（REQ-202610-0484 / ui-21）
+
+### Scope
+- Rebuild the room composer on the new chip/toolbar system and absorb up-05's upload progress, chunk status, retry and cancellation interactions into the current UI.
+- Uploads start as soon as files are selected (pre-upload); sending only posts the message after every attachment is `done`.
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/upload-queue.ts` (new): immutable upload task model (`queued`/`uploading`/`done`/`failed`), byte-weighted summary, chunk count helper, concurrency picker (`MAX_CONCURRENT_UPLOADS = 3`), submit guard and `MAX_COMPOSER_FILES = 20`.
+- `src/components/chat/message-composer.tsx` (new): functional chat component with attachment chips (icon, name, size, status, per-file progress, chunk `i/total`, retry/remove), aggregate progress bar, retry-all, attachment/clipboard/Enter-to-send toolbar, character counter and disabled submit while uploads are active or failed.
+- `src/app/room/[roomCode]/page.tsx`: composer state moved from `File[]` to `UploadTask[]`; added a 3-slot upload scheduler with `AbortController` cancellation on remove/unmount, per-task retry and retry-all; upload transport now accepts `AbortSignal` and emits `{ percent, chunkIndex, chunkCount }`; send reuses completed upload results instead of re-uploading; pending bubbles show `chat.sending` instead of a fake percentage.
+- `src/app/globals.css`: `.composer*` and `.composer-chip*` styles built entirely on `--ds-*` tokens (surface/line/ink/action/success/danger, radius, spacing, shadow, duration), progress bars animate only `transform`, 480px layout and `prefers-reduced-motion` fallbacks.
+- `src/lib/i18n/messages.ts`: added zh/en composer upload, attachment, hint and `chat.sending` keys (compile-time parity kept).
+- `src/lib/upload-queue.test.ts` (new, 9 tests) and `src/components/chat/message-composer.test.tsx` (new, 4 SSR tests); `vitest.config.ts` now includes `.test.tsx`.
+- `docs/design-system-composer.md` (new): composer anatomy, upload state machine, accessibility and acceptance checklist.
+
+### Regression Checklist
+- `npm test` green: 37/37 tests (5 files).
+- `npm run lint` green (0 errors, 0 warnings).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

@@ -1,17 +1,18 @@
 ﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Check, CheckCheck, ChevronRight, Clock3, Copy, Crown, Download, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
 import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
 import { Avatar } from "@/components/chat/avatar";
+import { MessageComposer } from "@/components/chat/message-composer";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -23,9 +24,21 @@ import { toast } from "@/lib/toast-store";
 import { resolveErrorMessage, toastError } from "@/lib/feedback";
 import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form-validation";
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
+import {
+  MAX_COMPOSER_FILES,
+  MAX_CONCURRENT_UPLOADS,
+  applyUploadProgress,
+  createUploadTask,
+  markUploadDone,
+  markUploadFailed,
+  resetUploadTask,
+  type UploadProgress,
+  type UploadResult,
+  type UploadTask,
+} from "@/lib/upload-queue";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
-type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
+type ProxyUploadResult = UploadResult;
 type DirectUploadPreparePayload = {
   uploadUrl: string;
   previewUrl?: string | null;
@@ -60,7 +73,6 @@ type PendingMessage = {
   createdAt: string;
   content: string;
   attachments: PendingAttachment[];
-  progress: number;
   status: "sending" | "failed";
   error?: string;
 };
@@ -91,6 +103,14 @@ const guessPreviewType = (mimeType: string): AttachmentItem["previewType"] => {
   if (mimeType.startsWith("image/")) return "IMAGE";
   if (mimeType.startsWith("video/")) return "VIDEO";
   return "NONE";
+};
+const createAbortError = () => new DOMException("Upload aborted", "AbortError");
+const isAbortError = (error: unknown) =>
+  error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
+const throwIfAborted = (signal?: AbortSignal) => {
+  if (signal?.aborted) throw createAbortError();
 };
 const FAST_POLL_INTERVAL_MS = 1200;
 const SNAPSHOT_SYNC_INTERVAL_MS = 15_000;
@@ -519,7 +539,7 @@ export default function RoomPage() {
   const [action, setAction] = useState<string | null>(null);
 
   const [text, setText] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
   const [enterToSend, setEnterToSend] = useState(true);
   const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
@@ -561,7 +581,10 @@ export default function RoomPage() {
   const [joinRoomCode, setJoinRoomCode] = useState("");
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
-  const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const uploadTasksRef = useRef<UploadTask[]>([]);
+  const uploadQueueRef = useRef<string[]>([]);
+  const activeUploadCountRef = useRef(0);
+  const uploadControllersRef = useRef<Map<string, AbortController>>(new Map());
   const copyTextTimerRef = useRef<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
   const noticeImagesRef = useRef<NoticeEditorImage[]>([]);
@@ -618,6 +641,15 @@ export default function RoomPage() {
     const snapshotSync = window.setInterval(() => { void refresh().catch((e) => toastError(e, t("toast.roomSyncFailed"), t)); }, SNAPSHOT_SYNC_INTERVAL_MS);
     return () => { window.clearInterval(hb); window.clearInterval(messagePoll); window.clearInterval(snapshotSync); };
   }, [roomCode, pollingEnabled, pollLatestMessages, refresh, t]);
+
+  useEffect(() => {
+    const controllers = uploadControllersRef.current;
+    return () => {
+      uploadQueueRef.current = [];
+      controllers.forEach((controller) => controller.abort());
+      controllers.clear();
+    };
+  }, []);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [snap?.messages.length, pendingMessages.length]);
 
@@ -765,14 +797,130 @@ export default function RoomPage() {
     return content.length > MESSAGE_COLLAPSE_CHAR_THRESHOLD && !expanded;
   }
 
+  function commitUploadTasks(next: UploadTask[]) {
+    uploadTasksRef.current = next;
+    setUploadTasks(next);
+  }
+
+  function updateUploadTask(id: string, updater: (task: UploadTask) => UploadTask) {
+    if (!uploadTasksRef.current.some((task) => task.id === id)) return;
+    commitUploadTasks(
+      uploadTasksRef.current.map((task) =>
+        task.id === id ? updater(task) : task,
+      ),
+    );
+  }
+
+  async function runUploadTask(task: UploadTask) {
+    const controller = new AbortController();
+    uploadControllersRef.current.set(task.id, controller);
+    updateUploadTask(task.id, (current) =>
+      applyUploadProgress(current, { percent: 0 }),
+    );
+
+    try {
+      const result = await upload(
+        task.file,
+        (update) => {
+          updateUploadTask(task.id, (current) =>
+            applyUploadProgress(current, update),
+          );
+        },
+        controller.signal,
+      );
+      updateUploadTask(task.id, (current) => markUploadDone(current, result));
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      const message = resolveErrorMessage(
+        error,
+        t("toast.uploadFailed", { name: task.file.name }),
+        t,
+      );
+      updateUploadTask(task.id, (current) => markUploadFailed(current, message));
+      toast.error(message);
+    } finally {
+      uploadControllersRef.current.delete(task.id);
+    }
+  }
+
+  function pumpUploadQueue() {
+    while (activeUploadCountRef.current < MAX_CONCURRENT_UPLOADS) {
+      const id = uploadQueueRef.current.shift();
+      if (!id) return;
+      const task = uploadTasksRef.current.find((item) => item.id === id);
+      if (!task || task.status !== "queued") continue;
+
+      activeUploadCountRef.current += 1;
+      void runUploadTask(task).finally(() => {
+        activeUploadCountRef.current = Math.max(
+          0,
+          activeUploadCountRef.current - 1,
+        );
+        pumpUploadQueue();
+      });
+    }
+  }
+
   function addFiles(input: FileList | File[]) {
     const incoming = Array.from(input);
     if (!incoming.length) return;
-    const maxFiles = 20;
-    if (files.length + incoming.length > maxFiles) {
-      toast.warning(t("toast.fileLimit", { max: maxFiles }));
+
+    const remaining = MAX_COMPOSER_FILES - uploadTasksRef.current.length;
+    if (remaining <= 0) {
+      toast.warning(t("toast.fileLimit", { max: MAX_COMPOSER_FILES }));
+      return;
     }
-    setFiles((prev) => [...prev, ...incoming].slice(0, maxFiles));
+    if (incoming.length > remaining) {
+      toast.warning(t("toast.fileLimit", { max: MAX_COMPOSER_FILES }));
+    }
+
+    const stamp = Date.now();
+    const tasks = incoming.slice(0, remaining).map((file, index) =>
+      createUploadTask(
+        file,
+        `upload-${stamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+      ),
+    );
+    commitUploadTasks([...uploadTasksRef.current, ...tasks]);
+    uploadQueueRef.current.push(...tasks.map((task) => task.id));
+    pumpUploadQueue();
+  }
+
+  function removeAttachment(id: string) {
+    uploadControllersRef.current.get(id)?.abort();
+    uploadControllersRef.current.delete(id);
+    uploadQueueRef.current = uploadQueueRef.current.filter(
+      (queuedId) => queuedId !== id,
+    );
+    commitUploadTasks(
+      uploadTasksRef.current.filter((task) => task.id !== id),
+    );
+  }
+
+  function retryAttachment(id: string) {
+    const task = uploadTasksRef.current.find((item) => item.id === id);
+    if (!task || task.status !== "failed") return;
+
+    updateUploadTask(id, resetUploadTask);
+    uploadQueueRef.current.push(id);
+    pumpUploadQueue();
+  }
+
+  function retryAllFailed() {
+    const failedIds = new Set(
+      uploadTasksRef.current
+        .filter((task) => task.status === "failed")
+        .map((task) => task.id),
+    );
+    if (failedIds.size === 0) return;
+
+    commitUploadTasks(
+      uploadTasksRef.current.map((task) =>
+        failedIds.has(task.id) ? resetUploadTask(task) : task,
+      ),
+    );
+    uploadQueueRef.current.push(...failedIds);
+    pumpUploadQueue();
   }
 
   async function readClipboard() {
@@ -861,23 +1009,12 @@ export default function RoomPage() {
     }
   }
 
-  function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
-    const fs: File[] = [];
-    for (const it of e.clipboardData.items) if (it.kind === "file") { const f = it.getAsFile(); if (f) fs.push(f); }
-    if (fs.length) { addFiles(fs); e.preventDefault(); }
-  }
-
-  function onComposerKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
-    if (!enterToSend) return;
-    if (event.key !== "Enter") return;
-    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.nativeEvent.isComposing) return;
-
-    event.preventDefault();
-    composerFormRef.current?.requestSubmit();
-  }
-
-  async function uploadByProxy(file: File, onProgress?: (percent: number) => void) {
+  async function uploadByProxy(
+    file: File,
+    onProgress?: (update: UploadProgress) => void,
+    signal?: AbortSignal,
+  ) {
+    throwIfAborted(signal);
     const formData = new FormData();
     formData.append("file", file, file.name);
 
@@ -887,13 +1024,23 @@ export default function RoomPage() {
       xhr.open("POST", requestUrl, true);
       xhr.withCredentials = true;
 
+      const abort = () => xhr.abort();
+      const cleanup = () => signal?.removeEventListener("abort", abort);
+      signal?.addEventListener("abort", abort, { once: true });
+
       xhr.upload.onprogress = (event) => {
         if (!event.lengthComputable || !onProgress) return;
         const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
-        onProgress(percent);
+        onProgress({ percent });
+      };
+
+      xhr.onabort = () => {
+        cleanup();
+        reject(createAbortError());
       };
 
       xhr.onerror = () => {
+        cleanup();
         console.error("[upload] xhr network error", {
           requestUrl,
           roomCode,
@@ -905,6 +1052,7 @@ export default function RoomPage() {
       };
 
       xhr.onload = () => {
+        cleanup();
         if (xhr.status === 413) {
           console.error("[upload] proxy payload too large", {
             requestUrl,
@@ -954,7 +1102,7 @@ export default function RoomPage() {
         }
 
         if (xhr.status >= 200 && xhr.status < 300 && parsed?.ok && parsed.data) {
-          if (onProgress) onProgress(100);
+          if (onProgress) onProgress({ percent: 100 });
           resolve(parsed.data);
           return;
         }
@@ -980,7 +1128,12 @@ export default function RoomPage() {
     return payload;
   }
 
-  async function uploadByChunkedProxy(file: File, onProgress?: (percent: number) => void) {
+  async function uploadByChunkedProxy(
+    file: File,
+    onProgress?: (update: UploadProgress) => void,
+    signal?: AbortSignal,
+  ) {
+    throwIfAborted(signal);
     const totalChunks = Math.ceil(file.size / DUFS_CHUNK_SIZE_BYTES);
     let dufsPath: string | null = null;
 
@@ -994,6 +1147,7 @@ export default function RoomPage() {
     };
 
     for (let i = 0; i < totalChunks; i++) {
+      throwIfAborted(signal);
       const start = i * DUFS_CHUNK_SIZE_BYTES;
       const end = Math.min(start + DUFS_CHUNK_SIZE_BYTES, file.size);
       const chunk = file.slice(start, end);
@@ -1017,11 +1171,14 @@ export default function RoomPage() {
           method: "POST",
           body: formData,
           credentials: "include",
+          signal,
         });
-      } catch {
+      } catch (error) {
         await cleanupDufsFile();
+        if (signal?.aborted || isAbortError(error)) throw createAbortError();
         throw new Error(t("toast.networkError"));
       }
+      throwIfAborted(signal);
 
       let parsed: {
         ok: boolean;
@@ -1048,7 +1205,11 @@ export default function RoomPage() {
       }
 
       if (onProgress) {
-        onProgress(Math.min(100, Math.round(((i + 1) / totalChunks) * 100)));
+        onProgress({
+          percent: Math.min(100, Math.round(((i + 1) / totalChunks) * 100)),
+          chunkIndex: i,
+          chunkCount: totalChunks,
+        });
       }
 
       if (parsed.data.s3Key) {
@@ -1066,7 +1227,12 @@ export default function RoomPage() {
     throw new Error(t("toast.uploadFailed", { name: file.name }));
   }
 
-  async function uploadDirectToS3(file: File, onProgress?: (percent: number) => void) {
+  async function uploadDirectToS3(
+    file: File,
+    onProgress?: (update: UploadProgress) => void,
+    signal?: AbortSignal,
+  ) {
+    throwIfAborted(signal);
     const mimeType = file.type?.trim() || "application/octet-stream";
     const prepare = await apiFetch<DirectUploadPreparePayload>(`/api/rooms/${roomCode}/upload-url`, {
       method: "POST",
@@ -1085,13 +1251,23 @@ export default function RoomPage() {
         xhr.setRequestHeader(key, value);
       });
 
+      const abort = () => xhr.abort();
+      const cleanup = () => signal?.removeEventListener("abort", abort);
+      signal?.addEventListener("abort", abort, { once: true });
+
       xhr.upload.onprogress = (event) => {
         if (!event.lengthComputable || !onProgress) return;
         const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
-        onProgress(percent);
+        onProgress({ percent });
+      };
+
+      xhr.onabort = () => {
+        cleanup();
+        reject(createAbortError());
       };
 
       xhr.onerror = () => {
+        cleanup();
         console.error("[upload-direct] xhr network error", {
           roomCode,
           uploadUrl: prepare.uploadUrl,
@@ -1103,8 +1279,9 @@ export default function RoomPage() {
       };
 
       xhr.onload = () => {
+        cleanup();
         if (xhr.status >= 200 && xhr.status < 300) {
-          if (onProgress) onProgress(100);
+          if (onProgress) onProgress({ percent: 100 });
           resolve();
           return;
         }
@@ -1134,10 +1311,19 @@ export default function RoomPage() {
     } satisfies ProxyUploadResult;
   }
 
-  async function upload(file: File, onProgress?: (percent: number) => void) {
+  async function upload(
+    file: File,
+    onProgress?: (update: UploadProgress) => void,
+    signal?: AbortSignal,
+  ) {
+    throwIfAborted(signal);
     try {
-      return await uploadDirectToS3(file, onProgress);
+      return await uploadDirectToS3(file, onProgress, signal);
     } catch (directUploadError) {
+      if (signal?.aborted || isAbortError(directUploadError)) {
+        throw directUploadError;
+      }
+
       console.error("[upload] direct upload failed, falling back to proxy", {
         roomCode,
         fileName: file.name,
@@ -1155,10 +1341,10 @@ export default function RoomPage() {
       }
 
       if (file.type.startsWith("image/") && file.size >= CHUNKED_UPLOAD_THRESHOLD_BYTES) {
-        return uploadByChunkedProxy(file, onProgress);
+        return uploadByChunkedProxy(file, onProgress, signal);
       }
 
-      return uploadByProxy(file, onProgress);
+      return uploadByProxy(file, onProgress, signal);
     }
   }
 
@@ -1196,37 +1382,12 @@ export default function RoomPage() {
     panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function runSend(localId: string, content: string, sendingFiles: File[]) {
+  async function runSend(
+    localId: string,
+    content: string,
+    attachments: UploadResult[],
+  ) {
     try {
-      let attachments: ProxyUploadResult[] = [];
-
-      if (sendingFiles.length > 0) {
-        const totalBytes = sendingFiles.reduce((sum, file) => sum + file.size, 0);
-        const loadedBytesMap = new Map<number, number>();
-
-        attachments = await Promise.all(
-          sendingFiles.map((file, index) =>
-            upload(file, (percent) => {
-              if (totalBytes <= 0) {
-                updatePendingMessage(localId, { progress: percent });
-                return;
-              }
-
-              const loadedBytes = Math.round((file.size * percent) / 100);
-              loadedBytesMap.set(index, loadedBytes);
-              const loadedTotal = Array.from(loadedBytesMap.values()).reduce(
-                (sum, value) => sum + value,
-                0,
-              );
-              const progress = Math.min(99, Math.round((loadedTotal / totalBytes) * 100));
-              updatePendingMessage(localId, { progress });
-            }),
-          ),
-        );
-      }
-
-      updatePendingMessage(localId, { progress: 99 });
-
       const result = await apiFetch<{ message: MessageItem }>(
         `/api/rooms/${roomCode}/messages`,
         {
@@ -1262,24 +1423,28 @@ export default function RoomPage() {
     }
   }
 
-  async function send(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function send() {
     const content = text.trim();
-    const sendingFiles = [...files];
-    if (!content && sendingFiles.length === 0) return;
+    const sendingTasks = uploadTasksRef.current;
+    if (!content && sendingTasks.length === 0) return;
+    if (sendingTasks.some((task) => task.status !== "done" || !task.result)) {
+      return;
+    }
 
+    const uploaded = sendingTasks.flatMap((task) =>
+      task.result ? [task.result] : [],
+    );
     const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const pendingAttachments: PendingAttachment[] = sendingFiles.map((file, index) => ({
-      id: `${localId}-${index}`,
-      fileName: file.name,
-      mimeType: file.type || "application/octet-stream",
-      sizeBytes: file.size,
-      previewType: guessPreviewType(file.type || "application/octet-stream"),
-      previewUrl:
-        (file.type || "").startsWith("image/") || (file.type || "").startsWith("video/")
-          ? URL.createObjectURL(file)
-          : null,
-    }));
+    const pendingAttachments: PendingAttachment[] = uploaded.map(
+      (attachment, index) => ({
+        id: `${localId}-${index}`,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes,
+        previewType: guessPreviewType(attachment.mimeType),
+        previewUrl: attachment.previewUrl ?? null,
+      }),
+    );
 
     setPendingMessages((prev) => [
       ...prev.filter((item) => item.status === "sending"),
@@ -1288,15 +1453,17 @@ export default function RoomPage() {
         createdAt: new Date().toISOString(),
         content,
         attachments: pendingAttachments,
-        progress: 0,
         status: "sending",
       },
     ]);
 
     setText("");
-    setFiles([]);
+    uploadQueueRef.current = [];
+    uploadControllersRef.current.forEach((controller) => controller.abort());
+    uploadControllersRef.current.clear();
+    commitUploadTasks([]);
 
-    void runSend(localId, content, sendingFiles);
+    void runSend(localId, content, uploaded);
   }
   async function kick(m: RoomMemberItem) {
     if (!window.confirm(`确认将 ${m.user.nickname} 移出房间吗？`)) return;
@@ -2233,7 +2400,7 @@ export default function RoomPage() {
                     message.status === "sending" ? (
                       <>
                         <LoaderCircle className="h-3.5 w-3.5 animate-spin text-ink-soft" />
-                        <span>{message.progress}%</span>
+                        <span>{t("chat.sending")}</span>
                       </>
                     ) : (
                       <>
@@ -2262,106 +2429,22 @@ export default function RoomPage() {
             <div ref={endRef} />
           </div>
 
-          <form ref={composerFormRef} onSubmit={send} className="border-t border-line-subtle p-3 sm:p-4">
-            {files.length ? (
-              <div className="mb-2 flex flex-wrap gap-2">
-                {files.map((file, index) => (
-                  <span
-                    key={`${file.name}-${file.size}-${index}`}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-line bg-panel px-2.5 py-1.5 text-xs text-ink-soft"
-                  >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
-                    <span className="max-w-[200px] truncate">{file.name}</span>
-                    <span className="shrink-0 text-[10px] text-ink-faint">{formatBytes(file.size)}</span>
-                    <button
-                      type="button"
-                      aria-label={t("composer.removeFile")}
-                      onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== index))}
-                      className="ml-0.5 rounded-full p-0.5 text-ink-muted transition-ui hover:bg-elevated-strong hover:text-ink"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="rounded-2xl border border-line bg-panel/80 p-2 transition-ui focus-within:border-action-border focus-within:ring-2 focus-within:ring-action-soft">
-              <textarea
-                value={text}
-                onChange={(e) => setText(clampMessageText(e.target.value))}
-                onPaste={onPaste}
-                onKeyDown={onComposerKeyDown}
-                maxLength={MAX_MESSAGE_TEXT_CHARS}
-                placeholder={t("composer.placeholder")}
-                className="min-h-[96px] w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-6 text-ink outline-none placeholder:text-ink-faint"
-              />
-              <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated">
-                    <Plus className="h-3.5 w-3.5" />
-                    {t("composer.attach")}
-                    <input
-                      type="file"
-                      className="hidden"
-                      multiple
-                      onChange={(e) => {
-                        if (e.target.files) {
-                          addFiles(e.target.files);
-                          e.target.value = "";
-                        }
-                      }}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={readClipboard}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-xs text-ink-soft transition-ui hover:bg-elevated"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    {t("composer.clipboard")}
-                  </button>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={enterToSend}
-                    onClick={() => setEnterToSend((prev) => !prev)}
-                    className={clsx(
-                      "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs transition-ui",
-                      enterToSend
-                        ? "border-action-border bg-action-soft text-ink"
-                        : "border-line text-ink-soft hover:bg-elevated",
-                    )}
-                  >
-                    <CornerDownLeft className="h-3.5 w-3.5" />
-                    {t("composer.enterToSend")} · {enterToSend ? t("common.on") : t("common.off")}
-                  </button>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                  <span
-                    className={clsx(
-                      "text-[11px] tabular-nums",
-                      text.length >= MAX_MESSAGE_TEXT_CHARS
-                        ? "text-danger"
-                        : text.length > MAX_MESSAGE_TEXT_CHARS * 0.9
-                          ? "text-warning"
-                          : "text-ink-faint",
-                    )}
-                  >
-                    {text.length}/{MAX_MESSAGE_TEXT_CHARS}
-                  </span>
-                  <button
-                    type="submit"
-                    disabled={!text.trim() && files.length === 0}
-                    className="btn-primary inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <SendHorizonal className="h-3.5 w-3.5" />
-                    {t("composer.send")}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </form>
+          <MessageComposer
+            text={text}
+            maxTextLength={MAX_MESSAGE_TEXT_CHARS}
+            attachments={uploadTasks}
+            enterToSend={enterToSend}
+            onTextChange={(value) => setText(clampMessageText(value))}
+            onAddFiles={addFiles}
+            onRemoveAttachment={removeAttachment}
+            onRetryAttachment={retryAttachment}
+            onRetryAllFailed={retryAllFailed}
+            onToggleEnterToSend={() => setEnterToSend((prev) => !prev)}
+            onReadClipboard={() => {
+              void readClipboard();
+            }}
+            onSubmit={send}
+          />
         </section>
 
         <aside

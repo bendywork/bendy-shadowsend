@@ -788,6 +788,439 @@ textarea[aria-invalid="true"]:focus {
   color: var(--ds-ink);
 }
 
+/* Composer (REQ-202610-0484 / ui-21) — attachment chips + upload toolbar. */
+.composer {
+  border-top: 1px solid var(--ds-line-subtle);
+  background: var(--ds-surface-canvas);
+  padding: var(--ds-space-3);
+  padding-bottom: max(var(--ds-space-3), env(safe-area-inset-bottom));
+}
+
+.composer__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-2);
+}
+
+.composer-chip {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-2);
+  border: 1px solid var(--ds-line-subtle);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface-elevated);
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    border-color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.composer-chip:hover {
+  border-color: var(--ds-line);
+}
+
+.composer-chip[data-status="uploading"] {
+  border-color: var(--ds-action-border);
+  background: var(--ds-action-soft);
+}
+
+.composer-chip[data-status="done"] {
+  border-color: var(--ds-success-border);
+  background: var(--ds-success-soft);
+}
+
+.composer-chip[data-status="failed"] {
+  border-color: var(--ds-danger-border);
+  background: var(--ds-danger-soft);
+}
+
+.composer-chip__glyph {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ds-radius-sm);
+  background: color-mix(in srgb, var(--ds-surface-panel) 70%, transparent);
+  color: var(--ds-ink-muted);
+}
+
+.composer-chip[data-status="done"] .composer-chip__glyph {
+  color: var(--ds-success);
+}
+
+.composer-chip[data-status="failed"] .composer-chip__glyph {
+  color: var(--ds-danger);
+}
+
+.composer-chip__icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.composer-chip__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.composer-chip__name {
+  max-width: min(46vw, 260px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ds-ink-soft);
+}
+
+.composer-chip__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--ds-ink-faint);
+}
+
+.composer-chip__status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-chip[data-status="failed"] .composer-chip__status {
+  max-width: min(52vw, 320px);
+  color: var(--ds-danger);
+}
+
+.composer-chip__spinner {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  animation: composer-spin 900ms linear infinite;
+}
+
+.composer-chip__track {
+  display: block;
+  width: min(46vw, 260px);
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-line-subtle);
+}
+
+.composer-chip__fill {
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+  background: var(--ds-ink-soft);
+  transition: transform var(--ds-duration-fast) linear;
+}
+
+.composer-chip__action {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  color: var(--ds-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.composer-chip__action:hover {
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+}
+
+.composer-chip__action:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 1px;
+}
+
+.composer-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--ds-space-2);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--ds-line-subtle);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-panel);
+}
+
+.composer-summary__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  font-size: 11px;
+  color: var(--ds-ink-muted);
+}
+
+.composer-summary__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-summary__retry {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  padding: 2px 4px;
+  color: var(--ds-danger);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.composer-summary__retry:hover {
+  background: var(--ds-danger-soft);
+}
+
+.composer-summary__retry:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 1px;
+}
+
+.composer-summary__track {
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-line-subtle);
+}
+
+.composer-summary__fill {
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+  background: var(--ds-ink-soft);
+  transition: transform var(--ds-duration-fast) linear;
+}
+
+.composer-summary__fill--danger {
+  background: var(--ds-danger);
+}
+
+.composer__surface {
+  padding: var(--ds-space-2);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-xl);
+  background: color-mix(in srgb, var(--ds-surface-card) 92%, transparent);
+  box-shadow: var(--ds-shadow-xs);
+  transition:
+    border-color var(--ds-duration-base) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-base) var(--ds-ease-standard);
+}
+
+.composer__surface:focus-within {
+  border-color: var(--ds-action-border);
+  box-shadow:
+    0 0 0 3px var(--ds-action-soft),
+    var(--ds-shadow-sm);
+}
+
+.composer__textarea {
+  display: block;
+  width: 100%;
+  min-height: 88px;
+  max-height: 240px;
+  resize: none;
+  overflow-y: auto;
+  border: 0;
+  background: transparent;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ds-ink);
+  outline: none;
+  field-sizing: content;
+}
+
+.composer__textarea::placeholder {
+  color: var(--ds-ink-faint);
+}
+
+.composer__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-1);
+}
+
+.composer__tools {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-1);
+}
+
+.composer__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin-left: auto;
+}
+
+.composer-tool {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--ds-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  color: var(--ds-ink-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    border-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.composer-tool:hover {
+  border-color: var(--ds-line-subtle);
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+}
+
+.composer-tool[data-active="true"] {
+  border-color: var(--ds-action-border);
+  background: var(--ds-action-soft);
+  color: var(--ds-ink);
+}
+
+.composer-tool:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+.composer__counter {
+  font-size: 10px;
+  color: var(--ds-ink-faint);
+}
+
+.composer__counter[data-level="warning"] {
+  color: var(--ds-warning);
+}
+
+.composer__counter[data-level="danger"] {
+  color: var(--ds-danger);
+}
+
+.composer__send {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 var(--ds-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-action-bg);
+  color: var(--ds-action-fg);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-duration-base) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.composer__send:hover:not(:disabled) {
+  background: var(--ds-action-bg-hover);
+}
+
+.composer__send:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.composer__send:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.composer__send:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+@keyframes composer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (min-width: 640px) {
+  .composer {
+    padding: var(--ds-space-4);
+  }
+}
+
+@media (max-width: 479px) {
+  .composer__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .composer-tool {
+    min-height: 44px;
+  }
+
+  .composer__send {
+    min-height: 40px;
+  }
+
+  .composer-chip {
+    flex: 1 1 100%;
+  }
+
+  .composer-chip__name,
+  .composer-chip__track {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-chip,
+  .composer-chip__fill,
+  .composer-summary__fill,
+  .composer__surface,
+  .composer-tool,
+  .composer__send {
+    transition: none;
+  }
+
+  .composer-chip__spinner {
+    animation: none;
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;
