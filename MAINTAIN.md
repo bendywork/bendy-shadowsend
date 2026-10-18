@@ -54,6 +54,31 @@
 - `npm run lint` green（0 errors）。
 - `npx tsc --noEmit` green。
 - `npm run build` green（Next.js 16.2.1）。
+## 2026-10-18: v0.1.69 附件存储模型适配（最小迁移，REQ-202610-0517 / up-08）
+
+### Scope
+- 扩展 `AttachmentStorage` 为 `S3 | DUFS | SANG | PIC_SL`，`s3Key` 复用为远端标识 / URL。
+- 将分片清单（片数 / 片大小 / 各片远端标识）纳入同一次最小迁移：新增可空 `chunkManifest` JSONB 列，不新增表、不删列。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `prisma/schema.prisma`: `AttachmentStorage` adds `SANG` / `PIC_SL`; `MessageAttachment` adds `chunkManifest Json?`.
+- `prisma/migrations/20261018150000_add_remote_storage_and_chunk_manifest` (new): idempotent `ALTER TYPE ... ADD VALUE IF NOT EXISTS` for both enum values plus `ADD COLUMN IF NOT EXISTS "chunkManifest" JSONB`.
+- `src/lib/attachment-storage.ts` (new): storage value guards, remote URL host whitelist, chunk manifest parser/validator (≤50 chunks, contiguous indexes, per-chunk sizes, total size), and `resolveAttachmentReadMode`.
+- `src/lib/validators.ts`: attachment payload accepts four storages, remote URLs are host-checked, chunk manifests require `s3Key === chunks[0].url`; announcement images accept remote storages.
+- `src/app/api/rooms/[roomCode]/messages/route.ts`: persists `chunkManifest` on attachment creation.
+- `src/app/api/rooms/[roomCode]/attachments/[attachmentId]/download/route.ts` and `.../preview/route.ts`: remote storages redirect to the whitelisted public URL; chunked attachments return `409 CHUNKED_DOWNLOAD_PENDING` / `CHUNKED_PREVIEW_PENDING` until receiver merge (up-10).
+- `src/app/api/rooms/[roomCode]/announcement/image/route.ts`: remote announcement images redirect after URL validation.
+- `src/lib/attachment-preview.ts`: remote previews use `s3Key` directly; chunked previews are `null`.
+- `src/lib/announcement.ts`: announcement storage normalization accepts the new enum values.
+- `docs/attachment-storage-model.md` (new): model, manifest schema, whitelist, migration and read-path contract.
+- Tests: `attachment-storage.test.ts` (20), `validators.test.ts` (10), `attachment-storage-schema.test.ts` (4).
+
+### Regression Checklist
+- `npm test`: 6 files / 58 tests green.
+- `npm run lint`: 0 errors.
+- `npx tsc --noEmit`: 0 errors.
+- `npm run build`: green (Next.js 16.2.1).
 
 ### Versioning / History
 - Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.

@@ -155,6 +155,7 @@ export async function POST(
             sizeBytes: BigInt(attachment.sizeBytes),
             s3Key: attachment.s3Key,
             storage: attachment.storage,
+            chunkManifest: attachment.chunkManifest ?? undefined,
             previewType: resolvePreviewType(attachment.mimeType),
           })),
         });

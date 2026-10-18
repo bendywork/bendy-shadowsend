@@ -1,6 +1,10 @@
-﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
+﻿import { RoomStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, jsonError } from "@/lib/api";
+import {
+  isAllowedRemoteAttachmentUrl,
+  resolveAttachmentReadMode,
+} from "@/lib/attachment-storage";
 import { fetchDufsFile } from "@/lib/dufs";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
@@ -49,6 +53,7 @@ export async function GET(
         mimeType: true,
         sizeBytes: true,
         storage: true,
+        chunkManifest: true,
       },
     });
 
@@ -56,7 +61,29 @@ export async function GET(
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
     }
 
-    if (attachment.storage === AttachmentStorage.DUFS) {
+    const readMode = resolveAttachmentReadMode(
+      attachment.storage,
+      attachment.chunkManifest,
+    );
+
+    if (readMode === "chunked") {
+      throw new ApiError(
+        409,
+        "分片附件暂不支持在线预览",
+        "CHUNKED_PREVIEW_PENDING",
+      );
+    }
+
+    if (readMode === "remote") {
+      if (!isAllowedRemoteAttachmentUrl(attachment.storage, attachment.s3Key)) {
+        throw new ApiError(502, "远端附件地址无效", "REMOTE_ATTACHMENT_URL_INVALID");
+      }
+
+      const response = NextResponse.redirect(attachment.s3Key, 307);
+      return applyUserCookie(response, cookieToSet);
+    }
+
+    if (readMode === "dufs") {
       const upstream = await fetchDufsFile(attachment.s3Key);
       const response = new NextResponse(upstream.body, {
         status: 200,

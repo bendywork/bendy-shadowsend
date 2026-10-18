@@ -69,6 +69,7 @@ Copy-Item .env.example .env
 >   - 若已配置 S3：优先走 S3 预签名直传；失败时（且文件不超过 `200MB`）回退后端中转（`/api/rooms/[roomCode]/upload`）。
 >   - 若未配置 S3 且已配置 DUFS：走后端中转并写入 DUFS。
 > - 公告图片与普通聊天附件使用同一套策略。
+> - 上传通道重构期间，附件存储枚举已扩展为 `S3 | DUFS | SANG | PIC_SL`；`SANG` / `PIC_SL` 的 `s3Key` 保存远端 HTTPS 直链，分片清单存入 `chunkManifest`（详见 `docs/attachment-storage-model.md`）。
 >
 > 单文件大小上限为 `10GB`（服务端会校验）。
 >
@@ -380,6 +381,8 @@ npm run db:reinit:prefixed
 
 - `0.1.70` 接收方合并下载（REQ-202610-0513 / up-04）：`/upload/sessions/complete` 在 manifest 外新增 `mergeToken` 与 `mergeUrl`；新增 `GET /api/rooms/[roomCode]/attachments/merge`，按清单顺序拉取第三方分片并以 `ReadableStream` 流式拼接，逐片校验长度/实际字节数/域名，`Content-Disposition` 一键保存原文件名；令牌使用 HMAC-SHA256 签名 + deflate 压缩、绑定房间与成员身份、总长 ≤16KB；新增 `docs/upload-merge-download.md` 与 21 条单测。
 - `0.1.69` 上传服务端转发与分片编排（REQ-202610-0512 / up-03）：新增 `/upload/forward` 单请求转发与 `/upload/sessions` → `/sessions/chunk` → `/sessions/complete` 分片编排；4MB/片、单请求 ≤4.5MB、sang ≤100MB / pic.sl.al ≤200MB；无状态 HMAC 会话（2 小时）、来源校验、180 次/分钟限流、2GB/日配额、同服务最多 3 次重试；新增 `docs/upload-relay-architecture.md` 与 46 条单测。
+- `0.1.69` 附件存储模型适配（REQ-202610-0517 / up-08）：`AttachmentStorage` 枚举新增 `SANG`、`PIC_SL`，`s3Key` 复用为远端标识 / URL；新增可空 `chunkManifest` JSONB 列保存分片清单（片数 / 片大小 / 各片远端标识），一次迁移完成、不新增表、不删列；新增 `src/lib/attachment-storage.ts` 统一存储值、URL 白名单、manifest 校验与读取路由，下载 / 预览 / 公告图片路由兼容远端直链，分片附件暂返回 `409` 待 up-10 合并下载。
+- 新增 `docs/attachment-storage-model.md`，补充迁移说明、manifest 结构、读写路径与合并顺序注意事项。
 - `0.1.68` 全局反馈统一（REQ-202610-0475 / ui-12）：新增 `ApiRequestError`（携带 HTTP 状态与后端错误码）与 `src/lib/feedback.ts`，网络异常统一收敛为一条本地化文案，4xx 保留后端可读消息，5xx/解析失败/通用“请求失败”回落到调用方兜底文案；所有动作失败改走 `toastError`，同一错误由 Toast store 自动去重。
 - 新增 `src/lib/form-validation.ts`、`FieldError` 与 `input[aria-invalid="true"]` 错误样式；首页、房间入口弹窗、房间设置统一使用 `noValidate` + 行内校验，控件带 `aria-invalid`/`aria-describedby`，修改字段即清除错误。
 - 房间页初始加载失败改为页面级错误态并提供“重试”，轮询/同步/上传/发送/成员/审批/公告/设置等失败全部接入 Toast；移除残留的错误文本行与直接拼接 `error.message` 的写法；新增 `docs/design-system-feedback.md` 与 16 条反馈/校验单测（合计 24 条）。

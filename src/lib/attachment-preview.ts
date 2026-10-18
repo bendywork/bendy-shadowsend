@@ -1,4 +1,8 @@
 ﻿import { AttachmentStorage, PreviewType } from "@prisma/client";
+import {
+  isAllowedRemoteAttachmentUrl,
+  resolveAttachmentReadMode,
+} from "@/lib/attachment-storage";
 import { createDufsPublicUrl } from "@/lib/dufs";
 import { createAttachmentPreviewUrl } from "@/lib/s3";
 
@@ -9,6 +13,7 @@ type PreviewAttachment = {
   mimeType: string;
   sizeBytes: number | bigint;
   storage: AttachmentStorage;
+  chunkManifest?: unknown;
   previewType: PreviewType;
 };
 
@@ -48,7 +53,38 @@ export async function enrichMessagesWithAttachmentPreviewUrls<
           }
 
           try {
-            if (attachment.storage === AttachmentStorage.DUFS) {
+            const readMode = resolveAttachmentReadMode(
+              attachment.storage,
+              attachment.chunkManifest,
+            );
+
+            if (readMode === "chunked") {
+              return {
+                ...attachment,
+                previewUrl: null,
+              };
+            }
+
+            if (readMode === "remote") {
+              if (
+                !isAllowedRemoteAttachmentUrl(
+                  attachment.storage,
+                  attachment.s3Key,
+                )
+              ) {
+                return {
+                  ...attachment,
+                  previewUrl: null,
+                };
+              }
+
+              return {
+                ...attachment,
+                previewUrl: attachment.s3Key,
+              };
+            }
+
+            if (readMode === "dufs") {
               if (options?.roomCode) {
                 return {
                   ...attachment,
