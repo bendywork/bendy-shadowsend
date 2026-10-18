@@ -366,6 +366,11 @@ npm run db:reinit:prefixed
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
 
+### 2026-10-18
+
+- `0.1.68` 首页 Hero 降噪（REQ-202610-0477 / ui-14）：删除打字机口号循环、`animate-pulse` 光标与双径向环境光斑，改为「品牌标识 → 眉题 → 两行大标题 → 导语 → 三项事实 → 等宽签名」的静态编辑式结构；语言/主题切换收进右上角工具组，桌面双栏、移动端单栏。
+- 首页全部文案迁入 `home.*` 中英文 i18n 键（38 组），房间配额改读 `MAX_USER_ROOMS`；`globals.css` 移除 `--ds-ambient-*` 与 body 渐变背景，新增 `.home-*` 样式并补上卡片内边距与 360px 窄屏下的 Logo 尺寸适配。
+
 ### 2026-10-17
 
 - `0.1.65` 设计令牌体系重建（REQ-202610-0464 / ui-01）：`globals.css` 重建 10 级中性灰 primitive ramp 与语义 surface/line/ink/action 令牌，补齐圆角、4px 间距、阴影、动效时长/缓动及 success/warning/danger 状态色；全部令牌经 `@theme inline` 暴露为 Tailwind 工具类。

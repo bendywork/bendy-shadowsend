@@ -3,6 +3,30 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-18: v0.1.68 首页 Hero 降噪（REQ-202610-0477 / ui-14）
+
+### Scope
+- Remove the typewriter slogan loop and the dual radial ambient spots from `/`; replace them with a static editorial hero: logo → eyebrow → two-line title → lede → three facts → mono signature.
+- Keep the brand mark and monochrome language; group the language and theme toggles in a quiet top-right utility cluster.
+- Move all new homepage copy into zh/en i18n keys and show the room quota from `MAX_USER_ROOMS` instead of a hardcoded `/10`.
+- Bump app version to `0.1.68`.
+
+### Changes
+- `src/app/page.tsx`: deleted the `slogans` / `typedText` / `deleting` state and the 72ms/36ms typewriter effect, the `animate-pulse` caret and the typed paragraph; rebuilt the hero markup; wired `home.*` keys and `LanguageToggle`; bootstrap errors now store a `MessageKey` so the effect only depends on `router`; room count uses `MAX_USER_ROOMS`.
+- `src/lib/i18n/messages.ts`: added 38 `home.*` keys in both zh and en (hero, entry, join/create forms, stats, info/error).
+- `src/app/globals.css`: removed `--ds-ambient-a/b` and the body dual radial gradient; flat canvas; added `.home-shell` / `.home-topbar` / `.home-hero*` / `.home-entry` styles with clamp-based rhythm, a responsive single column and a smaller mobile logo; no animation beyond existing transitions.
+- `package.json` / `package-lock.json` / `src/lib/constants.ts`: version synced to `0.1.68`.
+
+### Regression Checklist
+- `npm run lint` green.
+- `npm run build` green (Next.js 16.2.1).
+- CDP checks at 1440×900 (dark/light, zh/en), 390×844 and 360×800: one `h1`, no horizontal overflow, no radial gradient, no typewriter cursor; card content padded; topbar and logo do not overlap at 360px.
+- Local `/api/bootstrap` 500s are due to no database in the verification environment; layout and text rendering are unaffected.
+
+### Versioning / History
+- Updated `package.json` and `APP_VERSION` (constants) to `0.1.68`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-17: v0.1.65 设计令牌体系重建（REQ-202610-0464 / ui-01）
 
 ### Scope

@@ -4,10 +4,13 @@ import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DoorOpen, LoaderCircle, PlusCircle, Shield, Sparkles } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_USER_ROOMS } from "@/lib/constants";
 import { apiFetch } from "@/lib/client";
 import type { BootstrapPayload } from "@/types/chat";
+import type { MessageKey } from "@/lib/i18n/messages";
+import { useT } from "@/lib/i18n/context";
 import { Avatar } from "@/components/chat/avatar";
+import { LanguageToggle } from "@/components/ui/language-toggle";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 type JoinResult = {
@@ -33,32 +36,23 @@ type MePayload = {
   };
 };
 
-const slogans = [
-  "临时传递，阅后即散。",
-  "黑白极简，信息纯粹。",
-  "房间活跃，即刻续命。",
-  "Temporary Bendy Online.",
-];
-
 export default function HomePage() {
   const router = useRouter();
+  const t = useT();
   const [tab, setTab] = useState<TabType>("join");
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null);
   const [fallbackMe, setFallbackMe] = useState<MePayload["user"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
+  const [infoKey, setInfoKey] = useState<MessageKey | null>(null);
 
   const [createName, setCreateName] = useState("");
   const [createGateCode, setCreateGateCode] = useState("");
   const [joinRoomCode, setJoinRoomCode] = useState("");
   const [joinGateCode, setJoinGateCode] = useState("");
   const [joinInviteToken, setJoinInviteToken] = useState("");
-
-  const [typedText, setTypedText] = useState("");
-  const [typedIndex, setTypedIndex] = useState(0);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -82,7 +76,7 @@ export default function HomePage() {
         }
 
         if (!bootPayload && !mePayload) {
-          throw new Error("初始化失败，请刷新重试");
+          throw new Error("bootstrap-failed");
         }
 
         if (!bootPayload) return;
@@ -95,7 +89,7 @@ export default function HomePage() {
           setJoinRoomCode(queryRoom);
           setJoinInviteToken(queryInvite ?? "");
           setTab("join");
-          setInfo(queryInvite ? "检测到邀请链接，可直接加入" : null);
+          if (queryInvite) setInfoKey("home.info.inviteDetected");
         } else {
           const roomCandidates = [
             ...bootPayload.tree.createdRooms,
@@ -108,9 +102,9 @@ export default function HomePage() {
             return;
           }
         }
-      } catch (fetchError) {
+      } catch {
         if (!alive) return;
-        setError(fetchError instanceof Error ? fetchError.message : "初始化失败");
+        setErrorKey("home.error.init");
       } finally {
         if (alive) setLoading(false);
       }
@@ -122,29 +116,6 @@ export default function HomePage() {
     };
   }, [router]);
 
-  useEffect(() => {
-    const phrase = slogans[typedIndex % slogans.length];
-    const interval = deleting ? 36 : 72;
-    const timer = window.setTimeout(() => {
-      if (!deleting) {
-        const next = phrase.slice(0, typedText.length + 1);
-        setTypedText(next);
-        if (next === phrase) {
-          window.setTimeout(() => setDeleting(true), 900);
-        }
-      } else {
-        const next = phrase.slice(0, Math.max(0, typedText.length - 1));
-        setTypedText(next);
-        if (next.length === 0) {
-          setDeleting(false);
-          setTypedIndex((prev) => prev + 1);
-        }
-      }
-    }, interval);
-
-    return () => window.clearTimeout(timer);
-  }, [typedText, deleting, typedIndex]);
-
   const roomCount = useMemo(() => {
     if (!bootstrap) return 0;
     return bootstrap.tree.createdRooms.length + bootstrap.tree.joinedRooms.length;
@@ -154,8 +125,9 @@ export default function HomePage() {
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setInfo(null);
+    setErrorText(null);
+    setErrorKey(null);
+    setInfoKey(null);
     setSubmitting(true);
 
     try {
@@ -170,7 +142,9 @@ export default function HomePage() {
       localStorage.setItem(LAST_ROOM_STORAGE_KEY, payload.room.roomCode);
       router.push(`/room/${payload.room.roomCode}`);
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "创建房间失败");
+      const message = createError instanceof Error ? createError.message : "";
+      if (message) setErrorText(message);
+      else setErrorKey("home.error.create");
     } finally {
       setSubmitting(false);
     }
@@ -178,8 +152,9 @@ export default function HomePage() {
 
   async function handleJoin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setInfo(null);
+    setErrorText(null);
+    setErrorKey(null);
+    setInfoKey(null);
     setSubmitting(true);
 
     try {
@@ -192,7 +167,7 @@ export default function HomePage() {
       });
 
       if (payload.waitingApproval) {
-        setInfo("已提交加入申请，等待房主审批。");
+        setInfoKey("home.info.waitingApproval");
         return;
       }
 
@@ -201,210 +176,225 @@ export default function HomePage() {
         router.push(`/room/${payload.roomCode}`);
       }
     } catch (joinError) {
-      setError(joinError instanceof Error ? joinError.message : "加入房间失败");
+      const message = joinError instanceof Error ? joinError.message : "";
+      if (message) setErrorText(message);
+      else setErrorKey("home.error.join");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 sm:py-10 lg:flex lg:items-center">
-      <section className="relative mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
-        <div className="flex min-h-0 items-center px-1 sm:px-3 lg:min-h-[560px]">
-          <div className="w-full max-w-xl space-y-6 sm:space-y-7">
-            <div className="w-full max-w-[440px]">
-              <Image
-                src="/2.png"
-                width={500}
-                height={155}
-                alt="临时笨迪 Logo"
-                className="theme-dark-only h-auto w-full"
-                priority
-              />
-              <Image
-                src="/2-light.png"
-                width={500}
-                height={155}
-                alt="临时笨迪 Logo（日间）"
-                className="theme-light-only h-auto w-full"
-                priority
-              />
+    <main className="home-shell">
+      <div className="home-topbar">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
+
+      <section className="home-hero" aria-labelledby="home-hero-title">
+        <div className="home-hero__copy">
+          <Image
+            src="/2.png"
+            width={500}
+            height={155}
+            alt={t("home.logo.alt")}
+            className="home-hero__logo theme-dark-only"
+            priority
+          />
+          <Image
+            src="/2-light.png"
+            width={500}
+            height={155}
+            alt={t("home.logo.altLight")}
+            className="home-hero__logo theme-light-only"
+            priority
+          />
+
+          <p className="home-hero__eyebrow">{t("home.hero.eyebrow")}</p>
+
+          <h1 id="home-hero-title" className="home-hero__title">
+            {t("home.hero.title.line1")}{" "}
+            <span>{t("home.hero.title.line2")}</span>
+          </h1>
+
+          <p className="home-hero__lede">{t("home.hero.lede")}</p>
+
+          <dl className="home-hero__facts">
+            <div className="home-hero__fact">
+              <dt>{t("home.hero.fact.lifetime.label")}</dt>
+              <dd>{t("home.hero.fact.lifetime.value")}</dd>
             </div>
+            <div className="home-hero__fact">
+              <dt>{t("home.hero.fact.identity.label")}</dt>
+              <dd>{t("home.hero.fact.identity.value")}</dd>
+            </div>
+            <div className="home-hero__fact">
+              <dt>{t("home.hero.fact.access.label")}</dt>
+              <dd>{t("home.hero.fact.access.value")}</dd>
+            </div>
+          </dl>
 
-            <h2 className="text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-4xl">
-              临时信息传递空间
-            </h2>
+          <p className="home-hero__signature">{t("home.hero.signature")}</p>
+        </div>
 
-            <p className="max-w-md text-base leading-relaxed text-ink-muted sm:text-lg">
-              房间 10 分钟无活跃自动销毁，信息短驻留、低负担。
-            </p>
-
-            <p className="min-h-[2rem] font-mono text-base text-ink-faint sm:text-lg">
-              {typedText}
-              <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-ink-muted align-middle sm:h-5" />
-            </p>
+        <section className="surface-card home-entry" aria-labelledby="home-entry-title">
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="home-entry__kicker">{t("home.entry.kicker")}</p>
+              <h2 id="home-entry-title" className="mt-2 text-2xl font-semibold tracking-tight text-ink">
+                {t("home.entry.title")}
+              </h2>
+              <p className="mt-1.5 text-sm text-ink-muted">{t("home.entry.subtitle")}</p>
+            </div>
+            {displayMe ? (
+              <div className="flex items-center gap-3 rounded-2xl border border-line-subtle bg-panel/80 px-3 py-2">
+                <Avatar
+                  initial={displayMe.avatarInitial}
+                  color={displayMe.avatarColor}
+                  className="h-10 w-10 text-sm"
+                />
+                <div>
+                  <p className="text-xs text-ink-faint">{t("home.identity.current")}</p>
+                  <p className="text-sm font-medium text-ink">{displayMe.nickname}</p>
+                </div>
+              </div>
+            ) : null}
           </div>
-        </div>
 
-        <div className="flex min-h-0 items-center lg:min-h-[560px]">
-          <section className="surface-card w-full p-6 sm:p-7">
-            <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-ink-faint">Session Entry</p>
-                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">临时笨迪</h1>
-                <p className="mt-1.5 text-sm text-ink-muted">加入或创建房间，消息仅在活跃期内保留。</p>
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                <ThemeToggle />
-                {displayMe ? (
-                  <div className="flex items-center gap-3 rounded-2xl border border-line-subtle bg-panel/80 px-3 py-2">
-                    <Avatar
-                      initial={displayMe.avatarInitial}
-                      color={displayMe.avatarColor}
-                      className="h-10 w-10 text-sm"
-                    />
-                    <div>
-                      <p className="text-xs text-ink-faint">当前身份</p>
-                      <p className="text-sm font-medium text-ink">{displayMe.nickname}</p>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
+          <div className="segmented mb-5 inline-flex w-full p-1 sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setTab("join")}
+              data-active={tab === "join"}
+              className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
+            >
+              <DoorOpen className="h-4 w-4" /> {t("home.tab.join")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("create")}
+              data-active={tab === "create"}
+              className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
+            >
+              <PlusCircle className="h-4 w-4" /> {t("home.tab.create")}
+            </button>
+          </div>
 
-            <div className="segmented mb-5 inline-flex w-full p-1 sm:w-auto">
+          {tab === "join" ? (
+            <form className="space-y-4" onSubmit={handleJoin}>
+              <label className="block space-y-1">
+                <span className="text-xs text-ink-muted">{t("home.join.roomCode.label")}</span>
+                <input
+                  required
+                  value={joinRoomCode}
+                  onChange={(event) => setJoinRoomCode(event.target.value.trim())}
+                  placeholder={t("home.join.roomCode.placeholder")}
+                  className="field px-4 py-2.5 text-sm"
+                />
+              </label>
+
+              <label className="block space-y-1">
+                <span className="text-xs text-ink-muted">{t("home.join.gateCode.label")}</span>
+                <input
+                  value={joinGateCode}
+                  onChange={(event) =>
+                    setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  placeholder={t("home.join.gateCode.placeholder")}
+                  inputMode="numeric"
+                  className="field px-4 py-2.5 text-sm"
+                />
+              </label>
+
+              <label className="block space-y-1">
+                <span className="text-xs text-ink-muted">{t("home.join.invite.label")}</span>
+                <input
+                  value={joinInviteToken}
+                  onChange={(event) => setJoinInviteToken(event.target.value.trim())}
+                  placeholder={t("home.join.invite.placeholder")}
+                  className="field px-4 py-2.5 text-sm"
+                />
+              </label>
+
               <button
-                type="button"
-                onClick={() => setTab("join")}
-                data-active={tab === "join"}
-                className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
+                type="submit"
+                disabled={submitting || loading}
+                className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
               >
-                <DoorOpen className="h-4 w-4" /> 加入
+                {submitting ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <DoorOpen className="h-4 w-4" />
+                )}
+                {t("home.join.submit")}
               </button>
+            </form>
+          ) : (
+            <form className="space-y-4" onSubmit={handleCreate}>
+              <label className="block space-y-1">
+                <span className="text-xs text-ink-muted">{t("home.create.name.label")}</span>
+                <input
+                  required
+                  value={createName}
+                  onChange={(event) => setCreateName(event.target.value)}
+                  placeholder={t("home.create.name.placeholder")}
+                  className="field px-4 py-2.5 text-sm"
+                />
+              </label>
+
+              <label className="block space-y-1">
+                <span className="text-xs text-ink-muted">{t("home.create.gateCode.label")}</span>
+                <input
+                  value={createGateCode}
+                  onChange={(event) =>
+                    setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  placeholder={t("home.create.gateCode.placeholder")}
+                  inputMode="numeric"
+                  className="field px-4 py-2.5 text-sm"
+                />
+              </label>
+
               <button
-                type="button"
-                onClick={() => setTab("create")}
-                data-active={tab === "create"}
-                className="segmented-item flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium sm:flex-none"
+                type="submit"
+                disabled={submitting || loading}
+                className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
               >
-                <PlusCircle className="h-4 w-4" /> 创建
+                {submitting ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {t("home.create.submit")}
               </button>
+            </form>
+          )}
+
+          <div className="mt-5 space-y-2 text-xs">
+            <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
+              {t("home.stats.rooms")}
+              <span className="ml-1 font-semibold text-ink-soft">
+                {roomCount}/{MAX_USER_ROOMS}
+              </span>
             </div>
-
-            {tab === "join" ? (
-              <form className="space-y-4" onSubmit={handleJoin}>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间号（URL 随机码）</span>
-                  <input
-                    required
-                    value={joinRoomCode}
-                    onChange={(event) => setJoinRoomCode(event.target.value.trim())}
-                    placeholder="例如：8DK1A2M7QX"
-                    className="field px-4 py-2.5 text-sm"
-                  />
-                </label>
-
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选，6 位数字）</span>
-                  <input
-                    value={joinGateCode}
-                    onChange={(event) =>
-                      setJoinGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    placeholder="如果房间设置了门禁码则必填"
-                    className="field px-4 py-2.5 text-sm"
-                  />
-                </label>
-
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">邀请 Token（可选）</span>
-                  <input
-                    value={joinInviteToken}
-                    onChange={(event) => setJoinInviteToken(event.target.value.trim())}
-                    placeholder="有邀请链接时自动填充"
-                    className="field px-4 py-2.5 text-sm"
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
-                >
-                  {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <DoorOpen className="h-4 w-4" />
-                  )}
-                  进入房间
-                </button>
-              </form>
-            ) : (
-              <form className="space-y-4" onSubmit={handleCreate}>
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">房间名称</span>
-                  <input
-                    required
-                    value={createName}
-                    onChange={(event) => setCreateName(event.target.value)}
-                    placeholder="输入房间名"
-                    className="field px-4 py-2.5 text-sm"
-                  />
-                </label>
-
-                <label className="block space-y-1">
-                  <span className="text-xs text-ink-muted">门禁码（可选）</span>
-                  <input
-                    value={createGateCode}
-                    onChange={(event) =>
-                      setCreateGateCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    placeholder="不填则加入无需门禁码"
-                    className="field px-4 py-2.5 text-sm"
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={submitting || loading}
-                  className="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
-                >
-                  {submitting ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                  创建并进入
-                </button>
-              </form>
-            )}
-
-            <div className="mt-5 space-y-2 text-xs">
-              <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
-                当前已加入/创建房间数：
-                <span className="ml-1 font-semibold text-ink-soft">{roomCount}/10</span>
-              </div>
-              <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
-                <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />
-                门禁码只允许 6 位数字，且最近 1 分钟不可重复创建。
-              </div>
+            <div className="rounded-xl border border-line-subtle bg-panel/70 px-3 py-2 text-ink-muted">
+              <Shield className="mr-1 inline h-3.5 w-3.5 text-ink-soft" />
+              {t("home.stats.gateHint")}
             </div>
+          </div>
 
-            {info ? (
-              <p className="mt-4 rounded-lg border border-line-subtle bg-panel/50 px-3 py-2 text-sm text-ink-soft">
-                {info}
-              </p>
-            ) : null}
-            {error ? (
-              <p className="mt-4 rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">
-                {error}
-              </p>
-            ) : null}
-          </section>
-        </div>
+          {infoKey ? (
+            <p className="mt-4 rounded-lg border border-line-subtle bg-panel/50 px-3 py-2 text-sm text-ink-soft">
+              {t(infoKey)}
+            </p>
+          ) : null}
+          {errorText || errorKey ? (
+            <p className="mt-4 rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">
+              {errorText ?? (errorKey ? t(errorKey) : null)}
+            </p>
+          ) : null}
+        </section>
       </section>
     </main>
   );
 }
-
-

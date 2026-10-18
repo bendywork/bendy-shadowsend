@@ -115,9 +115,6 @@
   --ds-qr-light: #ffffff;
   --ds-avatar-fg: #ffffff;
 
-  /* 12 · Ambient wash (neutral, replaces colored glow) */
-  --ds-ambient-a: rgb(255 255 255 / 0.035);
-  --ds-ambient-b: rgb(255 255 255 / 0.02);
 }
 
 :root[data-theme="light"] {
@@ -163,8 +160,6 @@
 
   --ds-overlay: rgb(17 17 19 / 0.28);
   --ds-overlay-strong: rgb(17 17 19 / 0.5);
-  --ds-ambient-a: rgb(17 17 19 / 0.03);
-  --ds-ambient-b: rgb(17 17 19 / 0.018);
 }
 
 /* Expose the semantic tokens to Tailwind utilities (bg-canvas, text-ink…). */
@@ -245,11 +240,7 @@ body {
 body {
   margin: 0;
   color: var(--ds-ink);
-  background:
-    radial-gradient(1200px circle at 15% -12%, var(--ds-ambient-a), transparent 46%),
-    radial-gradient(1000px circle at 85% 118%, var(--ds-ambient-b), transparent 46%),
-    var(--ds-surface-canvas);
-  background-attachment: fixed;
+  background: var(--ds-surface-canvas);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -305,6 +296,173 @@ button {
   transition-property: color, background-color, border-color, box-shadow, transform, opacity;
   transition-duration: var(--ds-duration-base);
   transition-timing-function: var(--ds-ease-standard);
+}
+
+/* ============================================================
+   Home hero — calm editorial composition (REQ-202610-0477 / ui-14)
+   Flat canvas, static type, one reading column. No ambient spots.
+   ============================================================ */
+.home-shell {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100svh;
+  align-items: center;
+  overflow-x: clip;
+  padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1rem, 4vw, 3rem);
+}
+
+.home-topbar {
+  position: absolute;
+  top: clamp(1rem, 3vw, 1.75rem);
+  right: clamp(1rem, 3vw, 2rem);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.home-hero {
+  display: grid;
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  gap: clamp(2.5rem, 6vw, 5rem);
+  align-items: center;
+}
+
+.home-hero__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.home-hero__logo {
+  width: clamp(220px, 26vw, 330px);
+  height: auto;
+}
+
+.home-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  margin: clamp(2rem, 4vw, 3rem) 0 0;
+  color: var(--ds-ink-faint);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.home-hero__eyebrow::before {
+  content: "";
+  width: 2rem;
+  height: 1px;
+  background: var(--ds-line-strong);
+}
+
+.home-hero__title {
+  margin: var(--ds-space-4) 0 0;
+  color: var(--ds-ink);
+  font-size: clamp(2.5rem, 4.8vw, 4.25rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.home-hero__title span {
+  display: block;
+  color: var(--ds-ink-muted);
+}
+
+.home-hero__lede {
+  max-width: 34rem;
+  margin: var(--ds-space-6) 0 0;
+  color: var(--ds-ink-muted);
+  font-size: clamp(0.9375rem, 1.1vw, 1.0625rem);
+  line-height: 1.85;
+  text-wrap: pretty;
+}
+
+.home-hero__facts {
+  display: grid;
+  width: 100%;
+  max-width: 35rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ds-space-4);
+  margin: clamp(2rem, 4vw, 3rem) 0 0;
+  padding-top: var(--ds-space-5);
+  border-top: 1px solid var(--ds-line-subtle);
+}
+
+.home-hero__fact {
+  min-width: 0;
+}
+
+.home-hero__fact dt {
+  color: var(--ds-ink-faint);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.home-hero__fact dd {
+  margin: var(--ds-space-2) 0 0;
+  color: var(--ds-ink-soft);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.home-hero__signature {
+  margin: clamp(1.75rem, 3vw, 2.5rem) 0 0;
+  color: var(--ds-ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  line-height: 1.6;
+  text-transform: uppercase;
+}
+
+.home-entry {
+  width: 100%;
+  min-width: 0;
+  padding: clamp(var(--ds-space-6), 2.2vw, var(--ds-space-8));
+}
+
+.home-entry__kicker {
+  margin: 0;
+  color: var(--ds-ink-faint);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+@media (min-width: 1024px) {
+  .home-hero {
+    grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+  }
+}
+
+@media (max-width: 639px) {
+  .home-hero__logo {
+    width: clamp(160px, 48vw, 220px);
+  }
+
+  .home-hero__facts {
+    gap: var(--ds-space-3);
+  }
+
+  .home-hero__fact dd {
+    font-size: 0.75rem;
+  }
 }
 
 /* ============================================================
