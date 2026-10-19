@@ -3,6 +3,37 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-10-19: v0.1.69 全局配置接入笨迪配置中心（REQ-202610-1400）
+
+### Scope
+- 运行时业务配置改为「笨迪配置中心优先 + Vercel 环境变量兜底」的双轨读取；配置中心返回非空值时覆盖环境变量，未配置/空值/缺键/非法值/请求失败时逐键回退。
+- 配置中心故障不得影响服务启动与运行：请求硬超时、内存 TTL 缓存、后台刷新、失败指数退避、stale-on-error，日志标注 `Source: ConfigCenter` / `Source: VercelEnv`。
+- Bump app version to `0.1.69`.
+
+### Changes
+- `src/lib/config-center.ts` (new): `resolveConfigCenterConfig`（引导参数与默认值、超时/TTL/重试区间收敛）、`parseConfigContent`（JSON 点号打平、properties/ini/text，未支持格式显式失败）、`fetchConfigCenterSnapshot`（AbortController 硬超时、HTTP/业务错误码归一）、`ensureConfigLoaded`（TTL 缓存、in-flight 去重、失败指数退避、stale-on-error）、`initializeConfigCenter` / `startConfigAutoRefresh`（启动预热 + unref 定时刷新）、`getConfigEntry` / `getConfigValue`（配置中心 → 环境变量 → 代码默认值，逐键校验）、`getConfigStatus`。
+- `src/lib/env.ts`: 从模块加载期 Zod 解析改为 getter 读取；`env.appAuth` / `env.encryptionKey` / `env.s3.*` / `env.dufs.*` / `env.ossPreview.*` / `isS3Configured()` 外部形状保持不变；URL 字段与 `APP_AUTH`、`CHAT_ENCRYPTION_KEY` 做逐字段校验，非法值继续回退环境变量。
+- `src/instrumentation.ts` (new): Node.js runtime 启动时预热配置并开启 TTL 后台刷新；异常只记录警告，不阻塞启动。
+- `src/app/api/config/status/route.ts` (new): 无鉴权仅返回 `enabled/source/stale`；带 `?auth=` 返回完整状态；`Cache-Control: no-store`，不输出配置值或密钥。
+- `src/lib/config-center.test.ts` (new, 31 tests) + `src/lib/env.test.ts` (new, 13 tests): 覆盖解析格式、超时中止、HTTP/业务错误、TTL、并发去重、失败退避、stale 快照、逐键空值/缺键/非法值回退、来源日志与 env getter。
+- `docs/config-center.md` (new): 读取优先级、引导变量、支持格式、超时/缓存/退避、来源日志、诊断接口、配置中心资源、边界配置与验收步骤。
+- `README.md`: 新增「笨迪配置中心（可选，双轨配置）」章节与 Vercel 环境变量表；`MAINTAIN.md` 新增本条目。
+
+### Config Center Provisioning
+- 在 `bendywork-config-center` 创建项目 `bendy-shadowsend`、环境 `prod`/`pre`/`dev`、JSON 配置组 `app-config`（15 个受支持键，初始值全部为空，保持环境变量生效）与应用 `bendy-shadowsend`（启用并订阅三个组）。
+- 应用凭据只保存在服务器 root-only 文件 `/root/bacs-1400-config-center-credentials.env`，需人工在 Vercel 三个环境配置同名变量；凭据未写入仓库、文档或日志。
+- 实测 `GET /api/config` 三个环境均返回 `success=true`、`format=json`、`version=1`、15 个键；错误密钥返回 401；客户端模块实测 `Source: ConfigCenter`（约 344ms）。
+
+### Regression Checklist
+- `npm test` green: 68/68 tests (5 files; 含新增 44 条).
+- `npm run lint` green (0 errors).
+- `npx tsc --noEmit` green.
+- `npm run build` green (Next.js 16.2.1).
+
+### Versioning / History
+- Updated `package.json`, `package-lock.json` and `APP_VERSION` (constants) to `0.1.69`.
+- Added this entry to `MAINTAIN.md` and README 更新记录.
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

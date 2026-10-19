@@ -131,6 +131,38 @@ curl 'https://www.hi168.com/api/user/oss/preview/url' \
 - 生产环境建议优先使用 `HTTPS` 的 `S3_ENDPOINT`，可减少浏览器混合内容拦截与 CORS 问题。
 - 网络请求出错时：前端会在浏览器控制台输出 `apiFetch`/`upload` 详细上下文；服务端会在 Vercel Function Logs 打印路由级和 S3 级错误细节。
 
+## 笨迪配置中心（可选，双轨配置）
+
+运行时业务配置支持「笨迪配置中心优先 + Vercel 环境变量兜底」：配置中心返回非空值时覆盖环境变量；
+未配置、值为空、值非法或配置中心不可用时，自动回退环境变量，服务不会因配置中心故障而启动失败。
+
+```bash
+CONFIG_CENTER_URL=https://bendywork-config-center.bendywork-base.workers.dev
+CONFIG_CENTER_APP_KEY=ak_xxx
+CONFIG_CENTER_APP_SECRET=as_xxx
+CONFIG_CENTER_PROJECT=bendy-shadowsend
+CONFIG_CENTER_ENVIRONMENT=prod
+CONFIG_CENTER_GROUP=app-config
+```
+
+| 变量 | 必填 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `CONFIG_CENTER_URL` | 接入时必填 | 空 | 配置中心地址 |
+| `CONFIG_CENTER_APP_KEY` | 接入时必填 | 空 | 应用 `app_key` |
+| `CONFIG_CENTER_APP_SECRET` | 接入时必填 | 空 | 应用 `app_secret`（只放服务端环境变量） |
+| `CONFIG_CENTER_PROJECT` | 否 | `bendy-shadowsend` | 项目名 |
+| `CONFIG_CENTER_ENVIRONMENT` | 否 | 按 `VERCEL_ENV` 映射 | `prod` / `pre` / `dev` |
+| `CONFIG_CENTER_GROUP` | 否 | `app-config` | 配置组名 |
+| `CONFIG_CENTER_TIMEOUT_MS` | 否 | `2500` | 请求超时（500~10000ms） |
+| `CONFIG_CENTER_TTL_MS` | 否 | `300000` | 内存缓存 TTL（5s~1h） |
+| `CONFIG_CENTER_RETRY_MS` | 否 | `30000` | 失败重试间隔（指数退避，上限 5 分钟） |
+| `CONFIG_CENTER_ENABLED` | 否 | 启用 | 设为 `false` 强制走环境变量 |
+
+> 支持 JSON（嵌套键用点号打平）、properties、ini、text 格式；启动时预热、TTL 后台刷新、
+> 失败 stale-on-error、逐键空值回退。日志会标注 `Source: ConfigCenter` 或 `Source: VercelEnv`。
+> 诊断接口 `GET /api/config/status`。完整说明（含不经过配置中心的配置清单与验收步骤）见
+> [`docs/config-center.md`](docs/config-center.md)。
+
 ## 快速开始
 
 ### 1. 安装依赖
@@ -199,6 +231,16 @@ npm run dev
 | `FORCE_DB_MIGRATE` | 可选 | `true` 时强制执行迁移（默认不强制） |
 | `PRISMA_MIGRATE_RETRIES` | 可选 | 迁移锁冲突重试次数（默认 `3`） |
 | `PRISMA_MIGRATE_RETRY_DELAY_MS` | 可选 | 每次重试间隔毫秒（默认 `4000`） |
+| `CONFIG_CENTER_URL` | 可选 | 笨迪配置中心地址；与 APP_KEY/APP_SECRET 同时配置后启用 |
+| `CONFIG_CENTER_APP_KEY` | 可选 | 配置中心应用 `app_key` |
+| `CONFIG_CENTER_APP_SECRET` | 可选 | 配置中心应用 `app_secret`（仅服务端） |
+| `CONFIG_CENTER_PROJECT` | 可选 | 配置中心项目名（默认 `bendy-shadowsend`） |
+| `CONFIG_CENTER_ENVIRONMENT` | 可选 | 配置中心环境名（默认按 `VERCEL_ENV` 映射） |
+| `CONFIG_CENTER_GROUP` | 可选 | 配置组名（默认 `app-config`） |
+| `CONFIG_CENTER_TIMEOUT_MS` | 可选 | 请求超时毫秒（默认 `2500`） |
+| `CONFIG_CENTER_TTL_MS` | 可选 | 内存缓存 TTL 毫秒（默认 `300000`） |
+| `CONFIG_CENTER_RETRY_MS` | 可选 | 失败重试间隔毫秒（默认 `30000`） |
+| `CONFIG_CENTER_ENABLED` | 可选 | `false` 时强制只读环境变量 |
 
 > 说明：项目运行时会优先读取 `DATABASE_URL`，若缺失会回退 `POSTGRES_PRISMA_URL` 或 `POSTGRES_URL`。生产环境仍建议显式配置 `DATABASE_URL`。
 > 
@@ -365,6 +407,12 @@ npm run db:reinit:prefixed
 > 维护约定：每次迭代（功能、修复、部署调整）都必须同步补充本节。
 >
 > 推荐格式：`日期 + commit + 变更摘要`。
+
+### 2026-10-19
+
+- `0.1.69` 全局配置接入笨迪配置中心（REQ-202610-1400）：新增 `src/lib/config-center.ts`，运行时业务配置改为「配置中心优先 + Vercel 环境变量兜底」，逐键处理空值/缺键/非法值/请求失败回退；请求硬超时 2500ms（可配 500~10000ms）、内存 TTL 缓存（默认 5 分钟）、后台定时刷新、失败指数退避与 stale-on-error；启动时由 `src/instrumentation.ts` 预热，配置中心不可用不阻塞启动。
+- `src/lib/env.ts` 改为 getter 读取，`env.s3` / `env.dufs` / `env.ossPreview` / `env.appAuth` / `env.encryptionKey` 外部形状不变；新增 `GET /api/config/status` 诊断接口（无鉴权只返回来源状态，带 `auth` 返回完整状态，均不含配置值）。
+- 新增 `docs/config-center.md`；配置中心侧已创建项目 `bendy-shadowsend`、环境 `prod`/`pre`/`dev`、JSON 配置组 `app-config`（15 个键，初始为空以保持环境变量生效）与应用订阅；新增 44 条配置中心/环境变量单测。
 
 ### 2026-10-18
 
