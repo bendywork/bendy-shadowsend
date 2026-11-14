@@ -1,4 +1,5 @@
-import { AttachmentStorage } from "@prisma/client";
+import type { AttachmentStorage } from "@prisma/client";
+import { type ChunkManifest, remoteAttachmentSchema } from "@/lib/attachment-storage";
 
 export type AnnouncementImage = {
   s3Key: string;
@@ -6,6 +7,7 @@ export type AnnouncementImage = {
   mimeType: string;
   sizeBytes: number;
   storage: AttachmentStorage;
+  chunkManifest?: ChunkManifest | null;
 };
 
 type AnnouncementFields = {
@@ -14,53 +16,9 @@ type AnnouncementFields = {
   announcementImageStorage: AttachmentStorage | null;
 };
 
-const isAttachmentStorage = (
-  value: unknown,
-): value is AttachmentStorage => value === "S3" || value === "DUFS";
-
 function normalizeAnnouncementImage(value: unknown): AnnouncementImage | null {
-  if (!value || typeof value !== "object") return null;
-
-  const candidate = value as Partial<AnnouncementImage> & {
-    key?: string;
-    name?: string;
-  };
-  const s3Key =
-    typeof candidate.s3Key === "string"
-      ? candidate.s3Key
-      : typeof candidate.key === "string"
-        ? candidate.key
-        : null;
-  if (!s3Key) return null;
-
-  const fileName =
-    typeof candidate.fileName === "string"
-      ? candidate.fileName
-      : typeof candidate.name === "string"
-        ? candidate.name
-        : "announcement-image";
-
-  const mimeType =
-    typeof candidate.mimeType === "string"
-      ? candidate.mimeType
-      : "image/*";
-  const sizeBytes =
-    typeof candidate.sizeBytes === "number" &&
-    Number.isFinite(candidate.sizeBytes) &&
-    candidate.sizeBytes >= 0
-      ? candidate.sizeBytes
-      : 0;
-  const storage = isAttachmentStorage(candidate.storage)
-    ? candidate.storage
-    : AttachmentStorage.S3;
-
-  return {
-    s3Key,
-    fileName,
-    mimeType,
-    sizeBytes,
-    storage,
-  };
+  const parsed = remoteAttachmentSchema.safeParse(value);
+  return parsed.success && parsed.data.mimeType.startsWith("image/") ? parsed.data : null;
 }
 
 export function parseAnnouncementImages(
@@ -87,27 +45,13 @@ export function parseAnnouncementImages(
         .map(normalizeAnnouncementImage)
         .filter((item): item is AnnouncementImage => Boolean(item));
 
-      if (normalized.length > 0) {
-        return normalized;
-      }
+      return normalized;
     } catch {
-      // Fallback to legacy format below.
+      return [];
     }
   }
 
-  if (!fields.announcementImageStorage) {
-    return [];
-  }
-
-  return [
-    {
-      s3Key: raw,
-      fileName: fields.announcementImageName ?? "announcement-image",
-      mimeType: "image/*",
-      sizeBytes: 0,
-      storage: fields.announcementImageStorage,
-    },
-  ];
+  return [];
 }
 
 export function serializeAnnouncementImages(images: AnnouncementImage[]) {

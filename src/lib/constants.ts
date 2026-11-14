@@ -3,8 +3,8 @@ export const APP_OPEN_SOURCE = "MIT";
 
 export const APP_VERSION_PARTS = {
   major: 0,
-  minor: 1,
-  patch: 68,
+  minor: 2,
+  patch: 0,
 } as const;
 
 export const APP_VERSION = `${APP_VERSION_PARTS.major}.${APP_VERSION_PARTS.minor}.${APP_VERSION_PARTS.patch}`;
@@ -22,9 +22,6 @@ export const LAST_ROOM_STORAGE_KEY = "tb:last-room";
 export const MESSAGE_PAGE_SIZE = 120;
 export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024 * 1024;
 export const MAX_ANNOUNCEMENT_IMAGE_BYTES = 200 * 1024 * 1024;
-export const MAX_PROXY_UPLOAD_BYTES = 200 * 1024 * 1024;
-export const DUFS_CHUNK_SIZE_BYTES = 3 * 1024 * 1024;
-export const CHUNKED_UPLOAD_THRESHOLD_BYTES = DUFS_CHUNK_SIZE_BYTES;
 export const MAX_AD_CONTENT_CHARS = 120;
 
 const DEFAULT_MAX_MESSAGE_TEXT_CHARS = 200_000;

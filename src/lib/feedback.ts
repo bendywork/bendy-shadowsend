@@ -69,6 +69,12 @@ export function resolveErrorMessage(
   }
 
   if (error instanceof ApiRequestError) {
+    if (error.code === "UPLOAD_TIMEOUT") return t("toast.uploadTimeout");
+    if (error.code === "UPLOAD_SIZE_INVALID") return t("toast.uploadSizeInvalid");
+    if (error.code === "UPLOAD_NAME_INVALID") return t("toast.uploadNameInvalid");
+    if (error.code === "UPLOAD_INVALID_RESPONSE") return t("toast.uploadResponseInvalid");
+    if (error.code === "UPLOAD_ABORTED") return t("toast.uploadCancelled");
+    if (error.code === "UPLOAD_HTTP_ERROR") return fallback;
     if (
       error.code === "INTERNAL_SERVER_ERROR" ||
       error.code === "INVALID_RESPONSE" ||

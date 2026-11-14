@@ -50,12 +50,12 @@ function toClientSizeBytes(sizeBytes: number | bigint) {
   return typeof sizeBytes === "bigint" ? Number(sizeBytes) : sizeBytes;
 }
 
-export function mapClientMessage(message: MessageWithRelations): ClientMessage {
+export async function mapClientMessage(message: MessageWithRelations): Promise<ClientMessage> {
   return {
     id: message.id,
     roomId: message.roomId,
     type: message.type,
-    content: decryptText(message.encryptedContent),
+    content: await decryptText(message.encryptedContent),
     createdAt: message.createdAt.toISOString(),
     sender: {
       id: message.sender.id,

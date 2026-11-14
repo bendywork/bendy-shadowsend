@@ -159,9 +159,6 @@ export async function GET(
       messagesRaw.reverse(),
       {
         roomCode,
-        cookieHeader: request.headers.get("cookie") ?? undefined,
-        expiresInSeconds: 3600,
-        logLabel: "room-snapshot",
       },
     );
 
@@ -215,7 +212,7 @@ export async function GET(
         createdAt: requestItem.createdAt.toISOString(),
         user: requestItem.user,
       })),
-      messages: messagesWithPreview.map(mapClientMessage),
+      messages: await Promise.all(messagesWithPreview.map(mapClientMessage)),
       stats: {
         roomOnline: stats.roomOnline,
         totalOnline: stats.totalOnline,

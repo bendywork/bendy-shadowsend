@@ -1,4 +1,4 @@
-import { MemberStatus, MessageType, RoomStatus } from "@prisma/client";
+import { MemberStatus, MessageType, Prisma, RoomStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { ApiError, jsonError, jsonOk } from "@/lib/api";
 import { enrichMessagesWithAttachmentPreviewUrls } from "@/lib/attachment-preview";
@@ -85,14 +85,11 @@ export async function GET(
       orderedMessages,
       {
         roomCode,
-        cookieHeader: request.headers.get("cookie") ?? undefined,
-        expiresInSeconds: 3600,
-        logLabel: isIncrementalFetch ? "message-list-incremental" : "message-list",
       },
     );
 
     const response = jsonOk({
-      messages: messagesWithPreview.map(mapClientMessage),
+      messages: await Promise.all(messagesWithPreview.map(mapClientMessage)),
     });
 
     return applyUserCookie(response, cookieToSet);
@@ -133,14 +130,16 @@ export async function POST(
     const type = hasContent && hasAttachments ? MessageType.MIXED : hasAttachments ? MessageType.FILE : MessageType.TEXT;
 
     const now = new Date();
+    const encryptedContent = hasContent ? await encryptText(payload.content!) : null;
 
     const message = await prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
         data: {
           roomId: room.id,
           senderId: user.id,
+          clientMessageId: payload.clientMessageId,
           type,
-          encryptedContent: hasContent ? encryptText(payload.content!) : null,
+          encryptedContent,
         },
       });
 
@@ -155,6 +154,7 @@ export async function POST(
             sizeBytes: BigInt(attachment.sizeBytes),
             s3Key: attachment.s3Key,
             storage: attachment.storage,
+            chunkManifest: attachment.chunkManifest ?? Prisma.JsonNull,
             previewType: resolvePreviewType(attachment.mimeType),
           })),
         });
@@ -184,6 +184,18 @@ export async function POST(
           attachments: true,
         },
       });
+    }).catch(async (error: unknown) => {
+      if (payload.clientMessageId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const existing = await prisma.message.findFirst({
+          where: { roomId: room.id, senderId: user.id, clientMessageId: payload.clientMessageId },
+          include: {
+            sender: { select: { id: true, nickname: true, avatarInitial: true, avatarColor: true } },
+            attachments: true,
+          },
+        });
+        if (existing) return existing;
+      }
+      throw error;
     });
 
     await touchRoom(room.id);
@@ -192,14 +204,11 @@ export async function POST(
       [message],
       {
         roomCode,
-        cookieHeader: request.headers.get("cookie") ?? undefined,
-        expiresInSeconds: 3600,
-        logLabel: "message-create",
       },
     );
 
     const response = jsonOk({
-      message: mapClientMessage(messageWithPreview),
+      message: await mapClientMessage(messageWithPreview),
     });
 
     return applyUserCookie(response, cookieToSet);

@@ -1,101 +1,30 @@
-﻿import { AttachmentStorage, PreviewType } from "@prisma/client";
-import { createDufsPublicUrl } from "@/lib/dufs";
-import { createAttachmentPreviewUrl } from "@/lib/s3";
+import { PreviewType } from "@prisma/client";
+import { resolveRemoteAttachment } from "@/lib/attachment-response";
 
 type PreviewAttachment = {
-  id: string;
-  s3Key: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number | bigint;
-  storage: AttachmentStorage;
-  previewType: PreviewType;
+  id: string; s3Key: string; fileName: string; mimeType: string;
+  sizeBytes: number | bigint; storage: string; previewType: PreviewType;
+  chunkManifest?: unknown;
 };
-
-type PreviewMessage<TAttachment extends PreviewAttachment = PreviewAttachment> = {
-  attachments: TAttachment[];
-};
-
-function toPreviewSizeBytes(sizeBytes: number | bigint) {
-  return typeof sizeBytes === "bigint" ? Number(sizeBytes) : sizeBytes;
-}
 
 export async function enrichMessagesWithAttachmentPreviewUrls<
-  TMessage extends PreviewMessage<TAttachment>,
-  TAttachment extends PreviewAttachment,
->(
-  messages: TMessage[],
-  options?: {
-    roomCode?: string;
-    cookieHeader?: string;
-    expiresInSeconds?: number;
-    logLabel?: string;
-  },
-): Promise<Array<TMessage & { attachments: Array<TAttachment & { previewUrl: string | null }> }>> {
-  return Promise.all(
-    messages.map(async (message) => {
-      const attachments = await Promise.all(
-        message.attachments.map(async (attachment) => {
-          const shouldPreview =
-            attachment.previewType === PreviewType.IMAGE ||
-            attachment.previewType === PreviewType.VIDEO;
-
-          if (!shouldPreview) {
-            return {
-              ...attachment,
-              previewUrl: null,
-            };
-          }
-
-          try {
-            if (attachment.storage === AttachmentStorage.DUFS) {
-              if (options?.roomCode) {
-                return {
-                  ...attachment,
-                  previewUrl: `/api/rooms/${encodeURIComponent(options.roomCode)}/attachments/${encodeURIComponent(attachment.id)}/preview`,
-                };
-              }
-
-              return {
-                ...attachment,
-                previewUrl: createDufsPublicUrl(attachment.s3Key),
-              };
-            }
-
-            const previewUrl = await createAttachmentPreviewUrl({
-              key: attachment.s3Key,
-              fileName: attachment.fileName,
-              mimeType: attachment.mimeType,
-              sizeBytes: toPreviewSizeBytes(attachment.sizeBytes),
-              cookieHeader: options?.cookieHeader,
-              expiresInSeconds: options?.expiresInSeconds ?? 3600,
-            });
-
-            return {
-              ...attachment,
-              previewUrl,
-            };
-          } catch (error) {
-            console.error("[preview] enrich failed", {
-              label: options?.logLabel ?? "unknown",
-              attachmentId: attachment.id,
-              s3Key: attachment.s3Key,
-              mimeType: attachment.mimeType,
-              error,
-            });
-
-            return {
-              ...attachment,
-              previewUrl: null,
-            };
-          }
-        }),
-      );
-
-      return {
-        ...message,
-        attachments,
-      };
+  TAttachment extends PreviewAttachment, TMessage extends { attachments: TAttachment[] },
+>(messages: TMessage[], options?: { roomCode?: string }) {
+  return messages.map((message) => ({
+    ...message,
+    attachments: message.attachments.map((attachment) => {
+      let previewUrl: string | null = null;
+      if (attachment.previewType === PreviewType.IMAGE || attachment.previewType === PreviewType.VIDEO) {
+        try {
+          const remote = resolveRemoteAttachment(attachment);
+          previewUrl = remote.chunkManifest
+            ? options?.roomCode
+              ? `/api/rooms/${encodeURIComponent(options.roomCode)}/attachments/${encodeURIComponent(attachment.id)}/preview`
+              : null
+            : remote.s3Key;
+        } catch { /* Retired or malformed metadata must not break the message list. */ }
+      }
+      return { ...attachment, previewUrl };
     }),
-  );
+  }));
 }

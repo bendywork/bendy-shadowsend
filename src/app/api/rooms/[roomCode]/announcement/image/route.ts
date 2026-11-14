@@ -1,12 +1,14 @@
-﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { RoomStatus } from "@prisma/client";
+import { NextRequest } from "next/server";
 import { parseAnnouncementImages } from "@/lib/announcement";
 import { ApiError, jsonError } from "@/lib/api";
-import { fetchDufsFile } from "@/lib/dufs";
+import { createRemoteAttachmentResponse } from "@/lib/attachment-response";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
-import { createInlineReadUrl } from "@/lib/s3";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type Params = {
   roomCode: string;
@@ -43,8 +45,8 @@ export async function GET(
     });
 
     const indexParam = request.nextUrl.searchParams.get("index");
-    const parsedIndex = Number.parseInt(indexParam ?? "0", 10);
-    const index = Number.isFinite(parsedIndex) && parsedIndex >= 0 ? parsedIndex : 0;
+    const index = Number(indexParam ?? "0");
+    if (!Number.isInteger(index) || index < 0) throw new ApiError(400, "公告图片索引无效", "ANNOUNCEMENT_IMAGE_INDEX_INVALID");
 
     const images = parseAnnouncementImages({
       announcementImageKey: announcement?.announcementImageKey ?? null,
@@ -58,25 +60,9 @@ export async function GET(
       throw new ApiError(404, "公告图片不存在", "ANNOUNCEMENT_IMAGE_NOT_FOUND");
     }
 
-    if (image.storage === AttachmentStorage.DUFS) {
-      const upstream = await fetchDufsFile(image.s3Key);
-      const response = new NextResponse(upstream.body, {
-        status: 200,
-        headers: {
-          "Content-Type": upstream.headers.get("content-type") || "application/octet-stream",
-          "Cache-Control": "private, max-age=60",
-        },
-      });
-
-      return applyUserCookie(response, cookieToSet);
-    }
-
-    const previewUrl = await createInlineReadUrl({
-      key: image.s3Key,
-      expiresInSeconds: 120,
+    const response = await createRemoteAttachmentResponse(image, {
+      disposition: "inline", range: request.headers.get("range"), signal: request.signal,
     });
-
-    const response = NextResponse.redirect(previewUrl, 307);
     return applyUserCookie(response, cookieToSet);
   } catch (error) {
     return jsonError(error);

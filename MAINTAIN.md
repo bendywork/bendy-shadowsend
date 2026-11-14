@@ -3,6 +3,34 @@
 ## Rule
 - Every iteration (feature/fix/deploy change) must append an entry to this file.
 
+## 2026-11-14: v0.2.0 统一上传与数据库配置（REQ-202611-0097）
+
+### Scope
+- 所有聊天文件和公告图片统一接入固定无鉴权 multipart 接口；新安装仅需数据库连接。
+- 删除旧存储配置、AWS SDK、签名上传和服务端回退；保留数据库现有记录。
+
+### Changes
+- `attachment-storage.ts` / `upload-client.ts`：纯文本 URL 校验、10 MiB 单请求、8 MiB 分片、3 文件并发、有限重试、已完成分片复用。
+- `attachment-response.ts` 与下载/预览/公告图片：成员权限、流式合并、SHA-256、原文件名、Range、手动重定向校验。
+- `encryption.ts`：随机消息密钥原子持久化到既有 AppAuthConfig，兼容旧密钥验证导入，失败不覆盖数据。
+- 两个增量迁移：REMOTE、chunkManifest、encryptionKey、clientMessageId；现有枚举和业务行保留。
+- 房间页失败消息重试与取消、object URL 清理；getInfo 不再返回旧服务配置与凭据。
+- `.env.example` 仅数据库；更新 README、统一上传文档与历史路线说明。
+- GitHub CI 增加分支并发取消与独立 PostgreSQL；Vercel Preview 不自动迁移共享数据库。
+
+### Verification
+- `npm test -- --maxWorkers=2`：9 个测试文件、103/103 项通过；`npm run test:release-tag`：9/9 项通过。
+- `npm run lint`、`npx tsc --noEmit`、Next.js 16.2.1 生产构建通过；构建限制为 2 个 worker。
+- 隔离 PostgreSQL 16 完整应用 8 个迁移；带历史消息、S3 附件和管理 auth 的升级回归 17 项通过。
+- 实际浏览器/API 联调 47 项通过：七类文件逐字节下载、12 MiB 分片合并 SHA-256、跨片/尾部 Range、下载文件名、公告多图失败复用、消息重试去重及成员权限。
+- 实测上传接口 CORS 预检成功，返回纯文本 `s3v2.lamen.top` 地址；仅发送 `file` 字段，无鉴权；实际并发峰值 3。
+- Chromium 390px 视口无横向溢出、无 JavaScript 页面异常；尚未验收物理设备或 10 GiB 文件。
+- 锁文件只移除 AWS 相关 107 个依赖包；其余包的版本和 integrity 均未变动。
+- GitHub CI 使用独立数据库并按分支取消旧 run；推送后的实际结果记录到平台执行存根。
+
+### Versioning / History
+- package.json / package-lock.json / APP_VERSION 同步为 0.2.0。
+
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
 ### Scope

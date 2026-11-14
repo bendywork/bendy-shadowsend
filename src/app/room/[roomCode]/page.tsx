@@ -9,8 +9,9 @@ import { useParams, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { Check, CheckCheck, ChevronRight, Clock3, CornerDownLeft, Copy, Crown, Download, FileText, LoaderCircle, Megaphone, MoreHorizontal, PanelLeft, PanelLeftClose, PanelRightClose, Plus, QrCode, SendHorizonal, Settings2, Shield, Trash2, UserMinus, Users, X } from "lucide-react";
-import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_PROXY_UPLOAD_BYTES, MAX_USER_ROOMS, CHUNKED_UPLOAD_THRESHOLD_BYTES, DUFS_CHUNK_SIZE_BYTES } from "@/lib/constants";
+import { LAST_ROOM_STORAGE_KEY, MAX_ANNOUNCEMENT_IMAGES, MAX_MESSAGE_TEXT_CHARS, MAX_USER_ROOMS } from "@/lib/constants";
 import { apiFetch, formatBytes } from "@/lib/client";
+import { uploadFile, type UploadedFile } from "@/lib/upload-client";
 import { Avatar } from "@/components/chat/avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
@@ -25,18 +26,6 @@ import { validateGateCode, validateRoomCode, validateRoomName } from "@/lib/form
 import { usePersistentBoolean } from "@/lib/use-persistent-boolean";
 import type { AdBoardItem, AttachmentItem, BootstrapPayload, MessageItem, PendingRequestItem, RoomMemberItem, RoomSnapshot, RoomTreeItem } from "@/types/chat";
 
-type ProxyUploadResult = { s3Key: string; fileName: string; mimeType: string; sizeBytes: number; storage: AttachmentItem["storage"]; previewUrl?: string | null };
-type DirectUploadPreparePayload = {
-  uploadUrl: string;
-  previewUrl?: string | null;
-  s3Key: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  storage: AttachmentItem["storage"];
-  method: "PUT";
-  headers?: Record<string, string>;
-};
 type DownloadPayload = { url: string };
 type MessageListPayload = { messages: MessageItem[] };
 type ImageViewerState = { url: string; fileName: string };
@@ -57,6 +46,7 @@ type PendingAttachment = {
 };
 type PendingMessage = {
   localId: string;
+  roomCode: string;
   createdAt: string;
   content: string;
   attachments: PendingAttachment[];
@@ -221,7 +211,12 @@ function FileAction({ roomCode, attachment, label }: { roomCode: string; attachm
     setLoading(true);
     try {
       const p = await apiFetch<DownloadPayload>(`/api/rooms/${roomCode}/attachments/${attachment.id}/download`);
-      window.open(p.url, "_blank", "noopener,noreferrer");
+      const link = document.createElement("a");
+      link.href = p.url;
+      link.download = attachment.fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch (e) {
       toastError(e, t("toast.downloadFailed"), t);
     } finally { setLoading(false); }
@@ -521,6 +516,19 @@ export default function RoomPage() {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+  const pendingSendsRef = useRef(new Map<string, {
+    content: string; files: File[]; previewUrls: string[]; controller: AbortController; running: boolean;
+  }>());
+  useEffect(() => {
+    const sends = pendingSendsRef.current;
+    return () => {
+      for (const send of sends.values()) {
+        send.controller.abort();
+        send.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+      }
+      sends.clear();
+    };
+  }, [roomCode]);
   const [enterToSend, setEnterToSend] = useState(true);
   const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
   const [expandedPendingMessageIds, setExpandedPendingMessageIds] = useState<Record<string, boolean>>({});
@@ -877,289 +885,8 @@ export default function RoomPage() {
     composerFormRef.current?.requestSubmit();
   }
 
-  async function uploadByProxy(file: File, onProgress?: (percent: number) => void) {
-    const formData = new FormData();
-    formData.append("file", file, file.name);
-
-    const requestUrl = `/api/rooms/${roomCode}/upload`;
-    const payload = await new Promise<ProxyUploadResult>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", requestUrl, true);
-      xhr.withCredentials = true;
-
-      xhr.upload.onprogress = (event) => {
-        if (!event.lengthComputable || !onProgress) return;
-        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
-        onProgress(percent);
-      };
-
-      xhr.onerror = () => {
-        console.error("[upload] xhr network error", {
-          requestUrl,
-          roomCode,
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-        });
-        reject(new Error(t("toast.networkError")));
-      };
-
-      xhr.onload = () => {
-        if (xhr.status === 413) {
-          console.error("[upload] proxy payload too large", {
-            requestUrl,
-            roomCode,
-            status: xhr.status,
-            responseText: xhr.responseText,
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-          });
-          reject(
-            new Error(
-              t("toast.uploadTooLarge", {
-                max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
-              }),
-            ),
-          );
-          return;
-        }
-
-        let parsed:
-          | {
-              ok: boolean;
-              data?: ProxyUploadResult;
-              error?: { message?: string; code?: string };
-            }
-          | null = null;
-
-        try {
-          parsed = xhr.responseText
-            ? (JSON.parse(xhr.responseText) as {
-                ok: boolean;
-                data?: ProxyUploadResult;
-                error?: { message?: string; code?: string };
-              })
-            : null;
-        } catch (parseError) {
-          console.error("[upload] xhr parse error", {
-            requestUrl,
-            roomCode,
-            status: xhr.status,
-            responseText: xhr.responseText,
-            error: parseError,
-          });
-          reject(new Error(t("toast.uploadFailed", { name: file.name })));
-          return;
-        }
-
-        if (xhr.status >= 200 && xhr.status < 300 && parsed?.ok && parsed.data) {
-          if (onProgress) onProgress(100);
-          resolve(parsed.data);
-          return;
-        }
-
-        console.error("[upload] xhr response error", {
-          requestUrl,
-          roomCode,
-          status: xhr.status,
-          responseText: xhr.responseText,
-          payload: parsed,
-        });
-
-        reject(
-          new Error(
-            parsed?.error?.message ?? t("toast.uploadFailed", { name: file.name }),
-          ),
-        );
-      };
-
-      xhr.send(formData);
-    });
-
-    return payload;
-  }
-
-  async function uploadByChunkedProxy(file: File, onProgress?: (percent: number) => void) {
-    const totalChunks = Math.ceil(file.size / DUFS_CHUNK_SIZE_BYTES);
-    let dufsPath: string | null = null;
-
-    const cleanupDufsFile = async () => {
-      if (!dufsPath) return;
-      await fetch(`/api/rooms/${roomCode}/upload/chunk`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dufsPath }),
-      }).catch(() => {});
-    };
-
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * DUFS_CHUNK_SIZE_BYTES;
-      const end = Math.min(start + DUFS_CHUNK_SIZE_BYTES, file.size);
-      const chunk = file.slice(start, end);
-
-      const formData = new FormData();
-      formData.append("file", chunk, file.name);
-      formData.append("chunkIndex", String(i));
-      formData.append("totalChunks", String(totalChunks));
-      formData.append("totalBytes", String(file.size));
-      formData.append("fileName", file.name);
-      formData.append("mimeType", file.type);
-      if (dufsPath) {
-        formData.append("dufsPath", dufsPath);
-      }
-
-      const requestUrl = `/api/rooms/${roomCode}/upload/chunk`;
-
-      let response: Response;
-      try {
-        response = await fetch(requestUrl, {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
-      } catch {
-        await cleanupDufsFile();
-        throw new Error(t("toast.networkError"));
-      }
-
-      let parsed: {
-        ok: boolean;
-        data?: ProxyUploadResult & { dufsPath: string };
-        error?: { message?: string };
-      } | null = null;
-
-      try {
-        parsed = await response.json();
-      } catch {
-        await cleanupDufsFile();
-        throw new Error(t("toast.uploadFailed", { name: file.name }));
-      }
-
-      if (!response.ok || !parsed?.ok || !parsed?.data) {
-        await cleanupDufsFile();
-        throw new Error(
-          parsed?.error?.message ?? t("toast.uploadFailed", { name: file.name }),
-        );
-      }
-
-      if (i === 0) {
-        dufsPath = parsed.data.dufsPath;
-      }
-
-      if (onProgress) {
-        onProgress(Math.min(100, Math.round(((i + 1) / totalChunks) * 100)));
-      }
-
-      if (parsed.data.s3Key) {
-        return {
-          s3Key: parsed.data.s3Key,
-          fileName: parsed.data.fileName,
-          mimeType: parsed.data.mimeType,
-          sizeBytes: parsed.data.sizeBytes,
-          storage: parsed.data.storage,
-          previewUrl: parsed.data.previewUrl ?? null,
-        } satisfies ProxyUploadResult;
-      }
-    }
-
-    throw new Error(t("toast.uploadFailed", { name: file.name }));
-  }
-
-  async function uploadDirectToS3(file: File, onProgress?: (percent: number) => void) {
-    const mimeType = file.type?.trim() || "application/octet-stream";
-    const prepare = await apiFetch<DirectUploadPreparePayload>(`/api/rooms/${roomCode}/upload-url`, {
-      method: "POST",
-      body: JSON.stringify({
-        fileName: file.name,
-        mimeType,
-        sizeBytes: file.size,
-      }),
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open(prepare.method ?? "PUT", prepare.uploadUrl, true);
-
-      Object.entries(prepare.headers ?? {}).forEach(([key, value]) => {
-        xhr.setRequestHeader(key, value);
-      });
-
-      xhr.upload.onprogress = (event) => {
-        if (!event.lengthComputable || !onProgress) return;
-        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
-        onProgress(percent);
-      };
-
-      xhr.onerror = () => {
-        console.error("[upload-direct] xhr network error", {
-          roomCode,
-          uploadUrl: prepare.uploadUrl,
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-        });
-        reject(new Error(t("toast.networkError")));
-      };
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          if (onProgress) onProgress(100);
-          resolve();
-          return;
-        }
-
-        console.error("[upload-direct] xhr response error", {
-          roomCode,
-          uploadUrl: prepare.uploadUrl,
-          status: xhr.status,
-          responseText: xhr.responseText,
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-        });
-        reject(new Error(t("toast.uploadFailed", { name: file.name })));
-      };
-
-      xhr.send(file);
-    });
-
-    return {
-      s3Key: prepare.s3Key,
-      fileName: prepare.fileName,
-      mimeType: prepare.mimeType,
-      sizeBytes: prepare.sizeBytes,
-      storage: prepare.storage ?? "S3",
-      previewUrl: prepare.previewUrl ?? null,
-    } satisfies ProxyUploadResult;
-  }
-
-  async function upload(file: File, onProgress?: (percent: number) => void) {
-    try {
-      return await uploadDirectToS3(file, onProgress);
-    } catch (directUploadError) {
-      console.error("[upload] direct upload failed, falling back to proxy", {
-        roomCode,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        error: directUploadError,
-      });
-
-      if (file.size > MAX_PROXY_UPLOAD_BYTES) {
-        throw new Error(
-          t("toast.uploadTooLarge", {
-            max: Math.floor(MAX_PROXY_UPLOAD_BYTES / 1024 / 1024),
-          }),
-        );
-      }
-
-      if (file.type.startsWith("image/") && file.size >= CHUNKED_UPLOAD_THRESHOLD_BYTES) {
-        return uploadByChunkedProxy(file, onProgress);
-      }
-
-      return uploadByProxy(file, onProgress);
-    }
+  function upload(file: File, onProgress?: (percent: number) => void, signal?: AbortSignal) {
+    return uploadFile(file, { onProgress, signal });
   }
 
   function updatePendingMessage(localId: string, patch: Partial<PendingMessage>) {
@@ -1197,14 +924,17 @@ export default function RoomPage() {
   }
 
   async function runSend(localId: string, content: string, sendingFiles: File[]) {
+    const pendingSend = pendingSendsRef.current.get(localId);
+    if (!pendingSend || pendingSend.running || pendingSend.controller.signal.aborted) return;
+    pendingSend.running = true;
     try {
-      let attachments: ProxyUploadResult[] = [];
+      let attachments: UploadedFile[] = [];
 
       if (sendingFiles.length > 0) {
         const totalBytes = sendingFiles.reduce((sum, file) => sum + file.size, 0);
         const loadedBytesMap = new Map<number, number>();
 
-        attachments = await Promise.all(
+        const uploadResults = await Promise.allSettled(
           sendingFiles.map((file, index) =>
             upload(file, (percent) => {
               if (totalBytes <= 0) {
@@ -1220,9 +950,13 @@ export default function RoomPage() {
               );
               const progress = Math.min(99, Math.round((loadedTotal / totalBytes) * 100));
               updatePendingMessage(localId, { progress });
-            }),
+            }, pendingSend.controller.signal),
           ),
         );
+        attachments = uploadResults.map((result) => {
+          if (result.status === "rejected") throw result.reason;
+          return result.value;
+        });
       }
 
       updatePendingMessage(localId, { progress: 99 });
@@ -1231,7 +965,9 @@ export default function RoomPage() {
         `/api/rooms/${roomCode}/messages`,
         {
           method: "POST",
+          signal: pendingSend.controller.signal,
           body: JSON.stringify({
+            clientMessageId: localId,
             content: content || undefined,
             attachments: attachments.map((attachment) => ({
               fileName: attachment.fileName,
@@ -1239,11 +975,15 @@ export default function RoomPage() {
               sizeBytes: attachment.sizeBytes,
               s3Key: attachment.s3Key,
               storage: attachment.storage,
+              chunkManifest: attachment.chunkManifest,
             })),
           }),
         },
       );
 
+      if (pendingSend.controller.signal.aborted) return;
+      pendingSendsRef.current.delete(localId);
+      pendingSend.previewUrls.forEach((url) => URL.revokeObjectURL(url));
       setPendingMessages((prev) => prev.filter((item) => item.localId !== localId));
       setSnap((prev) => {
         if (!prev) return prev;
@@ -1253,13 +993,31 @@ export default function RoomPage() {
       // Extra sync after a previously failed send, to keep UI and server state aligned.
       void pollLatestMessages().catch(() => undefined);
     } catch (err) {
+      if (pendingSend.controller.signal.aborted) return;
       const message = resolveErrorMessage(err, t("toast.sendFailed"), t);
       updatePendingMessage(localId, {
         status: "failed",
         error: message,
       });
       toast.error(message);
+    } finally {
+      pendingSend.running = false;
     }
+  }
+
+  function retrySend(localId: string) {
+    const pending = pendingSendsRef.current.get(localId);
+    if (!pending || pending.running) return;
+    updatePendingMessage(localId, { status: "sending", error: undefined });
+    void runSend(localId, pending.content, pending.files);
+  }
+
+  function discardSend(localId: string) {
+    const pending = pendingSendsRef.current.get(localId);
+    pending?.controller.abort();
+    pending?.previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    pendingSendsRef.current.delete(localId);
+    setPendingMessages((prev) => prev.filter((message) => message.localId !== localId));
   }
 
   async function send(e: FormEvent<HTMLFormElement>) {
@@ -1282,9 +1040,10 @@ export default function RoomPage() {
     }));
 
     setPendingMessages((prev) => [
-      ...prev.filter((item) => item.status === "sending"),
+      ...prev.filter((item) => item.roomCode === roomCode),
       {
         localId,
+        roomCode,
         createdAt: new Date().toISOString(),
         content,
         attachments: pendingAttachments,
@@ -1296,6 +1055,10 @@ export default function RoomPage() {
     setText("");
     setFiles([]);
 
+    pendingSendsRef.current.set(localId, {
+      content, files: sendingFiles, controller: new AbortController(), running: false,
+      previewUrls: pendingAttachments.flatMap((attachment) => attachment.previewUrl ? [attachment.previewUrl] : []),
+    });
     void runSend(localId, content, sendingFiles);
   }
   async function kick(m: RoomMemberItem) {
@@ -1631,7 +1394,11 @@ export default function RoomPage() {
         .filter((image) => image.kind === "new" && image.file)
         .map((image) => image.file as File);
 
-      const uploadedNewImages = await Promise.all(newNoticeFiles.map((file) => upload(file)));
+      const imageUploadResults = await Promise.allSettled(newNoticeFiles.map((file) => upload(file)));
+      const uploadedNewImages = imageUploadResults.map((result) => {
+        if (result.status === "rejected") throw result.reason;
+        return result.value;
+      });
 
       await apiFetch<{ announcement: unknown }>(`/api/rooms/${roomCode}/announcement`, {
         method: "POST",
@@ -1644,6 +1411,7 @@ export default function RoomPage() {
             mimeType: image.mimeType,
             sizeBytes: image.sizeBytes,
             storage: image.storage,
+            chunkManifest: image.chunkManifest,
           })),
         }),
       });
@@ -2217,7 +1985,7 @@ export default function RoomPage() {
               );
             })}
 
-            {pendingMessages.map((message) => {
+            {pendingMessages.filter((message) => message.roomCode === roomCode).map((message) => {
               const expanded = Boolean(expandedPendingMessageIds[message.localId]);
               const collapsed = isMessageCollapsed(message.content, expanded);
               const copyKey = `pending-${message.localId}`;
@@ -2253,7 +2021,13 @@ export default function RoomPage() {
                   onOpenImage={openImageViewer}
                   footerSlot={
                     message.status === "failed" && message.error ? (
-                      <p className="mt-2 text-xs text-danger">{message.error}</p>
+                      <div className="mt-2 space-y-2">
+                        <p className="text-xs text-danger">{message.error}</p>
+                        <div className="flex gap-2">
+                          <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={() => retrySend(message.localId)}>{t("common.retry")}</button>
+                          <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => discardSend(message.localId)}>{t("common.close")}</button>
+                        </div>
+                      </div>
                     ) : null
                   }
                 />

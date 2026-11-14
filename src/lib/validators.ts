@@ -2,9 +2,9 @@
 import {
   MAX_ANNOUNCEMENT_IMAGES,
   MAX_ANNOUNCEMENT_IMAGE_BYTES,
-  MAX_ATTACHMENT_SIZE_BYTES,
   MAX_MESSAGE_TEXT_CHARS,
 } from "@/lib/constants";
+import { remoteAttachmentSchema } from "@/lib/attachment-storage";
 
 export const gateCodeSchema = z
   .string()
@@ -46,6 +46,7 @@ export const inviteSchema = z.object({
 });
 
 export const sendMessageSchema = z.object({
+  clientMessageId: z.string().min(1).max(120).regex(/^[a-zA-Z0-9_-]+$/).optional(),
   content: z
     .string()
     .trim()
@@ -53,31 +54,9 @@ export const sendMessageSchema = z.object({
     .optional()
     .transform((value) => (value ? value : undefined)),
   attachments: z
-    .array(
-      z.object({
-        fileName: z.string().trim().min(1).max(255),
-        mimeType: z.string().trim().min(1).max(120),
-        sizeBytes: z
-          .number()
-          .int()
-          .positive()
-          .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
-        s3Key: z.string().trim().min(1).max(512),
-        storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
-      }),
-    )
+    .array(remoteAttachmentSchema)
     .optional()
     .default([]),
-});
-
-export const uploadPrepareSchema = z.object({
-  fileName: z.string().trim().min(1).max(255),
-  mimeType: z.string().trim().min(1).max(120),
-  sizeBytes: z
-    .number()
-    .int()
-    .positive()
-    .max(MAX_ATTACHMENT_SIZE_BYTES, "Each file must be <= 10GB"),
 });
 
 export const reviewRequestSchema = z.object({
@@ -109,16 +88,10 @@ export const updateRoomJoinPolicySchema = z.object({
   allowJoinRequest: z.boolean(),
 });
 
-const announcementImagePayloadSchema = z.object({
-  s3Key: z.string().trim().min(1).max(512),
-  fileName: z.string().trim().min(1).max(255),
-  mimeType: z.string().trim().min(1).max(120),
-  sizeBytes: z
-    .number()
-    .int()
-    .positive()
-    .max(MAX_ANNOUNCEMENT_IMAGE_BYTES, "Announcement image must be <= 200MB"),
-  storage: z.enum(["S3", "DUFS"]).optional().default("S3"),
+const announcementImagePayloadSchema = remoteAttachmentSchema.refine((image) => {
+  return image.mimeType.startsWith("image/") && image.sizeBytes <= MAX_ANNOUNCEMENT_IMAGE_BYTES;
+}, {
+  message: "公告图片必须是 200MB 以内的图片文件",
 });
 
 export const roomAnnouncementSchema = z.object({

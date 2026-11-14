@@ -1,219 +1,74 @@
-﻿# 临时笨迪 (Temporary Bendy)
+# 临时笨迪 (Temporary Bendy)
 
-基于 **Next.js + PostgreSQL + Prisma + S3** 的临时加密聊天室，前后端一体。
-
-> 目标：临时传递信息（文本 + 文件），房间短生命周期，低心智负担，便于快速协作。
-
-## 项目图
+基于 **Next.js + PostgreSQL + Prisma** 的临时加密聊天室，前后端一体。
+文本、图片、视频、音频、文档、压缩包和其他文件统一发送，房间保持短生命周期。
 
 ![首页创建/加入](public/2.png)
 
 ## 技术栈
 
-- Next.js 16 (App Router, TypeScript)
-- React 19
+- Next.js 16 App Router / TypeScript / React 19
 - Prisma + PostgreSQL
-- AWS SDK v3 (S3 兼容存储)
 - Tailwind CSS v4
-
-## S3 配置教程（先配这个）
-
-### 1. 准备对象存储
-
-- 可使用 AWS S3、MinIO、Ceph、腾讯云 COS（S3 兼容模式）。
-- 先创建一个 Bucket（例如 `bendy-temp`）。
-- 创建访问密钥（Access Key / Secret Key），授予该 Bucket 的读写权限。
-
-### 2. 配置环境变量
-
-复制 `.env.example` 为 `.env`，填写以下 S3 变量：
-
-```bash
-cp .env.example .env
-```
-
-Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-| 变量名 | 必填 | 说明 |
-| --- | --- | --- |
-| `APP_AUTH` | 否 | 外部管理接口鉴权参数，长度 1~32，默认 `bendywork` |
-| `S3_REGION` | 否 | 区域（可不填，默认空值） |
-| `S3_ENDPOINT` | 是 | S3 API 地址，例如 `https://s3.amazonaws.com` 或 `https://<account>.r2.cloudflarestorage.com` |
-| `S3_BUCKET` | 是 | Bucket 名称 |
-| `S3_ACCESS_KEY_ID` | 是 | 访问 Key |
-| `S3_SECRET_ACCESS_KEY` | 是 | Secret Key |
-| `S3_FORCE_PATH_STYLE` | 建议配置 | 示例：`true`（推荐给 MinIO/Ceph/自建 S3）；AWS S3 常用 `false` |
-| `DUFS_BASE_URL` | 否 | 图片专用文件服务地址（DUFS），例如 `https://ykujzozhxkva.ap-southeast-1.clawcloudrun.com` |
-| `DUFS_PUBLIC_BASE_URL` | 否 | 图片对外访问地址（默认等于 `DUFS_BASE_URL`） |
-| `DUFS_PATH_PREFIX` | 否 | DUFS 路径前缀（例如部署在 `/dufs` 或需要写入 `/data` 时） |
-| `DUFS_AUTH` | 否 | DUFS 上传鉴权头（完整 Authorization 值） |
-| `OSS_PREVIEW_RPC_URL` | 否 | 预览 URL 的 JSON-RPC 接口地址（例如 `https://www.hi168.com/api/user/oss/preview/url`） |
-| `OSS_PREVIEW_BUCKET_NAME` | 否 | 调用预览 RPC 时使用的 bucket（默认跟 `S3_BUCKET` 一致） |
-| `OSS_PREVIEW_COOKIE` | 否 | 预览 RPC 鉴权 Cookie（不填时会转发当前请求 Cookie） |
-
-> 说明：部分自建或兼容 S3 服务不要求 region，可直接不配置 `S3_REGION`。
-> 
-> `S3_FORCE_PATH_STYLE` 推荐先填 `true`（尤其是自建 S3 或 IP/内网 endpoint）；若你的服务要求虚拟主机风格再改为 `false`。
-> 
-> 若把 `S3_FORCE_PATH_STYLE=false` 用在非 AWS endpoint，可能触发 `getaddrinfo ENOTFOUND <bucket>.<endpoint>`。项目已对非 AWS endpoint 自动回退到 path-style，优先保证上传成功。
->
-> 当前上传策略：
->
-> - 所有文件（含 `image/*`）：
->   - 若已配置 S3：优先走 S3 预签名直传；失败时（且文件不超过 `200MB`）回退后端中转（`/api/rooms/[roomCode]/upload`）。
->   - 若未配置 S3 且已配置 DUFS：走后端中转并写入 DUFS。
-> - 公告图片与普通聊天附件使用同一套策略。
->
-> 单文件大小上限为 `10GB`（服务端会校验）。
->
-> 若部署在 Vercel 等函数平台，后端中转会受到函数请求体大小限制（可能触发 `413 FUNCTION_PAYLOAD_TOO_LARGE`），建议优先保证 S3 直传链路可用（含 CORS）。
->
-> 若 DUFS 上传返回 `403 Forbidden`：优先检查 `dufs` 启动参数是否包含 `--allow-upload`，并确认账户权限是 `:rw`；若服务有路径前缀，请设置 `DUFS_PATH_PREFIX`。
-
-### 3. 推荐配置样例
-
-MinIO 本地：
-
-```env
-S3_REGION=
-S3_ENDPOINT=http://127.0.0.1:9000
-S3_BUCKET=bendy-temp
-S3_ACCESS_KEY_ID=minioadmin
-S3_SECRET_ACCESS_KEY=minioadmin
-S3_FORCE_PATH_STYLE=true
-DUFS_BASE_URL=
-DUFS_PUBLIC_BASE_URL=
-DUFS_PATH_PREFIX=
-DUFS_AUTH=
-```
-
-AWS S3：
-
-```env
-S3_REGION=ap-southeast-1
-S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
-S3_BUCKET=your-bucket-name
-S3_ACCESS_KEY_ID=AKIA...
-S3_SECRET_ACCESS_KEY=...
-S3_FORCE_PATH_STYLE=false
-```
-
-可选：第三方预览 URL（JSON-RPC）配置示例：
-
-```env
-OSS_PREVIEW_RPC_URL=https://www.hi168.com/api/user/oss/preview/url
-OSS_PREVIEW_BUCKET_NAME=hi168-27979-3306shvc
-OSS_PREVIEW_COOKIE=
-```
-
-精简后的请求（服务端实际只需这些）：
-
-```bash
-curl 'https://www.hi168.com/api/user/oss/preview/url' \
-  -H 'content-type: application/json' \
-  -H 'accept: application/json, text/plain, */*' \
-  -H 'cookie: <your-cookie-if-needed>' \
-  --data-raw '{"jsonrpc":"2.0","method":"call","params":{"bucket_name":"hi168-27979-3306shvc","file_key":"3_1.png","file_size":116292,"file_type":"image/png","file_name":"3_1.png"},"id":null}'
-```
-
-> 实测不带有效会话 Cookie 会返回 `Session Expired`，因此该接口通常需要登录态（`OSS_PREVIEW_COOKIE` 或转发当前请求 Cookie）。
-
-### 4. 验证是否配置成功
-
-- 启动项目后进入房间，上传任意文件。
-- 文件消息能正常显示且可下载，说明 S3 签名 URL 与存储访问正常。
-- 若报错 `S3_NOT_CONFIGURED`，说明必填项缺失或格式错误。
-- 若前端提示 `Failed to fetch`：项目会自动回退到后端中转上传接口（`/api/rooms/[roomCode]/upload`），当前中转上限为 `200MB`。超过该大小请优先检查 S3 CORS 与网络策略，确保直传链路可用。
-- 生产环境建议优先使用 `HTTPS` 的 `S3_ENDPOINT`，可减少浏览器混合内容拦截与 CORS 问题。
-- 网络请求出错时：前端会在浏览器控制台输出 `apiFetch`/`upload` 详细上下文；服务端会在 Vercel Function Logs 打印路由级和 S3 级错误细节。
+- 固定的无鉴权 multipart 上传接口，返回纯文本文件 URL
 
 ## 快速开始
 
-### 1. 安装依赖
+复制 `.env.example` 为 `.env`，只需填写 `DATABASE_URL`；升级时继续使用现有数据库。
+新安装自动生成消息加密密钥并持久化到数据库，不需要存储账号、Bucket、Token 或 Cookie。
 
 ```bash
-npm install
-```
-
-### 2. 初始化数据库
-
-```bash
+cp .env.example .env
+npm ci
 npm run prisma:generate
-npm run prisma:migrate
-```
-
-### 3. 启动开发
-
-```bash
+npx prisma migrate deploy
 npm run dev
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。
+打开 [http://localhost:3000](http://localhost:3000)。BACS 共用机器上，安装、迁移验证、测试和构建
+须先检查负载/可用内存，并在相关命令前加 `bacs-heavy`，按顺序运行。
 
-## Vercel 部署指南
+## 文件上传
 
-### 1. 构建方式
+所有聊天附件、剪贴板文件和公告图片使用同一个接口：
 
-- 项目已在 `vercel.json` 指定：
-
-```json
-{
-  "buildCommand": "npm run vercel-build"
-}
+```text
+POST https://aa08cscht.yixiangmeiju.top/oss/aws/upload
+multipart/form-data: file=<文件二进制>
+响应: text/plain，直接返回文件 URL
 ```
 
-- `npm run vercel-build` 现在是智能流程（`scripts/vercel-build.mjs`）：
-  - 先检查迁移状态（`prisma migrate status`）
-  - 只有检测到待执行迁移时才运行 `prisma migrate deploy`
-  - 若部署并发导致 advisory lock 超时，会自动重试并二次检查是否已被其他部署应用
-  - 最后执行 `prisma generate` 和 `next build`
+浏览器直接上传，不经过应用服务器的大请求体。≤10 MiB 单请求，较大文件按 8 MiB/片上传，
+通过数据库分片清单按顺序合并下载并校验 SHA-256。并发最多 3 个文件；网络/超时/限流/服务端
+错误有限重试，失败消息可继续发送，已完成文件或分片不会重复上传。
 
-### 2. Vercel 需要配置的环境变量
+逻辑单文件上限 10 GiB、公告图片上限 200 MiB；上游文档只确认单请求约 11 MB，
+实际大文件下载还受网络与部署平台运行时长限制。下载保留原文件名，支持 Range 和视频预览。
+详细协议、边界及复用数据库的升级步骤见 [统一上传文档](docs/unified-upload.md)。
 
-至少在 **Production / Preview / Development** 三个环境都配置以下变量（`S3_REGION` 可选）：
+## Vercel 部署与数据库升级
 
-| 变量名 | 必填 | 用途 |
-| --- | --- | --- |
-| `DATABASE_URL` | 是 | Prisma 数据库连接串 |
-| `CHAT_ENCRYPTION_KEY` | 是 | 聊天消息加密 Key（至少 32 字符） |
-| `APP_AUTH` | 否 | 外部管理接口鉴权参数，长度 1~32，默认 `bendywork` |
-| `S3_REGION` | 否 | S3 区域（可不填，默认空值） |
-| `S3_ENDPOINT` | 是 | S3 兼容 API Endpoint |
-| `S3_BUCKET` | 是 | Bucket 名称 |
-| `S3_ACCESS_KEY_ID` | 是 | S3 Access Key |
-| `S3_SECRET_ACCESS_KEY` | 是 | S3 Secret Key |
-| `S3_FORCE_PATH_STYLE` | 建议 | 示例：`true`（自建 S3 常用）/ `false`（AWS S3 常用） |
-| `DUFS_BASE_URL` | 可选 | 图片专用 DUFS 服务地址 |
-| `DUFS_PUBLIC_BASE_URL` | 可选 | 图片公开访问地址（默认同 DUFS_BASE_URL） |
-| `DUFS_PATH_PREFIX` | 可选 | DUFS 路径前缀（如 `/dufs` 或 `/data`） |
-| `DUFS_AUTH` | 可选 | DUFS 上传 Authorization 头 |
-| `OSS_PREVIEW_RPC_URL` | 可选 | 外部预览 URL 的 JSON-RPC 接口 |
-| `OSS_PREVIEW_BUCKET_NAME` | 可选 | 外部预览接口使用的 bucket 名 |
-| `OSS_PREVIEW_COOKIE` | 可选 | 外部预览接口鉴权 Cookie |
-| `NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS` | 可选 | 单条文本消息最大长度（默认 `200000`，前后端共用） |
-| `NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES` | 可选 | 公告最多可上传图片数（默认 `3`） |
-| `FORCE_DB_MIGRATE` | 可选 | `true` 时强制执行迁移（默认不强制） |
-| `PRISMA_MIGRATE_RETRIES` | 可选 | 迁移锁冲突重试次数（默认 `3`） |
-| `PRISMA_MIGRATE_RETRY_DELAY_MS` | 可选 | 每次重试间隔毫秒（默认 `4000`） |
+- 唯一必填配置是 `DATABASE_URL`，也兼容现有 `POSTGRES_PRISMA_URL` / `POSTGRES_URL` 数据库连接。
+- `vercel.json` 使用 `npm run vercel-build`：生产环境检查并应用待执行迁移，再生成 Prisma Client 和构建。
+- Preview 默认不执行共享数据库迁移；预览验证使用已迁移的隔离数据库。
+- 现有加密消息首次升级时保留原 `CHAT_ENCRYPTION_KEY`，验证并导入数据库成功后可移除；
+  缺失或错误的历史密钥会阻止初始化，避免破坏旧消息。空数据库无需该变量。
+- 旧存储及预览配置已从运行时代码清除，可以从部署平台移除。旧附件记录保留，读取明确提示重新上传。
+- 现有管理 auth 值留在数据库，`APP_AUTH` 仅兼容初始值；现有消息长度/公告数量可选 UI 配置仍可使用。
+- 合并到 `master` 的正式发布必须同时推送对应 `-ver` tag，见 [发布规范](docs/release-tagging.md)。
 
-> 说明：项目运行时会优先读取 `DATABASE_URL`，若缺失会回退 `POSTGRES_PRISMA_URL` 或 `POSTGRES_URL`。生产环境仍建议显式配置 `DATABASE_URL`。
-> 
-> 默认部署策略是“无待执行迁移就跳过迁移”，仅在有新 migration 或你手动设置 `FORCE_DB_MIGRATE=true` 时修改数据库结构。
->
-> 版本号由代码配置统一管理：`src/lib/constants.ts` 的 `APP_VERSION_PARTS`（major/minor/patch）。
->
-> 若未配置 `NEXT_PUBLIC_MAX_MESSAGE_TEXT_CHARS`，默认 `200000`；若未配置 `NEXT_PUBLIC_MAX_ANNOUNCEMENT_IMAGES`，默认 `3`。
+## 验证命令
 
-### 3. 部署步骤
+```bash
+npm test -- --maxWorkers=2
+npm run test:release-tag
+npm run lint
+npx tsc --noEmit
+npm run build
+```
 
-1. 将仓库导入 Vercel。
-2. 在 Vercel 项目设置中补齐上述环境变量（尤其是 S3 变量）。
-3. 触发重新部署。
-4. 部署成功后，创建房间并上传文件进行连通性验证。
+GitHub CI 使用独立 PostgreSQL，验证增量迁移、测试、lint、类型检查与生产构建；
+同一分支的新提交自动取消旧 run。共用 BACS 机器上的上述命令统一使用 `bacs-heavy`。
 
 ## 功能清单
 
@@ -278,7 +133,7 @@ npm run dev
     - `Rooms`：房间总数（包含逻辑删除和未删除）
     - `onlineUsers`：当前在线用户数
     - `serverAddress`：当前服务地址
-    - `fileServerInfo`：包含 `Dufs` 与 `S1`（S3）完整配置信息
+    - 不输出文件服务凭据或部署配置
 - 日志：每次调用都会在服务端打印记录。
 
 ### 2) 关闭应用 `/offline`
@@ -333,7 +188,7 @@ src/
     room/[roomCode]/        # 房间页
     page.tsx                # 首页（创建/加入）
   components/chat/          # 聊天 UI 组件
-  lib/                      # 核心逻辑（鉴权、加密、S3、规则）
+  lib/                      # 核心逻辑（鉴权、加密、统一上传、规则）
   types/                    # 前端类型
 prisma/
   schema.prisma             # 数据模型
@@ -347,20 +202,25 @@ prisma/
 - `JoinRequest`: 再加入审批记录
 - `RoomInvite`: 邀请 token
 - `Message`: 文本/文件消息（文本加密）
-- `MessageAttachment`: 文件元数据与 S3 Key
+- `MessageAttachment`: 文件元数据、远端 URL 与分片清单
 - `Presence`: 在线状态统计
 
-## 数据库前缀与重置
+## 数据库与升级
 
-- 所有业务表统一前缀：`bendy_shadowsend_`
-- 所有业务枚举统一前缀：`bendy_shadowsend_`
-- 已提供重初始化脚本（仅影响该前缀对象）：
-
-```bash
-npm run db:reinit:prefixed
-```
+所有业务表和枚举使用 `bendy_shadowsend_` 前缀。升级只应用 `prisma/migrations` 的增量迁移，
+继续使用现有数据；不要执行历史重初始化 SQL。存储枚举保留旧值作为数据兼容标记，
+新附件仅写入 `REMOTE`，可空 `chunkManifest` 保存分片清单。
 
 ## 更新记录
+
+> 本节记录历史迭代；早期上传方案已由 0.2.0 的统一接口替代，当前配置以文档上半部分为准。
+
+### 2026-11-14
+
+- `0.2.0` 项目全面优化（REQ-202611-0097）：所有文件统一无鉴权 multipart 上传，清除旧存储配置与 SDK。
+- 新增分片合并、SHA-256 与 Range；消息重试去重，已完成文件和分片复用。
+- 复用数据库，消息密钥自动持久化并兼容历史导入；新增增量迁移与分支并发取消 CI。
+
 
 > 维护约定：每次迭代（功能、修复、部署调整）都必须同步补充本节。
 >

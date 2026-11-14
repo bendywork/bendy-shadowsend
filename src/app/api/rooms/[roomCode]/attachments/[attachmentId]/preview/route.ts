@@ -1,20 +1,18 @@
-﻿import { AttachmentStorage, RoomStatus } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { RoomStatus } from "@prisma/client";
+import { NextRequest } from "next/server";
 import { ApiError, jsonError } from "@/lib/api";
-import { fetchDufsFile } from "@/lib/dufs";
+import { createRemoteAttachmentResponse } from "@/lib/attachment-response";
 import { applyUserCookie, getOrCreateUser } from "@/lib/identity";
 import { prisma } from "@/lib/prisma";
 import { assertRoomMember, cleanupStaleRooms } from "@/lib/room-service";
-import { createAttachmentPreviewUrl } from "@/lib/s3";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type Params = {
   roomCode: string;
   attachmentId: string;
 };
-
-function toPreviewSizeBytes(sizeBytes: number | bigint) {
-  return typeof sizeBytes === "bigint" ? Number(sizeBytes) : sizeBytes;
-}
 
 export async function GET(
   request: NextRequest,
@@ -49,6 +47,7 @@ export async function GET(
         mimeType: true,
         sizeBytes: true,
         storage: true,
+        chunkManifest: true,
       },
     });
 
@@ -56,29 +55,9 @@ export async function GET(
       throw new ApiError(404, "文件不存在", "ATTACHMENT_NOT_FOUND");
     }
 
-    if (attachment.storage === AttachmentStorage.DUFS) {
-      const upstream = await fetchDufsFile(attachment.s3Key);
-      const response = new NextResponse(upstream.body, {
-        status: 200,
-        headers: {
-          "Content-Type": upstream.headers.get("content-type") || attachment.mimeType,
-          "Cache-Control": "private, max-age=60",
-        },
-      });
-
-      return applyUserCookie(response, cookieToSet);
-    }
-
-    const previewUrl = await createAttachmentPreviewUrl({
-      key: attachment.s3Key,
-      fileName: attachment.fileName,
-      mimeType: attachment.mimeType,
-      sizeBytes: toPreviewSizeBytes(attachment.sizeBytes),
-      cookieHeader: request.headers.get("cookie") ?? undefined,
-      expiresInSeconds: 120,
+    const response = await createRemoteAttachmentResponse(attachment, {
+      disposition: "inline", range: request.headers.get("range"), signal: request.signal,
     });
-
-    const response = NextResponse.redirect(previewUrl, 307);
     return applyUserCookie(response, cookieToSet);
   } catch (error) {
     console.error("[route] /api/rooms/[roomCode]/attachments/[attachmentId]/preview failed", {

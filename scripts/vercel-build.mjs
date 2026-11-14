@@ -98,6 +98,10 @@ async function runMigrateDeployWithRetry() {
 }
 
 async function ensureDatabaseReady() {
+  if (process.env.VERCEL_ENV === "preview" && !FORCE_DB_MIGRATE) {
+    console.log("[db] preview build: keep the shared database unchanged; migrations run during production release.");
+    return;
+  }
   if (FORCE_DB_MIGRATE) {
     console.log("[db] FORCE_DB_MIGRATE=true, running prisma migrate deploy.");
     await runMigrateDeployWithRetry();

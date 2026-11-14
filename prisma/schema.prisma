@@ -65,6 +65,7 @@ enum PreviewType {
 enum AttachmentStorage {
   S3
   DUFS
+  REMOTE
 
   @@map("bendy_shadowsend_attachment_storage")
 }
@@ -188,6 +189,7 @@ model RoomInvite {
 
 model Message {
   id               String             @id @default(cuid())
+  clientMessageId  String?
   roomId           String
   senderId         String
   type             MessageType        @default(TEXT)
@@ -198,6 +200,7 @@ model Message {
   attachments      MessageAttachment[]
 
   @@index([roomId, createdAt])
+  @@unique([roomId, senderId, clientMessageId])
   @@map("bendy_shadowsend_message")
 }
 
@@ -210,7 +213,8 @@ model MessageAttachment {
   mimeType   String
   sizeBytes  BigInt
   s3Key      String
-  storage    AttachmentStorage @default(S3)
+  storage    AttachmentStorage @default(REMOTE)
+  chunkManifest Json?
   previewType PreviewType @default(NONE)
   createdAt  DateTime     @default(now())
   message    Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
@@ -239,6 +243,7 @@ model Presence {
 model AppAuthConfig {
   id        String   @id @default("default")
   auth      String
+  encryptionKey String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

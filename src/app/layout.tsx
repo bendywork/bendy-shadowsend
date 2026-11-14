@@ -5,7 +5,7 @@ import { LanguageProvider } from "@/lib/i18n/context";
 
 export const metadata: Metadata = {
   title: "Temp Bendy",
-  description: "Temporary encrypted chat app built with Next.js, PostgreSQL and S3.",
+  description: "Temporary encrypted chat app built with Next.js and PostgreSQL.",
 };
 
 // 预水合脚本：首帧绘制前依据 localStorage 同步 <html data-theme> 与 <html lang>，
