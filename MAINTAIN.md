@@ -30,6 +30,7 @@
 
 ### Versioning / History
 - package.json / package-lock.json / APP_VERSION 同步为 0.2.0。
+- 功能提交 `175978d`；需求分支保留用于审阅，正式发布仍需合并、生产迁移与 `-ver` tag。
 
 ## 2026-10-18: v0.1.68 全局反馈统一（Toast + 行内校验，REQ-202610-0475 / ui-12）
 
